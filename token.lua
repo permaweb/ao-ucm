@@ -1,169 +1,140 @@
 local bint = require('.bint')(256)
-local ao = require('ao')
---[[
-  This module implements the ao Standard Token Specification.
-
-  Terms:
-    Sender: the wallet or Process that sent the Message
-
-  It will first initialize the internal state, and then attach handlers,
-    according to the ao Standard Token Spec API:
-
-    - Info(): return the token parameters, like Name, Ticker, Logo, and Denomination
-
-    - Balance(Target?: string): return the token balance of the Target. If Target is not provided, the Sender
-        is assumed to be the Target
-
-    - Balances(): return the token balance of all participants
-
-    - Transfer(Target: string, Quantity: number): if the Sender has a sufficient balance, send the specified Quantity
-        to the Target. It will also issue a Credit-Notice to the Target and a Debit-Notice to the Sender
-
-    - Mint(Quantity: number): if the Sender matches the Process Owner, then mint the desired Quantity of tokens, adding
-        them the Processes' balance
-]]
---
 local json = require('json')
 
---[[
-     Initialize State
-
-     ao.id is equal to the Process.Id
-   ]]
---
+if Name ~= 'Rai' then Name = 'Rai' end
+if Ticker ~= 'RAI' then Ticker = 'RAI' end
+if Denomination ~= 12 then Denomination = 12 end
 if not Balances then Balances = { [ao.id] = tostring(bint(10000 * 1e12)) } end
 
-if Name ~= 'Points Coin' then Name = 'Points Coin' end
+local function checkValidAddress(address)
+	if not address or type(address) ~= 'string' then
+		return false
+	end
 
-if Ticker ~= 'Points' then Ticker = 'PNTS' end
+	return string.match(address, "^[%w%-_]+$") ~= nil and #address == 43
+end
 
-if Denomination ~= 12 then Denomination = 12 end
+local function checkValidAmount(data)
+	return math.type(tonumber(data)) == 'integer' and bint(data) > 0
+end
 
-if not Logo then Logo = 'SBCCXwwecBlDqRLUjb8dYABExTJXLieawf7m2aBJ-KY' end
+local function decodeMessageData(data)
+	local status, decodedData = pcall(json.decode, data)
 
---[[
-     Add handlers for each incoming Action defined by the ao Standard Token Specification
-   ]]
---
+	if not status or type(decodedData) ~= 'table' then
+		return false, nil
+	end
 
---[[
-     Info
-   ]]
---
-Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
-  ao.send({
-    Target = msg.From,
-    Name = Name,
-    Ticker = Ticker,
-    Logo = Logo,
-    Denomination = tostring(Denomination)
-  })
+	return true, decodedData
+end
+
+local function validateRecipientData(msg)
+	local decodeCheck, data = decodeMessageData(msg.Data)
+
+	if not decodeCheck or not data then
+		return nil, string.format('Failed to parse data, received: %s. %s.', msg.Data,
+			'Data must be an object - { Recipient: string, Quantity: number }')
+	end
+
+	-- Check if recipient and quantity are present
+	if not data.Recipient or not data.Quantity then
+		return nil, 'Invalid arguments, required { Recipient: string, Quantity: number }'
+	end
+
+	-- Check if recipient is a valid address
+	if not checkValidAddress(data.Recipient) then
+		return nil, 'Recipient must be a valid address'
+	end
+
+	-- Check if quantity is a valid integer greater than zero
+	if not checkValidAmount(data.Quantity) then
+		return nil, 'Quantity must be an integer greater than zero'
+	end
+
+	-- Recipient cannot be sender
+	if msg.From == data.Recipient then
+		return nil, 'Recipient cannot be sender'
+	end
+
+	-- Sender does not have a balance
+	if not Balances[msg.From] then
+		return nil, 'Sender does not have a balance'
+	end
+
+	-- Sender does not have enough balance
+	if bint(Balances[msg.From]) < bint(data.Quantity) then
+		return nil, 'Sender does not have enough balance'
+	end
+
+	return data
+end
+
+-- Read process state
+Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'), function(msg)
+	ao.send({
+		Target = msg.From,
+		Data = json.encode({
+			Name = Name,
+			Ticker = Ticker,
+			Denomination = Denomination,
+			Balances = Balances,
+		})
+	})
 end)
 
---[[
-     Balance
-   ]]
---
-Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
-  local bal = '0'
+-- Read balance (msg.Data - { Target: string })
+Handlers.add('Balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
+	local decodeCheck, data = decodeMessageData(msg.Data)
 
-  -- If not Target is provided, then return the Senders balance
-  if (msg.Tags.Target and Balances[msg.Tags.Target]) then
-    bal = Balances[msg.Tags.Target]
-  elseif Balances[msg.From] then
-    bal = Balances[msg.From]
-  end
+	if decodeCheck and data then
+		-- Check if target is present
+		if not data.Target then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { Target: string }' } })
+			return
+		end
 
-  ao.send({
-    Target = msg.From,
-    Balance = bal,
-    Ticker = Ticker,
-    Account = msg.Tags.Target or msg.From,
-    Data = bal
-  })
+		-- Check if target is a valid address
+		if not checkValidAddress(data.Target) then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Target is not a valid address' } })
+			return
+		end
+
+		-- Check if target has a balance
+		if not Balances[data.Target] then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Target does not have a balance' } })
+			return
+		end
+
+		ao.send({ Target = msg.From, Data = Balances[data.Target] })
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Status = 'Error',
+				Message = string.format('Failed to parse data, received: %s. %s', msg.Data,
+					'Data must be an object - { Target: string }')
+			}
+		})
+	end
 end)
 
---[[
-     Balances
-   ]]
---
-Handlers.add('balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
-  function(msg) ao.send({ Target = msg.From, Data = json.encode(Balances) }) end)
+-- Read balances
+Handlers.add('Balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
+	function(msg) ao.send({ Target = msg.From, Data = json.encode(Balances) }) end)
 
---[[
-     Transfer
-   ]]
---
-Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
-  assert(type(msg.Recipient) == 'string', 'Recipient is required!')
-  assert(type(msg.Quantity) == 'string', 'Quantity is required!')
-  assert(bint.__lt(0, bint(msg.Quantity)), 'Quantity must be greater than 0')
+-- Transfer asset balances (msg.Data - { Recipient: string, Quantity: number })
+Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
+	local data, error = validateRecipientData(msg)
 
-  if not Balances[msg.From] then Balances[msg.From] = "0" end
-  if not Balances[msg.Recipient] then Balances[msg.Recipient] = "0" end
-
-  local qty = bint(msg.Quantity)
-  local balance = bint(Balances[msg.From])
-  if bint.__le(qty, balance) then
-    Balances[msg.From] = tostring(bint.__sub(balance, qty))
-    Balances[msg.Recipient] = tostring(bint.__add(Balances[msg.Recipient], qty))
-
-    --[[
-         Only send the notifications to the Sender and Recipient
-         if the Cast tag is not set on the Transfer message
-       ]]
-    --
-    if not msg.Cast then
-      -- Send Debit-Notice to the Sender
-      ao.send({
-        Target = msg.From,
-        Action = 'Debit-Notice',
-        Recipient = msg.Recipient,
-        Quantity = tostring(qty),
-        Data = Colors.gray .. "You transferred " .. Colors.blue .. msg.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Recipient .. Colors.reset
-      })
-      -- Send Credit-Notice to the Recipient
-      ao.send({
-        Target = msg.Recipient,
-        Action = 'Credit-Notice',
-        Sender = msg.From,
-        Quantity = tostring(qty),
-        Data = Colors.gray .. "You received " .. Colors.blue .. msg.Quantity .. Colors.gray .. " from " .. Colors.green .. msg.Recipient .. Colors.reset
-      })
-    end
-  else
-    ao.send({
-      Target = msg.From,
-      Action = 'Transfer-Error',
-      ['Message-Id'] = msg.Id,
-      Error = 'Insufficient Balance!'
-    })
-  end
-end)
-
---[[
-    Mint
-   ]]
---
-Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function (msg)
-  assert(type(msg.Quantity) == 'string', 'Quantity is required!')
-  assert(bint.__lt(0, msg.Quantity), 'Quantity must be greater than zero!')
-
-  if not Balances[ao.id] then Balances[ao.id] = "0" end
-
-  if msg.From == ao.id then
-    -- Add tokens to the token pool, according to Quantity
-    Balances[msg.From] = tostring(bint.__add(Balances[Owner], msg.Quantity))
-    ao.send({
-      Target = msg.From,
-      Data = Colors.gray .. "Successfully minted " .. Colors.blue .. msg.Quantity .. Colors.reset
-    })
-  else
-    ao.send({
-      Target = msg.From,
-      Action = 'Mint-Error',
-      ['Message-Id'] = msg.Id,
-      Error = 'Only the Process Owner can mint new ' .. Ticker .. ' tokens!'
-    })
-  end
+	if data then
+		-- Transfer is valid, calculate balances
+		if not Balances[data.Recipient] then
+			Balances[data.Recipient] = '0'
+		end
+		Balances[msg.From] = tostring(bint(Balances[msg.From]) - bint(data.Quantity))
+		Balances[data.Recipient] = tostring(bint(Balances[data.Recipient]) + bint(data.Quantity))
+		ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Balance transferred' } })
+	else
+		ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = error or 'Error transferring balances' } })
+	end
 end)

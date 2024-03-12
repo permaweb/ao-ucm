@@ -66,9 +66,9 @@ async function sendMessage(args) {
 		let responseStatus = null;
 		let responseMessage = null;
 
-		if (Messages && Messages.length && Messages[0].Tags) {
-			responseStatus = getTagValue(Messages[0].Tags, 'Status');
-			responseMessage = getTagValue(Messages[0].Tags, 'Message');
+		if (Messages && Messages.length && Messages[Messages.length - 1].Tags) {
+			responseStatus = getTagValue(Messages[Messages.length - 1].Tags, 'Status');
+			responseMessage = getTagValue(Messages[Messages.length - 1].Tags, 'Message');
 		}
 
 		if (responseMessage && responseStatus) {
@@ -89,27 +89,16 @@ async function sendMessage(args) {
 }
 
 async function handleSellOrder() {
-	const arweave = Arweave.init({});
-
-	// Transfer balance to client
 	try {
 		console.log('Transferring balance to client...');
+		const arweave = Arweave.init({});
 		const clientAddress = await arweave.wallets.jwkToAddress(CLIENT_WALLET);
-		const assetState = await readState(ASSET_PROCESS);
-
-		if (assetState.Balances) {
-			if (!assetState.Balances[clientAddress] || parseInt(assetState.Balances[clientAddress]) <= 0) {
-				const transferResponse = await sendMessage({
-					processId: ASSET_PROCESS, action: 'Transfer', wallet: OWNER_WALLET, data: {
-						Recipient: clientAddress,
-						Quantity: ORDER_QUANTITY
-					}
-				});
+		const transferResponse = await sendMessage({
+			processId: ASSET_PROCESS, action: 'Transfer', wallet: OWNER_WALLET, data: {
+				Recipient: clientAddress,
+				Quantity: ORDER_QUANTITY
 			}
-			else {
-				console.log('Client already has a balance\n');
-			}
-		}
+		});
 	}
 	catch (e) {
 		console.error(e)

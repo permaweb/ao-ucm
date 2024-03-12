@@ -1,0 +1,17 @@
+{
+  "name": "ao-ucm-node-environment",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@permaweb/aoconnect": "^0.0.45",
+    "arweave": "^1.14.4"
+  }
+}

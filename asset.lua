@@ -2,7 +2,7 @@ local bint = require('.bint')(256)
 local json = require('json')
 
 if Name ~= 'Asset 1' then Name = 'Asset 1' end
-if not Balances then Balances = { [ao.id] = '100' } end
+if not Balances then Balances = { [Owner] = '100' } end
 if not Claimable then Claimable = {} end
 
 local function checkValidAddress(address)
@@ -177,16 +177,18 @@ Handlers.add('Cancel-Allow', Handlers.utils.hasMatchingTag('Action', 'Cancel-All
 	end
 end)
 
--- Claim balance (msg.Data - { AllowTxId, Quantity, Client })
+-- TODO: missing validation (pair, price)
+-- Claim balance (msg.Data - { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price?, Client })
+-- Price is not required for market orders
 Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
 
 	if decodeCheck and data then
-		if not data.AllowTxId or not data.Quantity or not data.Client then
+		if not data.Pair or not data.AllowTxId or not data.Quantity or not data.Client then
 			ao.send({
 				Target = msg.From,
 				Action = 'Claim-Evaluated',
-				Tags = { Status = 'Error', Message = 'Invalid arguments, required { AllowTxId, Quantity, Client }' }
+				Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price?, Client }' }
 			})
 			return
 		end
@@ -222,13 +224,23 @@ Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function
 			end
 		end
 
+		local order = {
+			Pair = data.Pair,
+			Quantity = data.Quantity,
+			AllowTxId = data.AllowTxId,
+			Client = data.Client
+		}
+
+		-- Price is not required for market orders
+		if data.Price then order.Price = data.Price end
+
 		-- Allow not found
 		if not existingAllow then
 			ao.send({
 				Target = msg.From,
 				Action = 'Claim-Evaluated',
 				Tags = { Status = 'Error', Message = 'Allow not found' },
-				Data = json.encode({ Client = data.Client })
+				Data = json.encode(order)
 			})
 			return
 		end
@@ -246,7 +258,7 @@ Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function
 				Target = msg.From,
 				Action = 'Claim-Evaluated',
 				Tags = { Status = 'Error', Message = message or 'Error verifying claim input' },
-				Data = json.encode({ Client = data.Client })
+				Data = json.encode(order)
 			})
 			return
 		end
@@ -262,13 +274,13 @@ Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function
 			Target = msg.From,
 			Action = 'Claim-Evaluated',
 			Tags = { Status = 'Success', Message = 'Claim successfully processed' },
-			Data = json.encode({ Client = data.Client })
+			Data = json.encode(order)
 		})
 	else
 		ao.send({
 			Target = msg.From,
 			Action = 'Claim-Evaluated',
-			Tags = { Status = 'Error', Message = 'Invalid arguments, required { AllowTxId, Quantity, Client }' }
+			Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price?, Client }' }
 		})
 	end
 end)

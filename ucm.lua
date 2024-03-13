@@ -61,7 +61,8 @@ local function getPairIndex(pair)
 	local pairIndex = -1
 
 	for i, existingOrders in ipairs(Orderbook) do
-		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) then
+		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) or
+			(existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1]) then
 			pairIndex = i
 		end
 	end
@@ -137,13 +138,13 @@ Handlers.add('Create-Order',
 
 		if decodeCheck and data then
 			-- Check if all fields are present
-			if not data.Pair or not data.AllowTxId or not data.Quantity or not data.Price then
+			if not data.Pair or not data.AllowTxId or not data.Quantity then
 				ao.send({
 					Target = msg.From,
 					Tags = {
 						Status = 'Error',
 						Message =
-						'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price }'
+						'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price? }'
 					}
 				})
 				return
@@ -161,8 +162,8 @@ Handlers.add('Create-Order',
 						return
 					end
 
-					-- Check if price is a valid integer greater than zero
-					if not checkValidAmount(data.Price) then
+					-- Check if price is a valid integer greater than zero, if it is present
+					if data.Price and not checkValidAmount(data.Price) then
 						ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Price must be an integer greater than zero' } })
 						return
 					end
@@ -173,37 +174,152 @@ Handlers.add('Create-Order',
 						return
 					end
 
-					-- Create order entry with pending status
-					local order = {
+					----------------- Handle order matching ------------------
+					local orderType = nil
+					local reverseOrders = {}
+					local currentOrders = Orderbook[pairIndex].Orders
+
+					local orderEntry = {
+						Id = msg.Id,
 						AllowTxId = data.AllowTxId,
 						Creator = msg.From,
 						Quantity = data.Quantity,
+						Token = validPair[1],
 						DateCreated = os.time(), -- TODO: returning 0
 						Status = 'Pending'
 					}
 
-					-- Price is not required for market orders
-					if data.Price then order.Price = data.Price end
+					-- Determine order type based on if price is passed, add to order entry if present
+					if data.Price then
+						orderType = 'Limit'
+						orderEntry.Price = data.Price
+					else
+						orderType = 'Market'
+					end
 
-					-- Push the sell order
-					-- if #Orderbook[pairIndex].Orders <= 0 then
-						table.insert(Orderbook[pairIndex].Orders, order)
-						-- TODO: price is not required for market orders
-						-- Send message to asset process, find claim by AllowTxId and update balances
-						ao.send({
-							Target = validPair[1],
-							Action = 'Claim',
-							Data = json.encode({
-								Pair = validPair,
-								AllowTxId = data.AllowTxId,
-								Quantity = data.Quantity
+					-- Sort order entries based on price
+					table.sort(currentOrders, function(a, b)
+						if a.Price and b.Price then
+							return bint(a.Price) < bint(b.Price)
+						else
+							return true
+						end
+					end)
+
+					-- Find reverse orders for potential matches
+					for _, currentOrderEntry in ipairs(currentOrders) do
+						if validPair[1] ~= currentOrderEntry.Token and data.AllowTxId ~= currentOrderEntry.AllowTxId then
+							table.insert(reverseOrders, currentOrderEntry)
+						end
+					end
+
+					-- If there are no reverse orders, only push the current order entry, but first check if it is a limit order
+					if #reverseOrders <= 0 then
+						if orderType ~= 'Limit' then
+							ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'The first order entry must be a limit order' } })
+						else
+							table.insert(currentOrders, orderEntry)
+							Orderbook[pairIndex].Orders = currentOrders
+							ao.send({
+								Target = validPair[1],
+								Action = 'Claim',
+								Data = json.encode({
+									Pair = validPair,
+									AllowTxId = data.AllowTxId,
+									Quantity = data.Quantity
+								})
 							})
-						})
-						ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created with pending status' } })
+							ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created with pending status' } })
+						end
 						return
+					end
+
+					local updatedOrderbook = {}
+					local matches = {}
+
+					local receiveAmount = 0
+					local sendAmount = 0
+					local remainingQuantity = tonumber(data.Quantity)
+
+					for _, currentOrderEntry in ipairs(currentOrders) do
+						-- Exit if the order is fully matched
+						if remainingQuantity <= 0 then
+							print('Remaining quantity <= 0 exiting')
+							break
+						end
+
+						local reversePrice = 1 / tonumber(currentOrderEntry.Price)
+						local fillAmount = 0
+
+						if orderType == 'Limit' and data.Price and tonumber(data.Price) ~= reversePrice then
+							print('Limit order')
+							table.insert(updatedOrderbook, currentOrderEntry)
+						else
+							print('Market order')
+							local receiveFromCurrent = 0
+
+							fillAmount = math.floor(remainingQuantity * (tonumber(data.Price) or reversePrice))
+							if fillAmount <= tonumber(currentOrderEntry.Quantity) then
+								-- Input order will be completely filled
+								print('Input order will be completely filled')
+								receiveFromCurrent = math.floor(remainingQuantity * reversePrice)
+								currentOrderEntry.Quantity = tonumber(currentOrderEntry.Quantity) - fillAmount
+								receiveAmount = receiveAmount + receiveFromCurrent
+
+								if remainingQuantity > 0 then
+									print('Execute foreign call')
+								end
+
+								remainingQuantity = 0
+							else
+								-- Input order will be partially filled
+								print('Order will be partially filled')
+								receiveFromCurrent = tonumber(currentOrderEntry.Quantity) or 0
+								sendAmount = receiveFromCurrent * tonumber(currentOrderEntry.Price)
+								receiveAmount = receiveAmount + receiveFromCurrent
+								remainingQuantity = remainingQuantity - sendAmount
+								currentOrderEntry.Quantity = 0
+								print('Execute foreign call')
+							end
+
+							local dominantToken = Orderbook[pairIndex].Pair[1];
+							local dominantPrice = (dominantToken == validPair[1]) and
+								(data.Price or reversePrice) or currentOrderEntry.Price
+
+							if receiveFromCurrent > 0 then
+								print('Match found')
+								table.insert(matches,
+									{ Id = currentOrderEntry.Id, Quantity = receiveFromCurrent, Price = dominantPrice })
+							end
+
+							if currentOrderEntry.Quantity ~= 0 then
+								print('Updating updatedOrderbook')
+								table.insert(updatedOrderbook, currentOrderEntry)
+							end
+						end
+					end
+
+					-- if remainingQuantity > 0 and orderType == 'Limit' then
+					-- 	table.insert(updatedOrderbook, {
+					-- 		Price = data.Price or 0,
+					-- 		Quantity = remainingQuantity,
+					-- 		OriginalQuantity = data.Quantity,
+					-- 		Id = msg.Id,
+					-- 		AllowTxId = data.AllowTxId,
+					-- 		Creator = msg.From,
+					-- 		Token = validPair[1],
+					-- 		DateCreated = os.time(), -- TODO: returning 0
+					-- 		Status = 'Pending'
+					-- 	})
 					-- end
-					-- TODO: If the order has matches, calculate latest price and push logs, then remove from the orders table
-					-- ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created with pending status' } })
+
+					-- Here you should handle the updates to the orderbook and any actions based on the matches and foreignCalls
+					-- For example, updating the orderbook variable, processing foreignCalls, etc.
+					Orderbook[pairIndex].Orders = updatedOrderbook
+
+					-- Returning matches for further processing
+					print(matches)
+					-------------------------------------------------------
 				else
 					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Pair not found' } })
 				end
@@ -217,7 +333,7 @@ Handlers.add('Create-Order',
 					Status = 'Error',
 					Message = string.format('Failed to parse data, received: %s. %s',
 						msg.Data,
-						'Data must be an object - { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price }')
+						'Data must be an object - { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price? }')
 				}
 			})
 		end
@@ -273,7 +389,7 @@ Handlers.add('Claim-Evaluated', Handlers.utils.hasMatchingTag('Action', 'Claim-E
 	end
 end)
 
--- Check status of ordfer (msg.Data - { Pair: [AssetId, TokenId], AllowTxId })
+-- Check status of order (msg.Data - { Pair: [AssetId, TokenId], AllowTxId })
 Handlers.add('Check-Order-Status', Handlers.utils.hasMatchingTag('Action', 'Check-Order-Status'), function(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
 

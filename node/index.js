@@ -99,13 +99,13 @@ async function handleSellOrder() {
 		console.log('Adding pair...');
 		const addPairResponse = await sendMessage({ processId: UCM_PROCESS, action: 'Add-Pair', wallet: CLIENT_WALLET, data: ORDER_PAIR_SELL });
 
-		console.log('Allowing UCM to claim balance...');
-		const allowResponse = await sendMessage({
-			processId: ASSET_PROCESS, action: 'Allow', wallet: CLIENT_WALLET, data: {
-				Recipient: UCM_PROCESS,
-				Quantity: ORDER_QUANTITY
-			}
-		});
+		// console.log('Allowing UCM to claim balance...');
+		// const allowResponse = await sendMessage({
+		// 	processId: ASSET_PROCESS, action: 'Allow', wallet: CLIENT_WALLET, data: {
+		// 		Recipient: UCM_PROCESS,
+		// 		Quantity: ORDER_QUANTITY
+		// 	}
+		// });
 
 		console.log('Creating sell order in UCM...');
 		const createOrderResponse = await sendMessage({
@@ -117,28 +117,28 @@ async function handleSellOrder() {
 			}
 		});
 
-		console.log('Checking order status in UCM...');
-		let checkOrderStatusResponse = await sendMessage({
-			processId: UCM_PROCESS, action: 'Check-Order-Status', wallet: CLIENT_WALLET, data: {
-				Pair: ORDER_PAIR_SELL,
-				AllowTxId: allowResponse.txId
-			}
-		});
+		// console.log('Checking order status in UCM...');
+		// let checkOrderStatusResponse = await sendMessage({
+		// 	processId: UCM_PROCESS, action: 'Check-Order-Status', wallet: CLIENT_WALLET, data: {
+		// 		Pair: ORDER_PAIR_SELL,
+		// 		AllowTxId: allowResponse.txId
+		// 	}
+		// });
 
-		let currentStatus = null;
-		if (checkOrderStatusResponse && checkOrderStatusResponse.responseStatus && checkOrderStatusResponse.responseStatus === 'Pending') {
-			currentStatus = checkOrderStatusResponse.responseStatus;
-			while (currentStatus === 'Pending') {
-				console.log('Checking order status in UCM...');
-				checkOrderStatusResponse = await sendMessage({
-					processId: UCM_PROCESS, action: 'Check-Order-Status', wallet: CLIENT_WALLET, data: {
-						Pair: ORDER_PAIR_SELL,
-						AllowTxId: allowResponse.txId
-					}
-				});
-				currentStatus = checkOrderStatusResponse.responseStatus;
-			}
-		}
+		// let currentStatus = null;
+		// if (checkOrderStatusResponse && checkOrderStatusResponse.responseStatus && checkOrderStatusResponse.responseStatus === 'Pending') {
+		// 	currentStatus = checkOrderStatusResponse.responseStatus;
+		// 	while (currentStatus === 'Pending') {
+		// 		console.log('Checking order status in UCM...');
+		// 		checkOrderStatusResponse = await sendMessage({
+		// 			processId: UCM_PROCESS, action: 'Check-Order-Status', wallet: CLIENT_WALLET, data: {
+		// 				Pair: ORDER_PAIR_SELL,
+		// 				AllowTxId: allowResponse.txId
+		// 			}
+		// 		});
+		// 		currentStatus = checkOrderStatusResponse.responseStatus;
+		// 	}
+		// }
 	}
 	catch (e) {
 		console.error(e)
@@ -146,32 +146,32 @@ async function handleSellOrder() {
 }
 
 async function handleBuyOrder() {
-	try {
-		console.log('Transferring balance to client...');
-		const arweave = Arweave.init({});
-		const clientAddress = await arweave.wallets.jwkToAddress(CLIENT_WALLET);
-		const transferResponse = await sendMessage({
-			processId: TOKEN_PROCESS, action: 'Transfer', wallet: OWNER_WALLET, data: {
-				Recipient: clientAddress,
-				Quantity: ORDER_PRICE
-			}
-		});
-	}
-	catch (e) {
-		console.error(e)
-	}
+	// try {
+	// 	console.log('Transferring balance to client...');
+	// 	const arweave = Arweave.init({});
+	// 	const clientAddress = await arweave.wallets.jwkToAddress(CLIENT_WALLET);
+	// 	const transferResponse = await sendMessage({
+	// 		processId: TOKEN_PROCESS, action: 'Transfer', wallet: OWNER_WALLET, data: {
+	// 			Recipient: clientAddress,
+	// 			Quantity: ORDER_PRICE
+	// 		}
+	// 	});
+	// }
+	// catch (e) {
+	// 	console.error(e)
+	// }
 
 	try {
-		console.log('Adding pair...');
-		const addPairResponse = await sendMessage({ processId: UCM_PROCESS, action: 'Add-Pair', wallet: CLIENT_WALLET, data: ORDER_PAIR_SELL });
+		// console.log('Adding pair...');
+		// const addPairResponse = await sendMessage({ processId: UCM_PROCESS, action: 'Add-Pair', wallet: CLIENT_WALLET, data: ORDER_PAIR_SELL });
 
-		console.log('Allowing UCM to claim balance...');
-		const allowResponse = await sendMessage({
-			processId: TOKEN_PROCESS, action: 'Allow', wallet: CLIENT_WALLET, data: {
-				Recipient: UCM_PROCESS,
-				Quantity: ORDER_PRICE
-			}
-		});
+		// console.log('Allowing UCM to claim balance...');
+		// const allowResponse = await sendMessage({
+		// 	processId: TOKEN_PROCESS, action: 'Allow', wallet: CLIENT_WALLET, data: {
+		// 		Recipient: UCM_PROCESS,
+		// 		Quantity: ORDER_PRICE
+		// 	}
+		// });
 
 		console.log('Creating buy order in UCM...');
 		const createOrderResponse = await sendMessage({
@@ -212,5 +212,5 @@ async function handleBuyOrder() {
 
 (async function () {
 	await handleSellOrder();
-	await handleBuyOrder();
+	// await handleBuyOrder();
 })()

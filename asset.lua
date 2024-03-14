@@ -191,7 +191,7 @@ Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function
 			return
 		end
 
-		-- Check if AllowTxId, Quantity, and Client are all valid
+		-- Check if AllowTxId and Quantity are valid
 		local validAllowTxId = checkValidAddress(data.AllowTxId)
 		local validQuantity = checkValidAmount(data.Quantity)
 
@@ -264,7 +264,7 @@ Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function
 		ao.send({
 			Target = msg.From,
 			Action = 'Claim-Evaluated',
-			Tags = { Status = 'Success', Message = 'Claim successfully processed' },
+			Tags = { Status = 'Success', Message = 'Claim processed' },
 			Data = json.encode(orderEntry)
 		})
 	else

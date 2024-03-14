@@ -131,6 +131,177 @@ Handlers.add('Add-Pair', Handlers.utils.hasMatchingTag('Action', 'Add-Pair'),
 		end
 	end)
 
+-- Claim balance from token (msg.Data = { Pair: [AssetId, TokenId], AllowTxId, Quantity })
+Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function(msg)
+	local decodeCheck, data = decodeMessageData(msg.Data)
+
+	if decodeCheck and data then
+		if not data.Pair or not data.AllowTxId or not data.Quantity then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity }' } })
+			return
+		end
+
+		-- Check if Pair, AllowTxId and Quantity are valid
+		local validPair, pairError = validatePairData(data.Pair)
+		local validAllowTxId = checkValidAddress(data.AllowTxId)
+		local validQuantity = checkValidAmount(data.Quantity)
+
+		if not validPair or not validAllowTxId or not validQuantity then
+			local message = nil
+
+			if not validAllowTxId then message = 'AllowTxId is not a valid address' end
+			if not validQuantity then message = 'Quantity must be an integer greater than zero' end
+			if not validPair then message = pairError or 'Error validating pair' end
+
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = message or 'Error validating claim input' } })
+			return
+		end
+		-- Ensure the pair exists
+		local pairIndex = getPairIndex(validPair)
+
+		-- If the pair exists then claim balance from the token, trigger claim evaluated and set claim status
+		if pairIndex > -1 then
+			ClaimStatus[data.AllowTxId] = {
+				Status = 'Pending',
+				Message = 'Claim is pending'
+			}
+			ao.send({
+				Target = validPair[1],
+				Action = 'Claim',
+				Data = json.encode({
+					Pair = validPair,
+					AllowTxId = data.AllowTxId,
+					Quantity = data.Quantity
+				})
+			})
+			ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = pairError or 'Claim sent for processing' } })
+		end
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Status = 'Error',
+				Message = string.format('Failed to parse data, received: %s. %s',
+					msg.Data,
+					'Data must be an object - { Pair: [AssetId, TokenId], AllowTxId, Quantity }')
+			}
+		})
+	end
+end)
+
+-- Get claim evaluation from asset, update corresponding order status (msg.Data = { Pair: [AssetId, TokenId], AllowTxId, Quantity })
+Handlers.add('Claim-Evaluated', Handlers.utils.hasMatchingTag('Action', 'Claim-Evaluated'), function(msg)
+	local decodeCheck, data = decodeMessageData(msg.Data)
+
+	if decodeCheck and data then
+		if not data.Pair or not data.AllowTxId or not data.Quantity then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity }' } })
+			return
+		end
+		-- local validPair, pairError = validatePairData(data.Pair)
+
+		-- Check if AllowTxId is a valid address
+		if not checkValidAddress(data.AllowTxId) then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'AllowTxId is not a valid address' } })
+			return
+		end
+
+		local claimStatus = msg.Tags['Status']
+		local claimMessage = msg.Tags['Message']
+
+		-- Set claim status to message from asset claim handler
+		if claimStatus and claimMessage then
+			ClaimStatus[data.AllowTxId] = {
+				Status = claimStatus,
+				Message = claimMessage
+			}
+		else
+			ClaimStatus[data.AllowTxId] = {
+				Status = 'Error',
+				Message = 'Failed to evaluate claim'
+			}
+		end
+
+		-- if validPair then
+		-- 	-- Ensure the pair exists
+		-- 	local pairIndex = getPairIndex(validPair)
+
+		-- 	if pairIndex > -1 and #Orderbook[pairIndex].Orders > 0 and msg.Tags['Status'] then
+		-- 		local claimStatus = msg.Tags['Status']
+		-- 		local claimMessage = msg.Tags['Message']
+		-- 		-- local orderEntryIndex = getOrderEntryIndex(pairIndex, data.AllowTxId)
+
+		-- 		if orderEntryIndex > -1 then
+		-- 			if claimStatus == 'Success' then
+		-- 				-- Remove any previous claim evaluation message and set the order to active
+		-- 				ClaimStatus[data.AllowTxId] = {
+		-- 					Status = 'Complete',
+		-- 					Message = 'Claim successfully processed'
+		-- 				}
+		-- 				-- Orderbook[pairIndex].Orders[orderEntryIndex].ClaimStatus = 'Complete'
+		-- 			end
+		-- 			if claimStatus == 'Error' then
+		-- 				-- Update the claim evaluation message and remove the pending order
+		-- 				ClaimStatus[data.AllowTxId] = {
+		-- 					Status = 'Error',
+		-- 					Message = 'Claim successfully processed'
+		-- 				}
+		-- 				-- ClaimStatus[data.AllowTxId] = claimMessage
+		-- 				-- table.remove(Orderbook[pairIndex].Orders, orderEntryIndex)
+		-- 			end
+		-- 		end
+		-- 	end
+		-- else
+		-- 	ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Error validating pair' } })
+		-- end
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Status = 'Error',
+				Message = string.format('Failed to parse data, received: %s. %s',
+					msg.Data,
+					'Data must be an object - { Pair: [AssetId, TokenId], AllowTxId, Quantity }')
+			}
+		})
+	end
+end)
+
+-- Check the current status of a claim (msg.Data = { AllowTxId })
+Handlers.add('Check-Claim-Status', Handlers.utils.hasMatchingTag('Action', 'Check-Claim-Status'), function(msg)
+	local decodeCheck, data = decodeMessageData(msg.Data)
+
+	if decodeCheck and data then
+		if not data.AllowTxId then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { AllowTxId }' } })
+			return
+		end
+
+		-- Check if AllowTxId is a valid address
+		if not checkValidAddress(data.AllowTxId) then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'AllowTxId is not a valid address' } })
+			return
+		end
+
+		-- Check if claim entry is present
+		if not ClaimStatus or not ClaimStatus[data.AllowTxId] or not ClaimStatus[data.AllowTxId].Status or not ClaimStatus[data.AllowTxId].Message then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Claim not found' } })
+		end
+
+		ao.send({ Target = msg.From, Tags = { Status = ClaimStatus[data.AllowTxId].Status, Message = ClaimStatus[data.AllowTxId].Message } })
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Status = 'Error',
+				Message = string.format('Failed to parse data, received: %s. %s',
+					msg.Data,
+					'Data must be an object - { AllowTxId }')
+			}
+		})
+	end
+end)
+
 -- Handle order entries in corresponding pair (msg.Data - { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price? })
 Handlers.add('Create-Order',
 	Handlers.utils.hasMatchingTag('Action', 'Create-Order'), function(msg)
@@ -151,6 +322,8 @@ Handlers.add('Create-Order',
 			end
 			local validPair, pairError = validatePairData(data.Pair)
 
+			-- TODO: Ensure there is a claim status with this allow
+			-- If it is successful then handle the order and remove the claim status entry
 			if validPair then
 				-- Ensure the pair exists
 				local pairIndex = getPairIndex(validPair)
@@ -324,6 +497,11 @@ Handlers.add('Create-Order',
 								table.insert(updatedOrderbook, currentOrderEntry)
 							end
 						end
+
+						-- If the claim has been evaluated then remove it
+						-- if ClaimStatus[data.AllowTxId].Status ~= 'Pending' then
+						-- 	ClaimStatus[data.AllowTxId] = nil
+						-- end
 					end
 
 					print(currentOrders)
@@ -355,16 +533,6 @@ Handlers.add('Create-Order',
 					-- Post match processing
 					-- Orderbook[pairIndex].Orders = updatedOrderbook
 					print(matches)
-
-					-- ao.send({
-					-- 	Target = validPair[1],
-					-- 	Action = 'Claim',
-					-- 	Data = json.encode({
-					-- 		Pair = validPair,
-					-- 		AllowTxId = data.AllowTxId,
-					-- 		Quantity = data.Quantity
-					-- 	})
-					-- })
 					-- ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created with pending status' } })
 				else
 					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Pair not found' } })
@@ -384,56 +552,6 @@ Handlers.add('Create-Order',
 			})
 		end
 	end)
-
--- Get claim evaluation from asset, update corresponding order status (msg.Data = { Pair: [AssetId, TokenId], AllowTxId, Quantity })
-Handlers.add('Claim-Evaluated', Handlers.utils.hasMatchingTag('Action', 'Claim-Evaluated'), function(msg)
-	local decodeCheck, data = decodeMessageData(msg.Data)
-
-	if decodeCheck and data then
-		if not data.Pair or not data.AllowTxId or not data.Quantity then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity }' } })
-			return
-		end
-		local validPair, pairError = validatePairData(data.Pair)
-
-		if validPair then
-			-- Ensure the pair exists
-			local pairIndex = getPairIndex(validPair)
-
-			-- If there are orders against the asset, find the current order by its allow tx and update its status based on claim status
-			if pairIndex > -1 and #Orderbook[pairIndex].Orders > 0 and msg.Tags['Status'] then
-				local claimStatus = msg.Tags['Status']
-				local claimMessage = msg.Tags['Message']
-				local orderEntryIndex = getOrderEntryIndex(pairIndex, data.AllowTxId)
-
-				if orderEntryIndex > -1 then
-					if claimStatus == 'Success' then
-						-- Remove any previous claim evaluation message and set the order to active
-						ClaimStatus[data.AllowTxId] = nil
-						Orderbook[pairIndex].Orders[orderEntryIndex].ClaimStatus = 'Complete'
-					end
-					if claimStatus == 'Error' then
-						-- Update the claim evaluation message and remove the pending order
-						ClaimStatus[data.AllowTxId] = claimMessage
-						table.remove(Orderbook[pairIndex].Orders, orderEntryIndex)
-					end
-				end
-			end
-		else
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Error validating pair' } })
-		end
-	else
-		ao.send({
-			Target = msg.From,
-			Tags = {
-				Status = 'Error',
-				Message = string.format('Failed to parse data, received: %s. %s',
-					msg.Data,
-					'Data must be an object - { Pair: [AssetId, TokenId], AllowTxId, Quantity }')
-			}
-		})
-	end
-end)
 
 -- Check status of order (msg.Data - { Pair: [AssetId, TokenId], AllowTxId })
 Handlers.add('Check-Order-Status', Handlers.utils.hasMatchingTag('Action', 'Check-Order-Status'), function(msg)

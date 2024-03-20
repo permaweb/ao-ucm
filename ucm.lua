@@ -8,7 +8,7 @@ end
 if Ticker ~= 'AOPIXL' then Ticker = 'AOPIXL' end
 if Denomination ~= 12 then Denomination = 12 end
 if not Balances then Balances = { [ao.id] = tostring(bint(10000 * 1e12)) } end
-if not Orderbook then Orderbook = {} end -- { Pair: [AssetId, TokenId], Orders: { TxId, AllowTxId, Creator, Quantity, Price }[] }[]
+if not Orderbook then Orderbook = {} end -- { Pair: [AssetId, TokenId], Orders: { Id, AllowTxId, Creator, Quantity, OriginalQuantity, Token, DateCreated, Price? }[] }[]
 if not ClaimStatus then ClaimStatus = {} end
 
 local function checkValidAddress(address)
@@ -68,18 +68,6 @@ local function getPairIndex(pair)
 	end
 
 	return pairIndex
-end
-
-local function getOrderEntryIndex(pairIndex, allowTxId)
-	local orderEntryIndex = -1
-
-	for i, existingOrderEntry in ipairs(Orderbook[pairIndex].Orders) do
-		if (existingOrderEntry.AllowTxId == allowTxId) then
-			orderEntryIndex = i
-		end
-	end
-
-	return orderEntryIndex
 end
 
 -- Read process state
@@ -161,12 +149,15 @@ Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function
 
 		-- If the pair exists then claim balance from the token, trigger claim evaluated and set claim status
 		if pairIndex > -1 then
+			-- Get the current token to execute on, it will always be the first in the pair
+			local currentToken = validPair[1]
+
 			ClaimStatus[data.AllowTxId] = {
 				Status = 'Pending',
 				Message = 'Claim is pending'
 			}
 			ao.send({
-				Target = validPair[1],
+				Target = currentToken,
 				Action = 'Claim',
 				Data = json.encode({
 					Pair = validPair,
@@ -189,6 +180,7 @@ Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function
 	end
 end)
 
+-- TODO: only need to pass allow tx id
 -- Get claim evaluation from asset, update corresponding order status (msg.Data = { Pair: [AssetId, TokenId], AllowTxId, Quantity })
 Handlers.add('Claim-Evaluated', Handlers.utils.hasMatchingTag('Action', 'Claim-Evaluated'), function(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
@@ -198,7 +190,6 @@ Handlers.add('Claim-Evaluated', Handlers.utils.hasMatchingTag('Action', 'Claim-E
 			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity }' } })
 			return
 		end
-		-- local validPair, pairError = validatePairData(data.Pair)
 
 		-- Check if AllowTxId is a valid address
 		if not checkValidAddress(data.AllowTxId) then
@@ -221,39 +212,6 @@ Handlers.add('Claim-Evaluated', Handlers.utils.hasMatchingTag('Action', 'Claim-E
 				Message = 'Failed to evaluate claim'
 			}
 		end
-
-		-- if validPair then
-		-- 	-- Ensure the pair exists
-		-- 	local pairIndex = getPairIndex(validPair)
-
-		-- 	if pairIndex > -1 and #Orderbook[pairIndex].Orders > 0 and msg.Tags['Status'] then
-		-- 		local claimStatus = msg.Tags['Status']
-		-- 		local claimMessage = msg.Tags['Message']
-		-- 		-- local orderEntryIndex = getOrderEntryIndex(pairIndex, data.AllowTxId)
-
-		-- 		if orderEntryIndex > -1 then
-		-- 			if claimStatus == 'Success' then
-		-- 				-- Remove any previous claim evaluation message and set the order to active
-		-- 				ClaimStatus[data.AllowTxId] = {
-		-- 					Status = 'Complete',
-		-- 					Message = 'Claim successfully processed'
-		-- 				}
-		-- 				-- Orderbook[pairIndex].Orders[orderEntryIndex].ClaimStatus = 'Complete'
-		-- 			end
-		-- 			if claimStatus == 'Error' then
-		-- 				-- Update the claim evaluation message and remove the pending order
-		-- 				ClaimStatus[data.AllowTxId] = {
-		-- 					Status = 'Error',
-		-- 					Message = 'Claim successfully processed'
-		-- 				}
-		-- 				-- ClaimStatus[data.AllowTxId] = claimMessage
-		-- 				-- table.remove(Orderbook[pairIndex].Orders, orderEntryIndex)
-		-- 			end
-		-- 		end
-		-- 	end
-		-- else
-		-- 	ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Error validating pair' } })
-		-- end
 	else
 		ao.send({
 			Target = msg.From,
@@ -322,9 +280,11 @@ Handlers.add('Create-Order',
 			end
 			local validPair, pairError = validatePairData(data.Pair)
 
-			-- TODO: Ensure there is a claim status with this allow
 			-- If it is successful then handle the order and remove the claim status entry
 			if validPair then
+				-- Get the current token to execute on, it will always be the first in the pair
+				local currentToken = validPair[1]
+
 				-- Ensure the pair exists
 				local pairIndex = getPairIndex(validPair)
 
@@ -344,6 +304,12 @@ Handlers.add('Create-Order',
 					-- Check if allow transaction is a valid address
 					if not checkValidAddress(data.AllowTxId) then
 						ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'AllowTxId must be a valid address' } })
+						return
+					end
+
+					-- Check if the claim exists
+					if not ClaimStatus[data.AllowTxId] then
+						ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Claim not found from AllowTxId' } })
 						return
 					end
 
@@ -372,7 +338,7 @@ Handlers.add('Create-Order',
 
 					-- Find reverse orders for potential matches
 					for _, currentOrderEntry in ipairs(currentOrders) do
-						if validPair[1] ~= currentOrderEntry.Token and data.AllowTxId ~= currentOrderEntry.AllowTxId then
+						if currentToken ~= currentOrderEntry.Token and data.AllowTxId ~= currentOrderEntry.AllowTxId then
 							table.insert(reverseOrders, currentOrderEntry)
 						end
 					end
@@ -382,33 +348,22 @@ Handlers.add('Create-Order',
 						if orderType ~= 'Limit' then
 							ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'The first order entry must be a limit order' } })
 						else
-							-- { Pair: [AssetId, TokenId], Orders: { Id, AllowTxId, Creator, Quantity, Token, DateCreated, ClaimStatus, OrderStatus, Price? }[] }[]
-							-- ClaimStatus: 'Pending' | 'Complete'
-							-- OrderStatus: 'Unfulfilled' | 'Fulfilled'
-							local orderEntry = {
+							table.insert(currentOrders, {
 								Id = msg.Id,
 								AllowTxId = data.AllowTxId,
 								Creator = msg.From,
 								Quantity = data.Quantity,
-								Token = validPair[1],
+								OriginalQuantity = data.Quantity,
+								Token = currentToken,
 								DateCreated = os.time(), -- TODO: returning 0
-								ClaimStatus = 'Pending',
-								OrderStatus = 'Unfulfilled',
 								Price = data.Price -- Price is ensured because it is a limit order
-							}
+							})
+							-- If the claim has been evaluated then remove it (TODO)
+							if ClaimStatus[data.AllowTxId].Status ~= 'Pending' then
+								ClaimStatus[data.AllowTxId] = nil
+							end
 
-							table.insert(currentOrders, orderEntry)
-							-- Orderbook[pairIndex].Orders = currentOrders
-							-- ao.send({
-							-- 	Target = validPair[1],
-							-- 	Action = 'Claim',
-							-- 	Data = json.encode({
-							-- 		Pair = validPair,
-							-- 		AllowTxId = data.AllowTxId,
-							-- 		Quantity = data.Quantity
-							-- 	})
-							-- })
-							ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created with pending status' } })
+							ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created' } })
 						end
 						return
 					end
@@ -456,7 +411,14 @@ Handlers.add('Create-Order',
 
 								-- Send tokens to the current order creator
 								if remainingQuantity > 0 then
-									print('Execute foreign transfer')
+									ao.send({
+										Target = currentToken,
+										Action = 'Transfer',
+										Data = json.encode({
+											Recipient = currentOrderEntry.Creator,
+											Quantity = remainingQuantity
+										})
+									})
 								end
 
 								-- There are no tokens left in the order to be matched
@@ -476,14 +438,24 @@ Handlers.add('Create-Order',
 								remainingQuantity = remainingQuantity - sendAmount
 
 								-- Send tokens to the current order creator
-								print('Execute foreign transfer')
+								ao.send({
+									Target = currentToken,
+									Action = 'Transfer',
+									Data = json.encode({
+										Recipient = currentOrderEntry.Creator,
+										Quantity = sendAmount
+									})
+								})
 
 								-- There are no tokens left in the current order to be matched
 								currentOrderEntry.Quantity = 0
 							end
 
+							-- Get the dominant token from the pair, it will always be the first one
 							local dominantToken = Orderbook[pairIndex].Pair[1]
-							local dominantPrice = (dominantToken == validPair[1]) and
+
+							-- Calculate the dominant token price
+							local dominantPrice = (dominantToken == currentToken) and
 								(data.Price or reversePrice) or currentOrderEntry.Price
 
 							-- If there is a receiving amount then push the match
@@ -499,41 +471,52 @@ Handlers.add('Create-Order',
 						end
 
 						-- If the claim has been evaluated then remove it
-						-- if ClaimStatus[data.AllowTxId].Status ~= 'Pending' then
-						-- 	ClaimStatus[data.AllowTxId] = nil
-						-- end
+						if ClaimStatus[data.AllowTxId].Status ~= 'Pending' then
+							ClaimStatus[data.AllowTxId] = nil
+						end
 					end
 
-					print(currentOrders)
-
-					-- If the input order is not completely filled, push it to the orderbook or return the funds
+					-- If the input order is not completely filled, push it to the orderbook if it is a limit order or return the funds
 					if remainingQuantity > 0 then
 						if orderType == 'Limit' then
 							-- Push it to the orderbook
 							table.insert(updatedOrderbook, {
-								Price = data.Price or 0,
-								Quantity = remainingQuantity,
-								OriginalQuantity = data.Quantity,
 								Id = msg.Id,
 								AllowTxId = data.AllowTxId,
+								Quantity = remainingQuantity,
+								OriginalQuantity = data.Quantity,
 								Creator = msg.From,
-								Token = validPair[1],
+								Token = currentToken,
 								DateCreated = os.time(), -- TODO: returning 0
-								Status = 'Pending'
+								Price = data.Price, -- Price is ensured because it is a limit order
 							})
 						else
 							-- Return the funds
-							print('Execute foreign transfer')
+							ao.send({
+								Target = currentToken,
+								Action = 'Transfer',
+								Data = json.encode({
+									Recipient = msg.From,
+									Quantity = remainingQuantity
+								})
+							})
 						end
 					end
 
 					-- Send tokens to the input order creator
-					print('Execute foreign transfer')
+					ao.send({
+						Target = validPair[2],
+						Action = 'Transfer',
+						Data = json.encode({
+							Recipient = msg.From,
+							Quantity = receiveAmount
+						})
+					})
 
 					-- Post match processing
-					-- Orderbook[pairIndex].Orders = updatedOrderbook
+					Orderbook[pairIndex].Orders = updatedOrderbook
 					print(matches)
-					-- ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created with pending status' } })
+					ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created' } })
 				else
 					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Pair not found' } })
 				end
@@ -552,59 +535,3 @@ Handlers.add('Create-Order',
 			})
 		end
 	end)
-
--- Check status of order (msg.Data - { Pair: [AssetId, TokenId], AllowTxId })
-Handlers.add('Check-Order-Status', Handlers.utils.hasMatchingTag('Action', 'Check-Order-Status'), function(msg)
-	local decodeCheck, data = decodeMessageData(msg.Data)
-
-	if decodeCheck and data then
-		if not data.Pair or not data.AllowTxId then
-			ao.send({
-				Target = msg.From,
-				Tags = {
-					Status = 'Error',
-					Message =
-					'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId }'
-				}
-			})
-			return
-		end
-		local validPair, pairError = validatePairData(data.Pair)
-
-		if validPair then
-			-- Ensure the pair exists
-			local pairIndex = getPairIndex(validPair)
-
-			-- If there are orders against the asset, find the current order by its allow tx and update its status based on claim status
-			if pairIndex > -1 and #Orderbook[pairIndex].Orders > 0 then
-				local orderEntryIndex = getOrderEntryIndex(pairIndex, data.AllowTxId)
-
-				if orderEntryIndex > -1 then
-					if Orderbook[pairIndex].Orders[orderEntryIndex].Status == 'Active' then
-						ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order is active' } })
-					elseif Orderbook[pairIndex].Orders[orderEntryIndex].Status == 'Pending' then
-						ao.send({ Target = msg.From, Tags = { Status = 'Pending', Message = 'Orderbook claim required' } })
-					else
-						ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Order is invalid' } })
-					end
-				else
-					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = ClaimStatus[data.AllowTxId] or 'Order not found' } })
-				end
-			else
-				ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = ClaimStatus[data.AllowTxId] or 'Order not found' } })
-			end
-		else
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Error validating pair' } })
-		end
-	else
-		ao.send({
-			Target = msg.From,
-			Tags = {
-				Status = 'Error',
-				Message = string.format('Failed to parse data, received: %s. %s',
-					msg.Data,
-					'Data must be an object - { Pair: [AssetId, TokenId], AllowTxId }')
-			}
-		})
-	end
-end)

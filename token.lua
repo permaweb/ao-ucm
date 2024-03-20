@@ -4,7 +4,7 @@ local json = require('json')
 if Name ~= 'Rai' then Name = 'Rai' end
 if Ticker ~= 'RAI' then Ticker = 'RAI' end
 if Denomination ~= 12 then Denomination = 12 end
-if not Balances then Balances = { [Owner] = tostring(bint(10000 * 1e12)) } end
+if not Balances then Balances = { [ao.id] = tostring(bint(10000 * 1e12)) } end
 if not Claimable then Claimable = {} end
 
 local function checkValidAddress(address)
@@ -83,7 +83,7 @@ Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'), function(m
 	})
 end)
 
--- Transfer balance to recipient (msg.Data - { Recipient: string, Quantity: number })
+-- Transfer balance to recipient (msg.Data - { Recipient, Quantity })
 Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
 	local data, error = validateRecipientData(msg)
 
@@ -94,6 +94,15 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		end
 		Balances[msg.From] = tostring(bint(Balances[msg.From]) - bint(data.Quantity))
 		Balances[data.Recipient] = tostring(bint(Balances[data.Recipient]) + bint(data.Quantity))
+
+		-- If new balance zeroes out then remove them from the table
+		if bint(Balances[msg.From]) <= 0 then
+			Balances[msg.From] = nil
+		end
+		if bint(Balances[data.Recipient]) <= 0 then
+			Balances[data.Recipient] = nil
+		end
+
 		ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Balance transferred' } })
 	else
 		ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = error or 'Error transferring balances' } })

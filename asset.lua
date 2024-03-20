@@ -91,6 +91,15 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		end
 		Balances[msg.From] = tostring(bint(Balances[msg.From]) - bint(data.Quantity))
 		Balances[data.Recipient] = tostring(bint(Balances[data.Recipient]) + bint(data.Quantity))
+
+		-- If new balance zeroes out then remove them from the table
+		if bint(Balances[msg.From]) <= 0 then
+			Balances[msg.From] = nil
+		end
+		if bint(Balances[data.Recipient]) <= 0 then
+			Balances[data.Recipient] = nil
+		end
+
 		ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Balance transferred' } })
 	else
 		ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = error or 'Error transferring balances' } })

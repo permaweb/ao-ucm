@@ -212,6 +212,6 @@ async function handleOrderCreate(args) {
 	await handleOrderCreate({
 		clientWallet: BUYER_WALLET,
 		orderPair: ORDER_PAIR_BUY,
-		orderQuantity: (parseInt(ORDER_QUANTITY) * parseInt(ORDER_PRICE)).toString(),
+		orderQuantity: ((parseInt(ORDER_QUANTITY) * parseInt(ORDER_PRICE)) * 2).toString(),
 	});
 })()

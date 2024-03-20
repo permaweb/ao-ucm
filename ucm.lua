@@ -346,19 +346,32 @@ Handlers.add('Create-Order',
 					-- If there are no reverse orders, only push the current order entry, but first check if it is a limit order
 					if #reverseOrders <= 0 then
 						if orderType ~= 'Limit' then
-							ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'The first order entry must be a limit order' } })
+							-- If there is a completed claim then return the funds and remove the status
+							if ClaimStatus[data.AllowTxId].Status ~= 'Pending' then
+								ao.send({
+									Target = currentToken,
+									Action = 'Transfer',
+									Data = json.encode({
+										Recipient = msg.From,
+										Quantity = data.Quantity
+									})
+								})
+
+								ClaimStatus[data.AllowTxId] = nil
+							end
+							ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'The first order entry must be a limit order, returning evaluated claims' } })
 						else
 							table.insert(currentOrders, {
 								Id = msg.Id,
 								AllowTxId = data.AllowTxId,
 								Creator = msg.From,
-								Quantity = data.Quantity,
-								OriginalQuantity = data.Quantity,
+								Quantity = tostring(data.Quantity),
+								OriginalQuantity = tostring(data.Quantity),
 								Token = currentToken,
-								DateCreated = os.time(), -- TODO: returning 0
-								Price = data.Price -- Price is ensured because it is a limit order
+								DateCreated = tostring(os.time()), -- TODO: returning 0
+								Price = tostring(data.Price) -- Price is ensured because it is a limit order
 							})
-							-- If the claim has been evaluated then remove it (TODO)
+							-- If the claim has been evaluated then remove it
 							if ClaimStatus[data.AllowTxId].Status ~= 'Pending' then
 								ClaimStatus[data.AllowTxId] = nil
 							end
@@ -378,6 +391,9 @@ Handlers.add('Create-Order',
 
 					-- The remaining tokens to be matched with an order
 					local remainingQuantity = tonumber(data.Quantity)
+
+					-- The dominant token from the pair, it will always be the first one
+					local dominantToken = Orderbook[pairIndex].Pair[1]
 
 					for _, currentOrderEntry in ipairs(currentOrders) do
 						if remainingQuantity <= 0 then
@@ -451,9 +467,6 @@ Handlers.add('Create-Order',
 								currentOrderEntry.Quantity = 0
 							end
 
-							-- Get the dominant token from the pair, it will always be the first one
-							local dominantToken = Orderbook[pairIndex].Pair[1]
-
 							-- Calculate the dominant token price
 							local dominantPrice = (dominantToken == currentToken) and
 								(data.Price or reversePrice) or currentOrderEntry.Price
@@ -483,12 +496,12 @@ Handlers.add('Create-Order',
 							table.insert(updatedOrderbook, {
 								Id = msg.Id,
 								AllowTxId = data.AllowTxId,
-								Quantity = remainingQuantity,
-								OriginalQuantity = data.Quantity,
+								Quantity = tostring(remainingQuantity),
+								OriginalQuantity = tostring(data.Quantity),
 								Creator = msg.From,
 								Token = currentToken,
-								DateCreated = os.time(), -- TODO: returning 0
-								Price = data.Price, -- Price is ensured because it is a limit order
+								DateCreated = tostring(os.time()), -- TODO: returning 0
+								Price = tostring(data.Price), -- Price is ensured because it is a limit order
 							})
 						else
 							-- Return the funds
@@ -503,7 +516,7 @@ Handlers.add('Create-Order',
 						end
 					end
 
-					-- Send tokens to the input order creator
+					-- Send transfer tokens to the input order creator
 					ao.send({
 						Target = validPair[2],
 						Action = 'Transfer',
@@ -515,7 +528,35 @@ Handlers.add('Create-Order',
 
 					-- Post match processing
 					Orderbook[pairIndex].Orders = updatedOrderbook
-					print(matches)
+
+					-- TODO: error if maxPrice < maxBid
+
+					if #matches > 0 then
+						-- Calculate the volume weighted average price
+						-- ((Volume1 * Price1) + (Volume2 * Price2) + ...) / (Volume1 + Volume2 + ...)
+						local sumVolumePrice = 0
+						local sumVolume = 0
+
+						for _, match in ipairs(matches) do
+							local volume = match.Quantity
+							local price = tonumber(match.Price)
+
+							sumVolumePrice = sumVolumePrice + (volume * price)
+							sumVolume = sumVolume + volume
+						end
+
+						local vwap = sumVolumePrice / sumVolume
+
+						Orderbook[pairIndex].PriceData = {
+							Vwap = vwap,
+							Block = '1245', -- TODO: block height
+							DominantToken = dominantToken,
+							MatchLogs = matches
+						}
+					else
+						Orderbook[pairIndex].PriceData = nil
+					end
+
 					ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created' } })
 				else
 					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Pair not found' } })

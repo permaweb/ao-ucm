@@ -7,7 +7,7 @@ const UCM_PROCESS = 'RDNSwCBS1TLoj9E9gman_Bhe0UsA5v-A7VmfDoWmZ-A';
 const ASSET_PROCESS = 'u2kzJz1hoslvFadOSVUhFsc1IKy8B0KMxdGNTiu6KBo';
 const TOKEN_PROCESS = 'Z6qlHim8aRabSbYFuxA03Tfi2T-83gPqdwot7TiwP0Y';
 
-const ORDER_QUANTITY = '5';
+const ORDER_QUANTITY = '10';
 const ORDER_PRICE = '100';
 
 const ORDER_PAIR_SELL = [ASSET_PROCESS, TOKEN_PROCESS];
@@ -20,10 +20,6 @@ const SELLER_WALLET = JSON.parse(
 const BUYER_WALLET = JSON.parse(
 	readFileSync('./wallets/buyer-wallet.json').toString(),
 );
-
-// const UCM_OWNER_WALLET = JSON.parse(
-// 	readFileSync('./wallets/owner-wallet.json').toString(),
-// );
 
 function getTagValue(list, name) {
 	for (let i = 0; i < list.length; i++) {
@@ -86,22 +82,6 @@ async function sendMessage(args) {
 // args: { clientWallet, orderPair, orderQuantity, orderPrice? }
 async function handleOrderCreate(args) {
 	const dominantToken = args.orderPair[0];
-
-	// try {
-	// 	console.log('Transferring balance to client...');
-	// 	const arweave = Arweave.init({});
-	// 	const clientAddress = await arweave.wallets.jwkToAddress(args.clientWallet);
-	// 	const transferResponse = await sendMessage({
-	// 		processId: dominantToken, action: 'Transfer', wallet: UCM_OWNER_WALLET, data: {
-	// 			Recipient: clientAddress,
-	// 			Quantity: args.orderQuantity
-	// 		}
-	// 	});
-	// 	console.log(transferResponse);
-	// }
-	// catch (e) {
-	// 	console.error(e)
-	// }
 
 	try {
 		console.log('Adding pair...');
@@ -189,29 +169,76 @@ async function handleOrderCreate(args) {
 			}
 		}
 		else {
-			console.error('Allow not found')
+			console.error('Allow not found');
 		}
 	}
 	catch (e) {
-		console.error(e)
+		console.error(e);
+	}
+}
+
+// args: { clientWallet, orderPair, orderTxId }
+async function handleOrderCancel(args) {
+	try {
+		console.error('Cancelling order...')
+		const cancelOrderResponse = await sendMessage({
+			processId: UCM_PROCESS, action: 'Cancel-Order', wallet: args.clientWallet, data: {
+				Pair: args.orderPair,
+				OrderTxId: args.orderTxId
+			}
+		});
+		console.log(cancelOrderResponse);
+	}
+	catch (e) {
+		console.error(e);
+	}
+}
+
+// args: { clientWallet, processId, txId }
+async function handleAllowCancel(args) {
+	try {
+		console.error('Cancelling allow...')
+		const cancelAllowResponse = await sendMessage({
+			processId: args.processId, action: 'Cancel-Allow', wallet: args.clientWallet, data: {
+				TxId: args.txId
+			}
+		});
+		console.log(cancelAllowResponse);
+	}
+	catch (e) {
+		console.error(e);
 	}
 }
 
 (async function () {
 	// Sell order
-	await handleOrderCreate({
-		clientWallet: SELLER_WALLET,
-		orderPair: ORDER_PAIR_SELL,
-		orderQuantity: ORDER_QUANTITY,
-		orderPrice: ORDER_PRICE
-	});
-	
-	await new Promise((r) => setTimeout(r, 1000));
+	// await handleOrderCreate({
+	// 	clientWallet: SELLER_WALLET,
+	// 	orderPair: ORDER_PAIR_SELL,
+	// 	orderQuantity: ORDER_QUANTITY,
+	// 	orderPrice: ORDER_PRICE
+	// });
+
+	// await new Promise((r) => setTimeout(r, 1000));
 
 	// Buy order
 	await handleOrderCreate({
 		clientWallet: BUYER_WALLET,
 		orderPair: ORDER_PAIR_BUY,
-		orderQuantity: ((parseInt(ORDER_QUANTITY) * parseInt(ORDER_PRICE)) * 2).toString(),
+		orderQuantity: ((parseInt(ORDER_QUANTITY) * parseInt(ORDER_PRICE))).toString(),
 	});
+
+	// Cancel order
+	// await handleOrderCancel({
+	// 	clientWallet: SELLER_WALLET,
+	// 	orderPair: ORDER_PAIR_SELL,
+	// 	orderTxId: 'TGnNQjm4kqnSUwSNEdf4x_2ijrBHLhmccnAfs4GdEZ8'
+	// });
+
+	// Cancel allow
+	// await handleAllowCancel({
+	// 	clientWallet: SELLER_WALLET,
+	// 	processId: ASSET_PROCESS,
+	// 	txId: 'LmpOLlkTvzWeyQ1D5A2kAFxmqQlzt1wRVbVitLyuCLU'
+	// })
 })()

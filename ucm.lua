@@ -160,7 +160,6 @@ Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function
 				Target = currentToken,
 				Action = 'Claim',
 				Data = json.encode({
-					Pair = validPair,
 					AllowTxId = data.AllowTxId,
 					Quantity = data.Quantity
 				})
@@ -180,14 +179,13 @@ Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function
 	end
 end)
 
--- TODO: only need to pass allow tx id
--- Get claim evaluation from asset, update corresponding order status (msg.Data = { Pair: [AssetId, TokenId], AllowTxId, Quantity })
+-- Get claim evaluation from asset, update corresponding order status (msg.Data = { AllowTxId })
 Handlers.add('Claim-Evaluated', Handlers.utils.hasMatchingTag('Action', 'Claim-Evaluated'), function(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
 
 	if decodeCheck and data then
-		if not data.Pair or not data.AllowTxId or not data.Quantity then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity }' } })
+		if not data.AllowTxId then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { AllowTxId }' } })
 			return
 		end
 
@@ -219,7 +217,7 @@ Handlers.add('Claim-Evaluated', Handlers.utils.hasMatchingTag('Action', 'Claim-E
 				Status = 'Error',
 				Message = string.format('Failed to parse data, received: %s. %s',
 					msg.Data,
-					'Data must be an object - { Pair: [AssetId, TokenId], AllowTxId, Quantity }')
+					'Data must be an object - { AllowTxId }')
 			}
 		})
 	end
@@ -280,7 +278,7 @@ Handlers.add('Create-Order',
 			end
 			local validPair, pairError = validatePairData(data.Pair)
 
-			-- If it is successful then handle the order and remove the claim status entry
+			-- If the pair is valid then handle the order and remove the claim status entry
 			if validPair then
 				-- Get the current token to execute on, it will always be the first in the pair
 				local currentToken = validPair[1]
@@ -576,3 +574,87 @@ Handlers.add('Create-Order',
 			})
 		end
 	end)
+
+-- Cancel order by ID (msg.Data = { Pair: [AssetId, TokenId], OrderTxId })
+Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Order'), function(msg)
+	local decodeCheck, data = decodeMessageData(msg.Data)
+
+	if decodeCheck and data then
+		if not data.Pair or not data.OrderTxId then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], OrderTxId }' } })
+			return
+		end
+
+		-- Check if Pair and OrderTxId are valid
+		local validPair, pairError = validatePairData(data.Pair)
+		local validOrderTxId = checkValidAddress(data.OrderTxId)
+
+		if not validPair or not validOrderTxId then
+			local message = nil
+
+			if not validOrderTxId then message = 'OrderTxId is not a valid address' end
+			if not validPair then message = pairError or 'Error validating pair' end
+
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = message or 'Error validating order cancel input' } })
+			return
+		end
+		-- Ensure the pair exists
+		local pairIndex = getPairIndex(validPair)
+
+		-- If the pair exists then search for the order based on OrderTxId
+		if pairIndex > -1 then
+			local order = nil
+			local orderIndex = nil
+
+			for i, currentOrderEntry in ipairs(Orderbook[pairIndex].Orders) do
+				if data.OrderTxId == currentOrderEntry.Id then
+					order = currentOrderEntry
+					orderIndex = i
+				end
+			end
+
+			-- The order is not found
+			if not order then
+				ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Order not found' } })
+				return
+			end
+
+			-- Check if the sender is the order creator
+			if msg.From ~= order.Creator then
+				ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Sender is not the creator of the order' } })
+				return
+			end
+
+			if order and orderIndex > -1 then
+				-- Return funds to the creator
+				ao.send({
+					Target = order.Token,
+					Action = 'Transfer',
+					Data = json.encode({
+						Recipient = order.Creator,
+						Quantity = order.Quantity
+					})
+				})
+
+				-- Remove the order from the current table
+				table.remove(Orderbook[pairIndex].Orders, orderIndex)
+
+				ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = pairError or 'Order cancelled' } })
+			else
+				ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Error cancelling order' } })
+			end
+		else
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Pair not found' } })
+		end
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Status = 'Error',
+				Message = string.format('Failed to parse data, received: %s. %s',
+					msg.Data,
+					'Data must be an object - { Pair: [AssetId, TokenId], OrderTxId }')
+			}
+		})
+	end
+end)

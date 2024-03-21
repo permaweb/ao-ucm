@@ -8,8 +8,8 @@ end
 if Ticker ~= 'AOPIXL' then Ticker = 'AOPIXL' end
 if Denomination ~= 12 then Denomination = 12 end
 if not Balances then Balances = { [ao.id] = tostring(bint(10000 * 1e12)) } end
-if not Orderbook then Orderbook = {} end -- { Pair: [AssetId, TokenId], Orders: { Id, AllowTxId, Creator, Quantity, OriginalQuantity, Token, DateCreated, Price? }[] }[]
-if not ClaimStatus then ClaimStatus = {} end
+if not Orderbook then Orderbook = {} end -- { Pair: [AssetId, TokenId], Orders: { Id, DepositTxId, Creator, Quantity, OriginalQuantity, Token, DateCreated, Price? }[] }[]
+if not Deposits then Deposits = {} end
 
 local function checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
@@ -70,6 +70,19 @@ local function getPairIndex(pair)
 	return pairIndex
 end
 
+local function getDepositIndex(owner, depositTxId)
+	local depositIndex = -1
+
+	if not Deposits[owner] then return depositIndex end
+	for i, existingDeposit in ipairs(Deposits[owner]) do
+		if (existingDeposit.DepositTxId == depositTxId) then
+			depositIndex = i
+		end
+	end
+
+	return depositIndex
+end
+
 -- Read process state
 Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'),
 	function(msg)
@@ -78,10 +91,68 @@ Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'),
 			Data = json.encode({
 				Name = Name,
 				Balances = Balances,
-				Orderbook = Orderbook
+				Orderbook = Orderbook,
+				Deposits = Deposits
 			})
 		})
 	end)
+
+-- Add credit notice to the deposits table (msg.Data - { TransferTxId, Sender, Quantity })
+Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
+	local decodeCheck, data = decodeMessageData(msg.Data)
+
+	if decodeCheck and data then
+		-- Check if all required fields are present
+		if not data.TransferTxId or not data.Sender or not data.Quantity then
+			ao.send({
+				Target = msg.From,
+				Tags = {
+					Status = 'Error',
+					Message =
+					'Invalid arguments, required { TransferTxId, Sender, Quantity }'
+				}
+			})
+			return
+		end
+
+		-- Check if transfer transaction is a valid address
+		if not checkValidAddress(data.TransferTxId) then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'TransferTxId must be a valid address' } })
+			return
+		end
+
+		-- Check if sender is a valid address
+		if not checkValidAddress(data.Sender) then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Sender must be a valid address' } })
+			return
+		end
+
+		-- Check if quantity is a valid integer greater than zero
+		if not checkValidAmount(data.Quantity) then
+			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
+			return
+		end
+
+		-- If the sender has no open deposits then create a table entry
+		if not Deposits[data.Sender] then Deposits[data.Sender] = {} end
+
+		-- Enter the transfer information into the deposits table
+		table.insert(Deposits[data.Sender], {
+			DepositTxId = data.TransferTxId,
+			Quantity = tostring(data.Quantity),
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Status = 'Error',
+				Message = string.format(
+					'Failed to parse data, received: %s. %s.', msg.Data,
+					'Data must be an object - { TransferTxId, Sender, Quantity }')
+			}
+		})
+	end
+end)
 
 -- Add asset and token to pairs table (msg.Data - [AssetId, TokenId])
 Handlers.add('Add-Pair', Handlers.utils.hasMatchingTag('Action', 'Add-Pair'),
@@ -119,159 +190,20 @@ Handlers.add('Add-Pair', Handlers.utils.hasMatchingTag('Action', 'Add-Pair'),
 		end
 	end)
 
--- Claim balance from token (msg.Data = { Pair: [AssetId, TokenId], AllowTxId, Quantity })
-Handlers.add('Claim', Handlers.utils.hasMatchingTag('Action', 'Claim'), function(msg)
-	local decodeCheck, data = decodeMessageData(msg.Data)
-
-	if decodeCheck and data then
-		if not data.Pair or not data.AllowTxId or not data.Quantity then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity }' } })
-			return
-		end
-
-		-- Check if Pair, AllowTxId and Quantity are valid
-		local validPair, pairError = validatePairData(data.Pair)
-		local validAllowTxId = checkValidAddress(data.AllowTxId)
-		local validQuantity = checkValidAmount(data.Quantity)
-
-		if not validPair or not validAllowTxId or not validQuantity then
-			local message = nil
-
-			if not validAllowTxId then message = 'AllowTxId is not a valid address' end
-			if not validQuantity then message = 'Quantity must be an integer greater than zero' end
-			if not validPair then message = pairError or 'Error validating pair' end
-
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = message or 'Error validating claim input' } })
-			return
-		end
-		-- Ensure the pair exists
-		local pairIndex = getPairIndex(validPair)
-
-		-- If the pair exists then claim balance from the token, trigger claim evaluated and set claim status
-		if pairIndex > -1 then
-			-- Get the current token to execute on, it will always be the first in the pair
-			local currentToken = validPair[1]
-
-			ClaimStatus[data.AllowTxId] = {
-				Status = 'Pending',
-				Message = 'Claim is pending'
-			}
-			ao.send({
-				Target = currentToken,
-				Action = 'Claim',
-				Data = json.encode({
-					AllowTxId = data.AllowTxId,
-					Quantity = data.Quantity
-				})
-			})
-			ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = pairError or 'Claim sent for processing' } })
-		end
-	else
-		ao.send({
-			Target = msg.From,
-			Tags = {
-				Status = 'Error',
-				Message = string.format('Failed to parse data, received: %s. %s',
-					msg.Data,
-					'Data must be an object - { Pair: [AssetId, TokenId], AllowTxId, Quantity }')
-			}
-		})
-	end
-end)
-
--- Get claim evaluation from asset, update corresponding order status (msg.Data = { AllowTxId })
-Handlers.add('Claim-Evaluated', Handlers.utils.hasMatchingTag('Action', 'Claim-Evaluated'), function(msg)
-	local decodeCheck, data = decodeMessageData(msg.Data)
-
-	if decodeCheck and data then
-		if not data.AllowTxId then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { AllowTxId }' } })
-			return
-		end
-
-		-- Check if AllowTxId is a valid address
-		if not checkValidAddress(data.AllowTxId) then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'AllowTxId is not a valid address' } })
-			return
-		end
-
-		local claimStatus = msg.Tags['Status']
-		local claimMessage = msg.Tags['Message']
-
-		-- Set claim status to message from asset claim handler
-		if claimStatus and claimMessage then
-			ClaimStatus[data.AllowTxId] = {
-				Status = claimStatus,
-				Message = claimMessage
-			}
-		else
-			ClaimStatus[data.AllowTxId] = {
-				Status = 'Error',
-				Message = 'Failed to evaluate claim'
-			}
-		end
-	else
-		ao.send({
-			Target = msg.From,
-			Tags = {
-				Status = 'Error',
-				Message = string.format('Failed to parse data, received: %s. %s',
-					msg.Data,
-					'Data must be an object - { AllowTxId }')
-			}
-		})
-	end
-end)
-
--- Check the current status of a claim (msg.Data = { AllowTxId })
-Handlers.add('Check-Claim-Status', Handlers.utils.hasMatchingTag('Action', 'Check-Claim-Status'), function(msg)
-	local decodeCheck, data = decodeMessageData(msg.Data)
-
-	if decodeCheck and data then
-		if not data.AllowTxId then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { AllowTxId }' } })
-			return
-		end
-
-		-- Check if AllowTxId is a valid address
-		if not checkValidAddress(data.AllowTxId) then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'AllowTxId is not a valid address' } })
-			return
-		end
-
-		-- Check if claim entry is present
-		if not ClaimStatus or not ClaimStatus[data.AllowTxId] or not ClaimStatus[data.AllowTxId].Status or not ClaimStatus[data.AllowTxId].Message then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Claim not found' } })
-		end
-
-		ao.send({ Target = msg.From, Tags = { Status = ClaimStatus[data.AllowTxId].Status, Message = ClaimStatus[data.AllowTxId].Message } })
-	else
-		ao.send({
-			Target = msg.From,
-			Tags = {
-				Status = 'Error',
-				Message = string.format('Failed to parse data, received: %s. %s',
-					msg.Data,
-					'Data must be an object - { AllowTxId }')
-			}
-		})
-	end
-end)
-
--- Handle order entries in corresponding pair (msg.Data - { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price? })
+-- Handle order entries in corresponding pair (msg.Data - { Pair: [AssetId, TokenId], DepositTxId, Quantity, Price? })
 Handlers.add('Create-Order',
 	Handlers.utils.hasMatchingTag('Action', 'Create-Order'), function(msg)
 		local decodeCheck, data = decodeMessageData(msg.Data)
 
 		if decodeCheck and data then
 			-- Check if all required fields are present
-			if not data.Pair or not data.AllowTxId or not data.Quantity then
+			if not data.Pair or not data.DepositTxId or not data.Quantity then
 				ao.send({
 					Target = msg.From,
 					Tags = {
 						Status = 'Error',
 						Message =
-						'Invalid arguments, required { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price? }'
+						'Invalid arguments, required { Pair: [AssetId, TokenId], DepositTxId, Quantity, Price? }'
 					}
 				})
 				return
@@ -282,6 +214,21 @@ Handlers.add('Create-Order',
 			if validPair then
 				-- Get the current token to execute on, it will always be the first in the pair
 				local currentToken = validPair[1]
+
+				-- Check if deposit transaction is a valid address
+				if not checkValidAddress(data.DepositTxId) then
+					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'DepositTxId must be a valid address' } })
+					return
+				end
+
+				-- Check if the deposit entry exists by index
+				local depositIndex = getDepositIndex(msg.From, data.DepositTxId)
+
+				-- Check if the deposit entry exists
+				if depositIndex <= -1 then
+					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Deposit not found' } })
+					return
+				end
 
 				-- Ensure the pair exists
 				local pairIndex = getPairIndex(validPair)
@@ -296,18 +243,6 @@ Handlers.add('Create-Order',
 					-- Check if price is a valid integer greater than zero, if it is present
 					if data.Price and not checkValidAmount(data.Price) then
 						ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Price must be an integer greater than zero' } })
-						return
-					end
-
-					-- Check if allow transaction is a valid address
-					if not checkValidAddress(data.AllowTxId) then
-						ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'AllowTxId must be a valid address' } })
-						return
-					end
-
-					-- Check if the claim exists
-					if not ClaimStatus[data.AllowTxId] then
-						ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Claim not found from AllowTxId' } })
 						return
 					end
 
@@ -336,7 +271,7 @@ Handlers.add('Create-Order',
 
 					-- Find reverse orders for potential matches
 					for _, currentOrderEntry in ipairs(currentOrders) do
-						if currentToken ~= currentOrderEntry.Token and data.AllowTxId ~= currentOrderEntry.AllowTxId then
+						if currentToken ~= currentOrderEntry.Token and data.DepositTxId ~= currentOrderEntry.DepositTxId then
 							table.insert(reverseOrders, currentOrderEntry)
 						end
 					end
@@ -344,8 +279,8 @@ Handlers.add('Create-Order',
 					-- If there are no reverse orders, only push the current order entry, but first check if it is a limit order
 					if #reverseOrders <= 0 then
 						if orderType ~= 'Limit' then
-							-- If there is a completed claim then return the funds and remove the status
-							if ClaimStatus[data.AllowTxId].Status ~= 'Pending' then
+							-- Return the funds and remove the depost entry
+							if Deposits[msg.From][depositIndex] then
 								ao.send({
 									Target = currentToken,
 									Action = 'Transfer',
@@ -355,13 +290,13 @@ Handlers.add('Create-Order',
 									})
 								})
 
-								ClaimStatus[data.AllowTxId] = nil
+								table.remove(Deposits[msg.From], depositIndex)
 							end
 							ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'The first order entry must be a limit order, returning evaluated claims' } })
 						else
 							table.insert(currentOrders, {
 								Id = msg.Id,
-								AllowTxId = data.AllowTxId,
+								DepositTxId = data.DepositTxId,
 								Creator = msg.From,
 								Quantity = tostring(data.Quantity),
 								OriginalQuantity = tostring(data.Quantity),
@@ -369,9 +304,10 @@ Handlers.add('Create-Order',
 								DateCreated = tostring(os.time()), -- TODO: returning 0
 								Price = tostring(data.Price) -- Price is ensured because it is a limit order
 							})
-							-- If the claim has been evaluated then remove it
-							if ClaimStatus[data.AllowTxId].Status ~= 'Pending' then
-								ClaimStatus[data.AllowTxId] = nil
+
+							-- Remove the deposit entry
+							if Deposits[msg.From][depositIndex] then
+								table.remove(Deposits[msg.From], depositIndex)
 							end
 
 							ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created' } })
@@ -481,9 +417,9 @@ Handlers.add('Create-Order',
 							end
 						end
 
-						-- If the claim has been evaluated then remove it
-						if ClaimStatus[data.AllowTxId].Status ~= 'Pending' then
-							ClaimStatus[data.AllowTxId] = nil
+						-- Remove the deposit entry
+						if Deposits[msg.From][depositIndex] then
+							table.remove(Deposits[msg.From], depositIndex)
 						end
 					end
 
@@ -493,7 +429,7 @@ Handlers.add('Create-Order',
 							-- Push it to the orderbook
 							table.insert(updatedOrderbook, {
 								Id = msg.Id,
-								AllowTxId = data.AllowTxId,
+								DepositTxId = data.DepositTxId,
 								Quantity = tostring(remainingQuantity),
 								OriginalQuantity = tostring(data.Quantity),
 								Creator = msg.From,
@@ -531,7 +467,7 @@ Handlers.add('Create-Order',
 
 					if #matches > 0 then
 						-- Calculate the volume weighted average price
-						-- ((Volume1 * Price1) + (Volume2 * Price2) + ...) / (Volume1 + Volume2 + ...)
+						-- (Volume1 * Price1 + Volume2 * Price2 + ...) / (Volume1 + Volume2 + ...)
 						local sumVolumePrice = 0
 						local sumVolume = 0
 
@@ -569,7 +505,7 @@ Handlers.add('Create-Order',
 					Status = 'Error',
 					Message = string.format('Failed to parse data, received: %s. %s',
 						msg.Data,
-						'Data must be an object - { Pair: [AssetId, TokenId], AllowTxId, Quantity, Price? }')
+						'Data must be an object - { Pair: [AssetId, TokenId], DepositTxId, Quantity, Price? }')
 				}
 			})
 		end

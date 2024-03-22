@@ -71,6 +71,7 @@ end
 Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'), function(msg)
 	ao.send({
 		Target = msg.From,
+		Action = 'Read-Success',
 		Data = json.encode({
 			Name = Name,
 			Balances = Balances,
@@ -105,7 +106,6 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Action = 'Credit-Notice',
 			Tags = { Status = 'Success', Message = 'Balance transferred' },
 			Data = json.encode({
-				TransferTxId = msg.Id,
 				Sender = msg.From,
 				Quantity = tostring(data.Quantity)
 			})
@@ -117,12 +117,15 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Action = 'Debit-Notice',
 			Tags = { Status = 'Success', Message = 'Balance transferred' },
 			Data = json.encode({
-				TransferTxId = msg.Id,
 				Recipient = data.Recipient,
 				Quantity = tostring(data.Quantity)
 			})
 		})
 	else
-		ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = error or 'Error transferring balances' } })
+		ao.send({
+			Target = msg.From,
+			Action = 'Transfer-Error',
+			Tags = { Status = 'Error', Message = error or 'Error transferring balances' }
+		})
 	end
 end)

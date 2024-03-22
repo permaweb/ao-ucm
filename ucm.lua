@@ -88,6 +88,7 @@ Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'),
 	function(msg)
 		ao.send({
 			Target = msg.From,
+			Action = 'Read-Success',
 			Data = json.encode({
 				Name = Name,
 				Balances = Balances,
@@ -97,39 +98,34 @@ Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'),
 		})
 	end)
 
--- Add credit notice to the deposits table (msg.Data - { TransferTxId, Sender, Quantity })
+-- Add credit notice to the deposits table (msg.Data - { Sender, Quantity })
 Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
 
 	if decodeCheck and data then
 		-- Check if all required fields are present
-		if not data.TransferTxId or not data.Sender or not data.Quantity then
+		if not data.Sender or not data.Quantity then
 			ao.send({
 				Target = msg.From,
+				Action = 'Input-Error',
 				Tags = {
 					Status = 'Error',
 					Message =
-					'Invalid arguments, required { TransferTxId, Sender, Quantity }'
+					'Invalid arguments, required { Sender, Quantity }'
 				}
 			})
 			return
 		end
 
-		-- Check if transfer transaction is a valid address
-		if not checkValidAddress(data.TransferTxId) then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'TransferTxId must be a valid address' } })
+		-- Check if quantity is a valid integer greater than zero
+		if not checkValidAmount(data.Quantity) then
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
 			return
 		end
 
 		-- Check if sender is a valid address
 		if not checkValidAddress(data.Sender) then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Sender must be a valid address' } })
-			return
-		end
-
-		-- Check if quantity is a valid integer greater than zero
-		if not checkValidAmount(data.Quantity) then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Sender must be a valid address' } })
 			return
 		end
 
@@ -138,17 +134,18 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 
 		-- Enter the transfer information into the deposits table
 		table.insert(Deposits[data.Sender], {
-			DepositTxId = data.TransferTxId,
+			DepositTxId = msg.Id,
 			Quantity = tostring(data.Quantity),
 		})
 	else
 		ao.send({
 			Target = msg.From,
+			Action = 'Input-Error',
 			Tags = {
 				Status = 'Error',
 				Message = string.format(
 					'Failed to parse data, received: %s. %s.', msg.Data,
-					'Data must be an object - { TransferTxId, Sender, Quantity }')
+					'Data must be an object - { Sender, Quantity }')
 			}
 		})
 	end
@@ -167,19 +164,20 @@ Handlers.add('Add-Pair', Handlers.utils.hasMatchingTag('Action', 'Add-Pair'),
 				local pairIndex = getPairIndex(validPair)
 
 				if pairIndex > -1 then
-					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'This pair already exists' } })
+					ao.send({ Target = msg.From, Action = 'Pair-Exists', Tags = { Status = 'Error', Message = 'This pair already exists' } })
 					return
 				end
 
 				-- Pair is valid
 				table.insert(Orderbook, { Pair = validPair, Orders = {} })
-				ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Pair added' } })
+				ao.send({ Target = msg.From, Action = 'Pair-Added', Tags = { Status = 'Success', Message = 'Pair added' } })
 			else
-				ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = error or 'Error adding pair' } })
+				ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = error or 'Error adding pair' } })
 			end
 		else
 			ao.send({
 				Target = msg.From,
+				Action = 'Input-Error',
 				Tags = {
 					Status = 'Error',
 					Message = string.format(
@@ -200,6 +198,7 @@ Handlers.add('Create-Order',
 			if not data.Pair or not data.DepositTxId or not data.Quantity then
 				ao.send({
 					Target = msg.From,
+					Action = 'Input-Error',
 					Tags = {
 						Status = 'Error',
 						Message =
@@ -217,7 +216,7 @@ Handlers.add('Create-Order',
 
 				-- Check if deposit transaction is a valid address
 				if not checkValidAddress(data.DepositTxId) then
-					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'DepositTxId must be a valid address' } })
+					ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'DepositTxId must be a valid address' } })
 					return
 				end
 
@@ -226,7 +225,7 @@ Handlers.add('Create-Order',
 
 				-- Check if the deposit entry exists
 				if depositIndex <= -1 then
-					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Deposit not found' } })
+					ao.send({ Target = msg.From, Action = 'Deposit-Error', Tags = { Status = 'Error', Message = 'Deposit not found' } })
 					return
 				end
 
@@ -236,13 +235,13 @@ Handlers.add('Create-Order',
 				if pairIndex > -1 then
 					-- Check if quantity is a valid integer greater than zero
 					if not checkValidAmount(data.Quantity) then
-						ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
+						ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
 						return
 					end
 
 					-- Check if price is a valid integer greater than zero, if it is present
 					if data.Price and not checkValidAmount(data.Price) then
-						ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Price must be an integer greater than zero' } })
+						ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Price must be an integer greater than zero' } })
 						return
 					end
 
@@ -292,7 +291,7 @@ Handlers.add('Create-Order',
 
 								table.remove(Deposits[msg.From], depositIndex)
 							end
-							ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'The first order entry must be a limit order, returning evaluated claims' } })
+							ao.send({ Target = msg.From, Action = 'Order-Error', Tags = { Status = 'Error', Message = 'The first order entry must be a limit order, returning evaluated claims' } })
 						else
 							table.insert(currentOrders, {
 								Id = msg.Id,
@@ -301,7 +300,7 @@ Handlers.add('Create-Order',
 								Quantity = tostring(data.Quantity),
 								OriginalQuantity = tostring(data.Quantity),
 								Token = currentToken,
-								DateCreated = tostring(os.time()), -- TODO: returning 0
+								DateCreated = tostring(msg.Timestamp),
 								Price = tostring(data.Price) -- Price is ensured because it is a limit order
 							})
 
@@ -310,7 +309,7 @@ Handlers.add('Create-Order',
 								table.remove(Deposits[msg.From], depositIndex)
 							end
 
-							ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created' } })
+							ao.send({ Target = msg.From, Action = 'Order-Success', Tags = { Status = 'Success', Message = 'Order created' } })
 						end
 						return
 					end
@@ -434,7 +433,7 @@ Handlers.add('Create-Order',
 								OriginalQuantity = tostring(data.Quantity),
 								Creator = msg.From,
 								Token = currentToken,
-								DateCreated = tostring(os.time()), -- TODO: returning 0
+								DateCreated = tostring(msg.Timestamp),
 								Price = tostring(data.Price), -- Price is ensured because it is a limit order
 							})
 						else
@@ -483,7 +482,7 @@ Handlers.add('Create-Order',
 
 						Orderbook[pairIndex].PriceData = {
 							Vwap = vwap,
-							Block = '1245', -- TODO: block height
+							Block = tostring(msg['Block-Height']),
 							DominantToken = dominantToken,
 							MatchLogs = matches
 						}
@@ -491,16 +490,17 @@ Handlers.add('Create-Order',
 						Orderbook[pairIndex].PriceData = nil
 					end
 
-					ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = 'Order created' } })
+					ao.send({ Target = msg.From, Action = 'Order-Success', Tags = { Status = 'Success', Message = 'Order created' } })
 				else
-					ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Pair not found' } })
+					ao.send({ Target = msg.From, Action = 'Order-Error', Tags = { Status = 'Error', Message = 'Pair not found' } })
 				end
 			else
-				ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Error validating pair' } })
+				ao.send({ Target = msg.From, Action = 'Order-Error', Tags = { Status = 'Error', Message = pairError or 'Error validating pair' } })
 			end
 		else
 			ao.send({
 				Target = msg.From,
+				Action = 'Input-Error',
 				Tags = {
 					Status = 'Error',
 					Message = string.format('Failed to parse data, received: %s. %s',
@@ -517,7 +517,11 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 
 	if decodeCheck and data then
 		if not data.Pair or not data.OrderTxId then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], OrderTxId }' } })
+			ao.send({
+				Target = msg.From,
+				Action = 'Input-Error',
+				Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], OrderTxId }' }
+			})
 			return
 		end
 
@@ -531,7 +535,7 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 			if not validOrderTxId then message = 'OrderTxId is not a valid address' end
 			if not validPair then message = pairError or 'Error validating pair' end
 
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = message or 'Error validating order cancel input' } })
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = message or 'Error validating order cancel input' } })
 			return
 		end
 		-- Ensure the pair exists
@@ -551,13 +555,13 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 
 			-- The order is not found
 			if not order then
-				ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Order not found' } })
+				ao.send({ Target = msg.From, Action = 'Order-Cancel-Error', Tags = { Status = 'Error', Message = pairError or 'Order not found' } })
 				return
 			end
 
 			-- Check if the sender is the order creator
 			if msg.From ~= order.Creator then
-				ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Sender is not the creator of the order' } })
+				ao.send({ Target = msg.From, Action = 'Order-Cancel-Error', Tags = { Status = 'Error', Message = pairError or 'Sender is not the creator of the order' } })
 				return
 			end
 
@@ -575,16 +579,17 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 				-- Remove the order from the current table
 				table.remove(Orderbook[pairIndex].Orders, orderIndex)
 
-				ao.send({ Target = msg.From, Tags = { Status = 'Success', Message = pairError or 'Order cancelled' } })
+				ao.send({ Target = msg.From, Action = 'Order-Cancel-Success', Tags = { Status = 'Success', Message = pairError or 'Order cancelled' } })
 			else
-				ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Error cancelling order' } })
+				ao.send({ Target = msg.From, Action = 'Order-Cancel-Error', Tags = { Status = 'Error', Message = pairError or 'Error cancelling order' } })
 			end
 		else
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = pairError or 'Pair not found' } })
+			ao.send({ Target = msg.From, Action = 'Order-Cancel-Error', Tags = { Status = 'Error', Message = pairError or 'Pair not found' } })
 		end
 	else
 		ao.send({
 			Target = msg.From,
+			Action = 'Input-Error',
 			Tags = {
 				Status = 'Error',
 				Message = string.format('Failed to parse data, received: %s. %s',

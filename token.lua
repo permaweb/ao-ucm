@@ -73,6 +73,7 @@ end
 Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'), function(msg)
 	ao.send({
 		Target = msg.From,
+		Action = 'Read-Success',
 		Data = json.encode({
 			Name = Name,
 			Ticker = Ticker,
@@ -89,26 +90,27 @@ Handlers.add('Balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), func
 	if decodeCheck and data then
 		-- Check if target is present
 		if not data.Target then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Invalid arguments, required { Target }' } })
+			ao.send({ Target = msg.From, Action = 'Input-Error', Tags = { Status = 'Error', Message = 'Invalid arguments, required { Target }' } })
 			return
 		end
 
 		-- Check if target is a valid address
 		if not checkValidAddress(data.Target) then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Target is not a valid address' } })
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Target is not a valid address' } })
 			return
 		end
 
 		-- Check if target has a balance
 		if not Balances[data.Target] then
-			ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = 'Target does not have a balance' } })
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Target does not have a balance' } })
 			return
 		end
 
-		ao.send({ Target = msg.From, Data = Balances[data.Target] })
+		ao.send({ Target = msg.From, Action = 'Read-Success', Tags = { Status = 'Success', Message = 'Balance received' }, Data = Balances[data.Target] })
 	else
 		ao.send({
 			Target = msg.From,
+			Action = 'Input-Error',
 			Tags = {
 				Status = 'Error',
 				Message = string.format('Failed to parse data, received: %s. %s', msg.Data,
@@ -120,7 +122,7 @@ end)
 
 -- Read balances
 Handlers.add('Balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
-	function(msg) ao.send({ Target = msg.From, Data = json.encode(Balances) }) end)
+	function(msg) ao.send({ Target = msg.From, Action = 'Read-Success', Data = json.encode(Balances) }) end)
 
 -- Transfer balance to recipient (msg.Data - { Recipient, Quantity })
 Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
@@ -149,7 +151,6 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Action = 'Credit-Notice',
 			Tags = { Status = 'Success', Message = 'Balance transferred' },
 			Data = json.encode({
-				TransferTxId = msg.Id,
 				Sender = msg.From,
 				Quantity = tostring(data.Quantity)
 			})
@@ -161,12 +162,16 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Action = 'Debit-Notice',
 			Tags = { Status = 'Success', Message = 'Balance transferred' },
 			Data = json.encode({
-				TransferTxId = msg.Id,
 				Recipient = data.Recipient,
 				Quantity = tostring(data.Quantity)
 			})
 		})
 	else
-		ao.send({ Target = msg.From, Tags = { Status = 'Error', Message = error or 'Error transferring balances' } })
+		ao.send({
+			Target = msg.From,
+			Action = 'Transfer-Error',
+			Tags = { Status = 'Error', Message = error or 'Error transferring balances' }
+		})
 	end
 end)
+

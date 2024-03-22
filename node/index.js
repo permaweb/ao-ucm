@@ -7,7 +7,7 @@ const UCM_PROCESS = 'RDNSwCBS1TLoj9E9gman_Bhe0UsA5v-A7VmfDoWmZ-A';
 const ASSET_PROCESS = 'u2kzJz1hoslvFadOSVUhFsc1IKy8B0KMxdGNTiu6KBo';
 const TOKEN_PROCESS = 'Z6qlHim8aRabSbYFuxA03Tfi2T-83gPqdwot7TiwP0Y';
 
-const ORDER_QUANTITY = '2';
+const ORDER_QUANTITY = '1';
 const ORDER_PRICE = '100';
 
 const ORDER_PAIR_SELL = [ASSET_PROCESS, TOKEN_PROCESS];
@@ -54,42 +54,45 @@ async function sendMessage(args) {
 
 		const { Messages } = await result({ message: txId, process: args.processId });
 
-		let responseStatus = null;
-		let responseMessage = null;
+		if (Messages && Messages.length) {
+			const response = {};
 
-		console.log(JSON.stringify(Messages, null, 2))
+			Messages.forEach((message) => {
+				const action = getTagValue(message.Tags, 'Action') || args.action;
 
-		if (Messages && Messages.length && Messages[Messages.length - 1].Tags) {
-			responseStatus = getTagValue(Messages[Messages.length - 1].Tags, 'Status');
-			responseMessage = getTagValue(Messages[Messages.length - 1].Tags, 'Message');
+				let responseData = null;
+				const messageData = message.Data;
 
-			let responseData = null;
-			const messageData = Messages[Messages.length - 1].Data;
-
-			if (messageData) {
-				try {
-					responseData = JSON.parse(messageData);
+				if (messageData) {
+					try {
+						responseData = JSON.parse(messageData);
+					}
+					catch {
+						responseData = messageData;
+					}
 				}
-				catch {
-					responseData = messageData;
+
+				const responseStatus = getTagValue(message.Tags, 'Status');
+				const responseMessage = getTagValue(message.Tags, 'Message');
+				
+				if (responseStatus && responseMessage) {
+					console.log(`${responseStatus}: ${responseMessage}`);
 				}
-			}
 
-			if (responseStatus && responseMessage) {
-				console.log(`${responseStatus}: ${responseMessage}`)
-			}
+				response[action] = {
+					id: txId,
+					status: responseStatus,
+					message: responseMessage,
+					data: responseData
+				}
+			});
 
-			console.log(`${args.action}: ${txId}`)
+			console.log(`${args.action}: ${txId}`);
 
-			return {
-				txId: txId,
-				status: responseStatus,
-				message: responseMessage,
-				data: responseData
-			};
+			return response;
 
 		}
-		else return null
+		else return null;
 	}
 	catch (e) {
 		console.error(e);
@@ -112,22 +115,22 @@ async function handleOrderCreate(args) {
 				Quantity: args.orderQuantity
 			}
 		});
-		console.log(depositResponse)
+		console.log(depositResponse);
 
-		if (depositResponse && depositResponse.data && depositResponse.data.TransferTxId) {
-			console.log('Creating order...');
-			const orderData = {
-				Pair: args.orderPair,
-				DepositTxId: depositResponse.data.TransferTxId,
-				Quantity: args.orderQuantity,
-			}
-			if (args.orderPrice) orderData.Price = args.orderPrice;
+		// if (depositResponse && depositResponse.data && depositResponse.data.TransferTxId) {
+		// 	console.log('Creating order...');
+		// 	const orderData = {
+		// 		Pair: args.orderPair,
+		// 		DepositTxId: depositResponse.data.TransferTxId,
+		// 		Quantity: args.orderQuantity,
+		// 	}
+		// 	if (args.orderPrice) orderData.Price = args.orderPrice;
 
-			const createOrderResponse = await sendMessage({
-				processId: UCM_PROCESS, action: 'Create-Order', wallet: args.clientWallet, data: orderData
-			});
-			console.log(createOrderResponse);
-		}
+		// 	const createOrderResponse = await sendMessage({
+		// 		processId: UCM_PROCESS, action: 'Create-Order', wallet: args.clientWallet, data: orderData
+		// 	});
+		// 	console.log(createOrderResponse);
+		// }
 	}
 	catch (e) {
 		console.error(e);

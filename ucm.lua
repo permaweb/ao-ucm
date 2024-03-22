@@ -1,14 +1,12 @@
 local json = require('json')
 local bint = require('.bint')(256)
 
-if Name ~= 'Universal Content Marketplace' then
-	Name =
-	'Universal Content Marketplace'
-end
-if Ticker ~= 'AOPIXL' then Ticker = 'AOPIXL' end
-if Denomination ~= 12 then Denomination = 12 end
-if not Balances then Balances = { [ao.id] = tostring(bint(10000 * 1e12)) } end
-if not Orderbook then Orderbook = {} end -- { Pair: [AssetId, TokenId], Orders: { Id, DepositTxId, Creator, Quantity, OriginalQuantity, Token, DateCreated, Price? }[] }[]
+if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
+
+-- Orderbook: { Pair: [AssetId, TokenId], Orders: { Id, DepositTxId, Creator, Quantity, OriginalQuantity, Token, DateCreated, Price? }[] }[]
+if not Orderbook then Orderbook = {} end
+
+-- Deposits: { Owner: { DepositTxId, Quantity }[] }[]
 if not Deposits then Deposits = {} end
 
 local function checkValidAddress(address)
@@ -84,42 +82,41 @@ local function getDepositIndex(owner, depositTxId)
 end
 
 -- Read process state
-Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'),
+Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 	function(msg)
 		ao.send({
 			Target = msg.From,
 			Action = 'Read-Success',
 			Data = json.encode({
 				Name = Name,
-				Balances = Balances,
 				Orderbook = Orderbook,
 				Deposits = Deposits
 			})
 		})
 	end)
 
--- Add credit notice to the deposits table (msg.Data - { Sender, Quantity })
+-- Add credit notice to the deposits table (msg.Data - { TransferTxId, Sender, Quantity })
 Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
 
 	if decodeCheck and data then
 		-- Check if all required fields are present
-		if not data.Sender or not data.Quantity then
+		if not data.TransferTxId or not data.Sender or not data.Quantity then
 			ao.send({
 				Target = msg.From,
 				Action = 'Input-Error',
 				Tags = {
 					Status = 'Error',
 					Message =
-					'Invalid arguments, required { Sender, Quantity }'
+					'Invalid arguments, required { TransferTxId, Sender, Quantity }'
 				}
 			})
 			return
 		end
 
-		-- Check if quantity is a valid integer greater than zero
-		if not checkValidAmount(data.Quantity) then
-			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
+		-- Check if transfer transaction is a valid address
+		if not checkValidAddress(data.TransferTxId) then
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'TransferTxId must be a valid address' } })
 			return
 		end
 
@@ -129,12 +126,18 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			return
 		end
 
+		-- Check if quantity is a valid integer greater than zero
+		if not checkValidAmount(data.Quantity) then
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
+			return
+		end
+
 		-- If the sender has no open deposits then create a table entry
 		if not Deposits[data.Sender] then Deposits[data.Sender] = {} end
 
 		-- Enter the transfer information into the deposits table
 		table.insert(Deposits[data.Sender], {
-			DepositTxId = msg.Id,
+			DepositTxId = data.TransferTxId,
 			Quantity = tostring(data.Quantity),
 		})
 	else
@@ -145,7 +148,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 				Status = 'Error',
 				Message = string.format(
 					'Failed to parse data, received: %s. %s.', msg.Data,
-					'Data must be an object - { Sender, Quantity }')
+					'Data must be an object - { TransferTxId, Sender, Quantity }')
 			}
 		})
 	end
@@ -224,13 +227,19 @@ Handlers.add('Create-Order',
 				local depositIndex = getDepositIndex(msg.From, data.DepositTxId)
 
 				-- Check if the deposit entry exists
-				if depositIndex <= -1 then
+				if depositIndex == -1 then
 					ao.send({ Target = msg.From, Action = 'Deposit-Error', Tags = { Status = 'Error', Message = 'Deposit not found' } })
 					return
 				end
 
 				-- Ensure the pair exists
 				local pairIndex = getPairIndex(validPair)
+
+				-- If the pair does not exist yet then add it
+				if pairIndex == -1 then
+					table.insert(Orderbook, { Pair = validPair, Orders = {} })
+					pairIndex = getPairIndex(validPair)
+				end
 
 				if pairIndex > -1 then
 					-- Check if quantity is a valid integer greater than zero

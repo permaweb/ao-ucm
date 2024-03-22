@@ -8,7 +8,7 @@ const ASSET_PROCESS = 'u2kzJz1hoslvFadOSVUhFsc1IKy8B0KMxdGNTiu6KBo';
 const TOKEN_PROCESS = 'Z6qlHim8aRabSbYFuxA03Tfi2T-83gPqdwot7TiwP0Y';
 
 const ORDER_QUANTITY = '1';
-const ORDER_PRICE = '100';
+const ORDER_PRICE = '200';
 
 const ORDER_PAIR_SELL = [ASSET_PROCESS, TOKEN_PROCESS];
 const ORDER_PAIR_BUY = [TOKEN_PROCESS, ASSET_PROCESS];
@@ -19,6 +19,10 @@ const SELLER_WALLET = JSON.parse(
 
 const BUYER_WALLET = JSON.parse(
 	readFileSync('./wallets/buyer-wallet.json').toString(),
+);
+
+const TOKEN_OWNER_WALLET = JSON.parse(
+	readFileSync('./wallets/token-owner.json').toString(),
 );
 
 function getTagValue(list, name) {
@@ -74,7 +78,7 @@ async function sendMessage(args) {
 
 				const responseStatus = getTagValue(message.Tags, 'Status');
 				const responseMessage = getTagValue(message.Tags, 'Message');
-				
+
 				if (responseStatus && responseMessage) {
 					console.log(`${responseStatus}: ${responseMessage}`);
 				}
@@ -117,20 +121,20 @@ async function handleOrderCreate(args) {
 		});
 		console.log(depositResponse);
 
-		// if (depositResponse && depositResponse.data && depositResponse.data.TransferTxId) {
-		// 	console.log('Creating order...');
-		// 	const orderData = {
-		// 		Pair: args.orderPair,
-		// 		DepositTxId: depositResponse.data.TransferTxId,
-		// 		Quantity: args.orderQuantity,
-		// 	}
-		// 	if (args.orderPrice) orderData.Price = args.orderPrice;
+		if (depositResponse && depositResponse['Credit-Notice'] && depositResponse['Credit-Notice'].data && depositResponse['Credit-Notice'].data.TransferTxId) {
+			console.log('Creating order...');
+			const orderData = {
+				Pair: args.orderPair,
+				DepositTxId: depositResponse['Credit-Notice'].data.TransferTxId,
+				Quantity: args.orderQuantity,
+			}
+			if (args.orderPrice) orderData.Price = args.orderPrice;
 
-		// 	const createOrderResponse = await sendMessage({
-		// 		processId: UCM_PROCESS, action: 'Create-Order', wallet: args.clientWallet, data: orderData
-		// 	});
-		// 	console.log(createOrderResponse);
-		// }
+			const createOrderResponse = await sendMessage({
+				processId: UCM_PROCESS, action: 'Create-Order', wallet: args.clientWallet, data: orderData
+			});
+			console.log(createOrderResponse);
+		}
 	}
 	catch (e) {
 		console.error(e);
@@ -140,7 +144,7 @@ async function handleOrderCreate(args) {
 // args: { clientWallet, orderPair, orderTxId }
 async function handleOrderCancel(args) {
 	try {
-		console.error('Cancelling order...')
+		console.log('Cancelling order...');
 		const cancelOrderResponse = await sendMessage({
 			processId: UCM_PROCESS, action: 'Cancel-Order', wallet: args.clientWallet, data: {
 				Pair: args.orderPair,
@@ -154,7 +158,24 @@ async function handleOrderCancel(args) {
 	}
 }
 
+async function handleMint() {
+	try {
+		console.log('Minting tokens...');
+		const mintResponse = await sendMessage({
+			processId: TOKEN_PROCESS, action: 'Mint', wallet: TOKEN_OWNER_WALLET, data: {
+				Quantity: '5',
+			}
+		});
+		console.log(mintResponse);
+	}
+	catch (e) {
+		console.error(e);
+	}
+}
+
 (async function () {
+	// await handleMint()
+
 	// Sell order
 	await handleOrderCreate({
 		clientWallet: SELLER_WALLET,

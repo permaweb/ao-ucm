@@ -106,6 +106,7 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Action = 'Credit-Notice',
 			Tags = { Status = 'Success', Message = 'Balance transferred' },
 			Data = json.encode({
+				TransferTxId = msg.Id,
 				Sender = msg.From,
 				Quantity = tostring(data.Quantity)
 			})
@@ -117,6 +118,7 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Action = 'Debit-Notice',
 			Tags = { Status = 'Success', Message = 'Balance transferred' },
 			Data = json.encode({
+				TransferTxId = msg.Id,
 				Recipient = data.Recipient,
 				Quantity = tostring(data.Quantity)
 			})

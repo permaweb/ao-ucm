@@ -3,8 +3,8 @@ local json = require('json')
 
 if Name ~= 'Rai' then Name = 'Rai' end
 if Ticker ~= 'RAI' then Ticker = 'RAI' end
-if Denomination ~= 12 then Denomination = 12 end
-if not Balances then Balances = { [ao.id] = tostring(bint(10000 * 1e12)) } end
+if Denomination ~= 1 then Denomination = 1 end
+if not Balances then Balances = { [Owner] = '100' } end
 
 local function checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
@@ -70,7 +70,7 @@ local function validateRecipientData(msg)
 end
 
 -- Read process state
-Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'), function(msg)
+Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
 	ao.send({
 		Target = msg.From,
 		Action = 'Read-Success',
@@ -82,47 +82,6 @@ Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'), function(m
 		})
 	})
 end)
-
--- Read balance (msg.Data - { Target })
-Handlers.add('Balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
-	local decodeCheck, data = decodeMessageData(msg.Data)
-
-	if decodeCheck and data then
-		-- Check if target is present
-		if not data.Target then
-			ao.send({ Target = msg.From, Action = 'Input-Error', Tags = { Status = 'Error', Message = 'Invalid arguments, required { Target }' } })
-			return
-		end
-
-		-- Check if target is a valid address
-		if not checkValidAddress(data.Target) then
-			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Target is not a valid address' } })
-			return
-		end
-
-		-- Check if target has a balance
-		if not Balances[data.Target] then
-			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Target does not have a balance' } })
-			return
-		end
-
-		ao.send({ Target = msg.From, Action = 'Read-Success', Tags = { Status = 'Success', Message = 'Balance received' }, Data = Balances[data.Target] })
-	else
-		ao.send({
-			Target = msg.From,
-			Action = 'Input-Error',
-			Tags = {
-				Status = 'Error',
-				Message = string.format('Failed to parse data, received: %s. %s', msg.Data,
-					'Data must be an object - { Target }')
-			}
-		})
-	end
-end)
-
--- Read balances
-Handlers.add('Balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
-	function(msg) ao.send({ Target = msg.From, Action = 'Read-Success', Data = json.encode(Balances) }) end)
 
 -- Transfer balance to recipient (msg.Data - { Recipient, Quantity })
 Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
@@ -151,6 +110,7 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Action = 'Credit-Notice',
 			Tags = { Status = 'Success', Message = 'Balance transferred' },
 			Data = json.encode({
+				TransferTxId = msg.Id,
 				Sender = msg.From,
 				Quantity = tostring(data.Quantity)
 			})
@@ -162,6 +122,7 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Action = 'Debit-Notice',
 			Tags = { Status = 'Success', Message = 'Balance transferred' },
 			Data = json.encode({
+				TransferTxId = msg.Id,
 				Recipient = data.Recipient,
 				Quantity = tostring(data.Quantity)
 			})
@@ -175,3 +136,93 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 	end
 end)
 
+-- Mint new tokens
+Handlers.add('Mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(msg)
+	local decodeCheck, data = decodeMessageData(msg.Data)
+
+	if decodeCheck and data then
+		-- Check if quantity is present
+		if not data.Quantity then
+			ao.send({ Target = msg.From, Action = 'Input-Error', Tags = { Status = 'Error', Message = 'Invalid arguments, required { Quantity }' } })
+			return
+		end
+
+		-- Check if quantity is a valid integer greater than zero
+		if not checkValidAmount(data.Quantity) then
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
+			return
+		end
+
+		-- Check if owner is sender
+		if msg.From ~= Owner then
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Only the process owner can mint new tokens' } })
+			return
+		end
+
+		-- Mint request is valid, add tokens to the pool
+		if not Balances[Owner] then
+			Balances[Owner] = '0'
+		end
+
+		Balances[Owner] = tostring(bint(Balances[Owner]) + bint(data.Quantity))
+
+		ao.send({ Target = msg.From, Action = 'Mint-Success', Tags = { Status = 'Success', Message = 'Tokens minted' } })
+	else
+		ao.send({
+			Target = msg.From,
+			Action = 'Input-Error',
+			Tags = {
+				Status = 'Error',
+				Message = string.format('Failed to parse data, received: %s. %s', msg.Data,
+					'Data must be an object - { Quantity }')
+			}
+		})
+	end
+end)
+
+-- Read balance (msg.Data - { Target })
+Handlers.add('Balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
+	local decodeCheck, data = decodeMessageData(msg.Data)
+
+	if decodeCheck and data then
+		-- Check if target is present
+		if not data.Target then
+			ao.send({ Target = msg.From, Action = 'Input-Error', Tags = { Status = 'Error', Message = 'Invalid arguments, required { Target }' } })
+			return
+		end
+
+		-- Check if target is a valid address
+		if not checkValidAddress(data.Target) then
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Target is not a valid address' } })
+			return
+		end
+
+		-- Check if target has a balance
+		if not Balances[data.Target] then
+			ao.send({ Target = msg.From, Action = 'Read-Error', Tags = { Status = 'Error', Message = 'Target does not have a balance' } })
+			return
+		end
+
+		ao.send({
+			Target = msg.From,
+			Action = 'Read-Success',
+			Tags = { Status = 'Success', Message = 'Balance received' },
+			Data =
+				Balances[data.Target]
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Action = 'Input-Error',
+			Tags = {
+				Status = 'Error',
+				Message = string.format('Failed to parse data, received: %s. %s', msg.Data,
+					'Data must be an object - { Target }')
+			}
+		})
+	end
+end)
+
+-- Read balances
+Handlers.add('Balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
+	function(msg) ao.send({ Target = msg.From, Action = 'Read-Success', Data = json.encode(Balances) }) end)

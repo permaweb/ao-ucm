@@ -3,10 +3,29 @@ local bint = require('.bint')(256)
 
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
--- Orderbook: { Pair: [AssetId, TokenId], Orders: { Id, DepositTxId, Creator, Quantity, OriginalQuantity, Token, DateCreated, Price? }[] }[]
+-- Orderbook: {
+-- 	Pair: [TokenId, TokenId],
+-- 	Orders: {
+-- 		Id,
+-- 		DepositTxId,
+-- 		Creator,
+-- 		Quantity,
+-- 		OriginalQuantity,
+-- 		Token,
+-- 		DateCreated,
+-- 		Price?
+-- 	}[]
+-- }[]
+
 if not Orderbook then Orderbook = {} end
 
--- Deposits: { Owner: { DepositTxId, Quantity }[] }[]
+-- Deposits: {
+-- 	Owner: {
+-- 		DepositTxId,
+-- 		Quantity
+-- 	}[]
+-- }[]
+
 if not Deposits then Deposits = {} end
 
 local function checkValidAddress(address)
@@ -34,7 +53,7 @@ end
 local function validatePairData(data)
 	-- Check if pair is a table with exactly two elements
 	if type(data) ~= 'table' or #data ~= 2 then
-		return nil, 'Pair must be a list of exactly two strings - [AssetId, TokenId]'
+		return nil, 'Pair must be a list of exactly two strings - [TokenId, TokenId]'
 	end
 
 	-- Check if both elements of the table are strings
@@ -81,6 +100,41 @@ local function getDepositIndex(owner, depositTxId)
 	return depositIndex
 end
 
+local function handleRemoveDeposit(target, depositTxId)
+	-- If there is an open deposit then remove it
+	-- Check if the deposit entry exists by index
+	if target and checkValidAddress(target) and depositTxId and checkValidAddress(depositTxId) then
+		local depositIndex = getDepositIndex(target, depositTxId)
+
+		if Deposits[target][depositIndex] then
+			table.remove(Deposits[target], depositIndex)
+
+			-- If the owner no longer has any deposits then remove the entry
+			if #Deposits[target] <= 0 then
+				Deposits[target] = nil
+			end
+		end
+	end
+end
+
+local function handleError(args) -- Target, DepositTxId, TransferToken, Quantity
+	-- If the deposit entry is present then remove it
+	handleRemoveDeposit(args.Target, args.DepositTxId)
+
+	-- If there is a valid quantity then return the funds
+	if args.TransferToken and args.Quantity and checkValidAmount(args.Quantity) then
+		ao.send({
+			Target = args.TransferToken,
+			Action = 'Transfer',
+			Data = json.encode({
+				Recipient = args.Target,
+				Quantity = args.Quantity
+			})
+		})
+	end
+	ao.send({ Target = args.Target, Action = args.Action, Tags = { Status = 'Error', Message = args.Message } })
+end
+
 -- Read process state
 Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 	function(msg)
@@ -95,7 +149,7 @@ Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 		})
 	end)
 
--- Add credit notice to the deposits table (msg.Data - { TransferTxId, Sender, Quantity })
+-- Add credit notice to the deposits table (Data - { TransferTxId, Sender, Quantity })
 Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
 
@@ -154,44 +208,96 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 	end
 end)
 
--- Add asset and token to pairs table (msg.Data - [AssetId, TokenId])
-Handlers.add('Add-Pair', Handlers.utils.hasMatchingTag('Action', 'Add-Pair'),
-	function(msg)
-		local decodeCheck, data = decodeMessageData(msg.Data)
+-- Check the status of a transfer credit by DepositTxId (Data - { Pair: [TokenId, TokenId], DepositTxId, Quantity })
+Handlers.add('Check-Deposit-Status', Handlers.utils.hasMatchingTag('Action', 'Check-Deposit-Status'), function(msg)
+	local decodeCheck, data = decodeMessageData(msg.Data)
 
-		if decodeCheck and data then
-			local validPair, error = validatePairData(data)
-
-			if validPair then
-				-- Ensure the pair does not exist yet
-				local pairIndex = getPairIndex(validPair)
-
-				if pairIndex > -1 then
-					ao.send({ Target = msg.From, Action = 'Pair-Exists', Tags = { Status = 'Error', Message = 'This pair already exists' } })
-					return
-				end
-
-				-- Pair is valid
-				table.insert(Orderbook, { Pair = validPair, Orders = {} })
-				ao.send({ Target = msg.From, Action = 'Pair-Added', Tags = { Status = 'Success', Message = 'Pair added' } })
-			else
-				ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = error or 'Error adding pair' } })
-			end
-		else
+	if decodeCheck and data then
+		-- Check if all required fields are present
+		if not data.Pair or not data.DepositTxId or not data.Quantity then
 			ao.send({
 				Target = msg.From,
 				Action = 'Input-Error',
 				Tags = {
 					Status = 'Error',
-					Message = string.format(
-						'Failed to parse data, received: %s. %s.', msg.Data,
-						'Data must be an object - [AssetId, TokenId]')
+					Message =
+					'Invalid arguments, required { Pair: [TokenId, TokenId], DepositTxId, Quantity }'
 				}
 			})
+			return
 		end
-	end)
+		local validPair, pairError = validatePairData(data.Pair)
 
--- Handle order entries in corresponding pair (msg.Data - { Pair: [AssetId, TokenId], DepositTxId, Quantity, Price? })
+		if validPair then
+			-- Get the current token to execute on, it will always be the first in the pair
+			local currentToken = validPair[1]
+
+			-- Check if deposit transaction is a valid address
+			if not checkValidAddress(data.DepositTxId) then
+				handleError({
+					Target = msg.From,
+					Action = 'Validation-Error',
+					Message = 'DepositTxId must be a valid address',
+					Quantity = data.Quantity,
+					TransferToken = currentToken,
+					DepositTxId = data.DepositTxId
+				})
+				return
+			end
+
+			-- Check if quantity is a valid integer greater than zero
+			if not checkValidAmount(data.Quantity) then
+				handleError({
+					Target = msg.From,
+					Action = 'Validation-Error',
+					Message = 'Quantity must be an integer greater than zero',
+					Quantity = data.Quantity,
+					TransferToken = currentToken,
+					DepositTxId = data.DepositTxId
+				})
+				return
+			end
+
+			-- Check if the deposit exists
+			local depositIndex = getDepositIndex(msg.From, data.DepositTxId)
+
+			if depositIndex > -1 then
+				ao.send({ Target = msg.From, Action = 'Deposit-Status-Evaluated', Tags = { Status = 'Success', Message = 'Deposit is complete' } })
+			else
+				handleError({
+					Target = msg.From,
+					Action = 'Deposit-Status-Evaluated',
+					Message = 'Deposit not found',
+					Quantity = data.Quantity,
+					TransferToken = currentToken,
+					DepositTxId = data.DepositTxId
+				})
+			end
+		else
+			handleError({
+				Target = msg.From,
+				Action = 'Deposit-Status-Evaluated',
+				Message = pairError or 'Error validating pair',
+				Quantity = data.Quantity,
+				TransferToken = nil, -- Pair can not be validated, no token to return
+				DepositTxId = data.DepositTxId
+			})
+		end
+	else
+		ao.send({
+			Target = msg.From,
+			Action = 'Input-Error',
+			Tags = {
+				Status = 'Error',
+				Message = string.format(
+					'Failed to parse data, received: %s. %s.', msg.Data,
+					'Data must be an object - { Pair: [TokenId, TokenId], DepositTxId, Quantity }')
+			}
+		})
+	end
+end)
+
+-- Handle order entries in corresponding pair (Data - { Pair: [TokenId, TokenId], DepositTxId, Quantity, Price? })
 Handlers.add('Create-Order',
 	Handlers.utils.hasMatchingTag('Action', 'Create-Order'), function(msg)
 		local decodeCheck, data = decodeMessageData(msg.Data)
@@ -205,7 +311,7 @@ Handlers.add('Create-Order',
 					Tags = {
 						Status = 'Error',
 						Message =
-						'Invalid arguments, required { Pair: [AssetId, TokenId], DepositTxId, Quantity, Price? }'
+						'Invalid arguments, required { Pair: [TokenId, TokenId], DepositTxId, Quantity, Price? }'
 					}
 				})
 				return
@@ -217,20 +323,8 @@ Handlers.add('Create-Order',
 				-- Get the current token to execute on, it will always be the first in the pair
 				local currentToken = validPair[1]
 
-				-- Check if deposit transaction is a valid address
-				if not checkValidAddress(data.DepositTxId) then
-					ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'DepositTxId must be a valid address' } })
-					return
-				end
-
 				-- Check if the deposit entry exists by index
 				local depositIndex = getDepositIndex(msg.From, data.DepositTxId)
-
-				-- Check if the deposit entry exists
-				if depositIndex == -1 then
-					ao.send({ Target = msg.From, Action = 'Deposit-Error', Tags = { Status = 'Error', Message = 'Deposit not found' } })
-					return
-				end
 
 				-- Ensure the pair exists
 				local pairIndex = getPairIndex(validPair)
@@ -241,19 +335,59 @@ Handlers.add('Create-Order',
 					pairIndex = getPairIndex(validPair)
 				end
 
+				-- Check if deposit transaction is a valid address
+				if not checkValidAddress(data.DepositTxId) then
+					handleError({
+						Target = msg.From,
+						Action = 'Validation-Error',
+						Message = 'DepositTxId must be a valid address',
+						Quantity = data.Quantity,
+						TransferToken = currentToken,
+						DepositTxId = data.DepositTxId
+					})
+					return
+				end
+
+				-- Check if quantity is a valid integer greater than zero
+				if not checkValidAmount(data.Quantity) then
+					handleError({
+						Target = msg.From,
+						Action = 'Validation-Error',
+						Message = 'Quantity must be an integer greater than zero',
+						Quantity = data.Quantity,
+						TransferToken = currentToken,
+						DepositTxId = data.DepositTxId
+					})
+					return
+				end
+
+				-- Check if price is a valid integer greater than zero, if it is present
+				if data.Price and not checkValidAmount(data.Price) then
+					handleError({
+						Target = msg.From,
+						Action = 'Validation-Error',
+						Message = 'Price must be an integer greater than zero',
+						Quantity = data.Quantity,
+						TransferToken = currentToken,
+						DepositTxId = data.DepositTxId
+					})
+					return
+				end
+
+				-- Check if the deposit entry exists
+				if depositIndex == -1 then
+					handleError({
+						Target = msg.From,
+						Action = 'Deposit-Error',
+						Message = 'Deposit not found',
+						Quantity = data.Quantity,
+						TransferToken = currentToken,
+						DepositTxId = data.DepositTxId
+					})
+					return
+				end
+
 				if pairIndex > -1 then
-					-- Check if quantity is a valid integer greater than zero
-					if not checkValidAmount(data.Quantity) then
-						ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
-						return
-					end
-
-					-- Check if price is a valid integer greater than zero, if it is present
-					if data.Price and not checkValidAmount(data.Price) then
-						ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Price must be an integer greater than zero' } })
-						return
-					end
-
 					-- Find order matches and update the orderbook
 					local orderType = nil
 					local reverseOrders = {}
@@ -287,20 +421,14 @@ Handlers.add('Create-Order',
 					-- If there are no reverse orders, only push the current order entry, but first check if it is a limit order
 					if #reverseOrders <= 0 then
 						if orderType ~= 'Limit' then
-							-- Return the funds and remove the depost entry
-							if Deposits[msg.From][depositIndex] then
-								ao.send({
-									Target = currentToken,
-									Action = 'Transfer',
-									Data = json.encode({
-										Recipient = msg.From,
-										Quantity = data.Quantity
-									})
-								})
-
-								table.remove(Deposits[msg.From], depositIndex)
-							end
-							ao.send({ Target = msg.From, Action = 'Order-Error', Tags = { Status = 'Error', Message = 'The first order entry must be a limit order, returning evaluated claims' } })
+							handleError({
+								Target = msg.From,
+								Action = 'Order-Error',
+								Message = 'The first order entry must be a limit order',
+								Quantity = data.Quantity,
+								TransferToken = currentToken,
+								DepositTxId = data.DepositTxId
+							})
 						else
 							table.insert(currentOrders, {
 								Id = msg.Id,
@@ -314,9 +442,7 @@ Handlers.add('Create-Order',
 							})
 
 							-- Remove the deposit entry
-							if Deposits[msg.From][depositIndex] then
-								table.remove(Deposits[msg.From], depositIndex)
-							end
+							handleRemoveDeposit(msg.From, data.DepositTxId)
 
 							ao.send({ Target = msg.From, Action = 'Order-Success', Tags = { Status = 'Success', Message = 'Order created' } })
 						end
@@ -426,9 +552,7 @@ Handlers.add('Create-Order',
 						end
 
 						-- Remove the deposit entry
-						if Deposits[msg.From][depositIndex] then
-							table.remove(Deposits[msg.From], depositIndex)
-						end
+						handleRemoveDeposit(msg.From, data.DepositTxId)
 					end
 
 					-- If the input order is not completely filled, push it to the orderbook if it is a limit order or return the funds
@@ -499,12 +623,28 @@ Handlers.add('Create-Order',
 						Orderbook[pairIndex].PriceData = nil
 					end
 
+					-- If orders and price data are both empty in the pair then remove it -- TODO
+
 					ao.send({ Target = msg.From, Action = 'Order-Success', Tags = { Status = 'Success', Message = 'Order created' } })
 				else
-					ao.send({ Target = msg.From, Action = 'Order-Error', Tags = { Status = 'Error', Message = 'Pair not found' } })
+					handleError({
+						Target = msg.From,
+						Action = 'Order-Error',
+						Message = 'Pair not found',
+						Quantity = data.Quantity,
+						TransferToken = currentToken,
+						DepositTxId = data.DepositTxId
+					})
 				end
 			else
-				ao.send({ Target = msg.From, Action = 'Order-Error', Tags = { Status = 'Error', Message = pairError or 'Error validating pair' } })
+				handleError({
+					Target = msg.From,
+					Action = 'Order-Error',
+					Message = pairError or 'Error validating pair',
+					Quantity = data.Quantity,
+					TransferToken = nil, -- Pair can not be validated, no token to return
+					DepositTxId = data.DepositTxId
+				})
 			end
 		else
 			ao.send({
@@ -514,13 +654,13 @@ Handlers.add('Create-Order',
 					Status = 'Error',
 					Message = string.format('Failed to parse data, received: %s. %s',
 						msg.Data,
-						'Data must be an object - { Pair: [AssetId, TokenId], DepositTxId, Quantity, Price? }')
+						'Data must be an object - { Pair: [TokenId, TokenId], DepositTxId, Quantity, Price? }')
 				}
 			})
 		end
 	end)
 
--- Cancel order by ID (msg.Data = { Pair: [AssetId, TokenId], OrderTxId })
+-- Cancel order by ID (Data - { Pair: [TokenId, TokenId], OrderTxId })
 Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Order'), function(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
 
@@ -529,7 +669,7 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 			ao.send({
 				Target = msg.From,
 				Action = 'Input-Error',
-				Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [AssetId, TokenId], OrderTxId }' }
+				Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [TokenId, TokenId], OrderTxId }' }
 			})
 			return
 		end
@@ -603,7 +743,7 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 				Status = 'Error',
 				Message = string.format('Failed to parse data, received: %s. %s',
 					msg.Data,
-					'Data must be an object - { Pair: [AssetId, TokenId], OrderTxId }')
+					'Data must be an object - { Pair: [TokenId, TokenId], OrderTxId }')
 			}
 		})
 	end

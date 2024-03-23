@@ -1,14 +1,14 @@
 import { readFileSync } from 'node:fs';
 
 import Arweave from 'arweave';
-import { createDataItemSigner, dryrun, message, result } from '@permaweb/aoconnect';
+import { createDataItemSigner, dryrun, message, result, results } from '@permaweb/aoconnect';
 
 const UCM_PROCESS = 'RDNSwCBS1TLoj9E9gman_Bhe0UsA5v-A7VmfDoWmZ-A';
 const ASSET_PROCESS = 'u2kzJz1hoslvFadOSVUhFsc1IKy8B0KMxdGNTiu6KBo';
 const TOKEN_PROCESS = 'Z6qlHim8aRabSbYFuxA03Tfi2T-83gPqdwot7TiwP0Y';
 
 const ORDER_QUANTITY = '1';
-const ORDER_PRICE = '200';
+const ORDER_PRICE = '100';
 
 const ORDER_PAIR_SELL = [ASSET_PROCESS, TOKEN_PROCESS];
 const ORDER_PAIR_BUY = [TOKEN_PROCESS, ASSET_PROCESS];
@@ -108,10 +108,6 @@ async function handleOrderCreate(args) {
 	const dominantToken = args.orderPair[0];
 
 	try {
-		// console.log('Adding pair...');
-		// const addPairResponse = await sendMessage({ processId: UCM_PROCESS, action: 'Add-Pair', wallet: args.clientWallet, data: args.orderPair });
-		// console.log(addPairResponse);
-
 		console.log('Depositing balance to UCM...');
 		const depositResponse = await sendMessage({
 			processId: dominantToken, action: 'Transfer', wallet: args.clientWallet, data: {
@@ -121,19 +117,67 @@ async function handleOrderCreate(args) {
 		});
 		console.log(depositResponse);
 
-		if (depositResponse && depositResponse['Credit-Notice'] && depositResponse['Credit-Notice'].data && depositResponse['Credit-Notice'].data.TransferTxId) {
-			console.log('Creating order...');
-			const orderData = {
-				Pair: args.orderPair,
-				DepositTxId: depositResponse['Credit-Notice'].data.TransferTxId,
-				Quantity: args.orderQuantity,
-			}
-			if (args.orderPrice) orderData.Price = args.orderPrice;
+		const validCreditNotice = depositResponse['Credit-Notice'] && depositResponse['Credit-Notice'].status === 'Success' && depositResponse['Credit-Notice'].data.TransferTxId;
 
-			const createOrderResponse = await sendMessage({
-				processId: UCM_PROCESS, action: 'Create-Order', wallet: args.clientWallet, data: orderData
+		if (validCreditNotice) {
+			const depositTxId = depositResponse['Credit-Notice'].data.TransferTxId;
+
+			console.log('Checking deposit status...');
+			let depositCheckResponse = await sendMessage({
+				processId: UCM_PROCESS, action: 'Check-Deposit-Status', wallet: args.clientWallet, data: {
+					Pair: args.orderPair,
+					DepositTxId: depositTxId,
+					Quantity: args.orderQuantity
+				}
 			});
-			console.log(createOrderResponse);
+			console.log(depositCheckResponse)
+
+			if (depositCheckResponse && depositCheckResponse['Deposit-Status-Evaluated']) {
+				const MAX_DEPOSIT_CHECK_RETRIES = 10;
+
+				let depositStatus = depositCheckResponse['Deposit-Status-Evaluated'].status;
+				let retryCount = 0;
+
+				while (depositStatus === 'Error' && retryCount < MAX_DEPOSIT_CHECK_RETRIES) {
+					await new Promise((r) => setTimeout(r, 1000));
+					depositCheckResponse = await sendMessage({
+						processId: UCM_PROCESS, action: 'Check-Deposit-Status', wallet: args.clientWallet, data: {
+							Pair: args.orderPair,
+							DepositTxId: depositTxId,
+							Quantity: args.orderQuantity
+						}
+					});
+					console.log(depositCheckResponse);
+
+					depositStatus = depositCheckResponse['Deposit-Status-Evaluated'].status;
+					retryCount++;
+				}
+
+				if (depositStatus === 'Success') {
+					console.log('Creating order...');
+					const orderData = {
+						Pair: args.orderPair,
+						DepositTxId: depositResponse['Credit-Notice'].data.TransferTxId,
+						Quantity: args.orderQuantity,
+					}
+					if (args.orderPrice) orderData.Price = args.orderPrice;
+
+					const createOrderResponse = await sendMessage({
+						processId: UCM_PROCESS, action: 'Create-Order', wallet: args.clientWallet, data: orderData
+					});
+					console.log(createOrderResponse);
+				}
+				else {
+					console.error('Failed to resolve deposit status after 3 retries.');
+				}
+
+			}
+			else {
+				console.error('Failed to check deposit status')
+			}
+		}
+		else {
+			console.error('Invalid credit notice')
 		}
 	}
 	catch (e) {
@@ -175,7 +219,7 @@ async function handleMint() {
 
 (async function () {
 	// await handleMint()
-
+	
 	// Sell order
 	await handleOrderCreate({
 		clientWallet: SELLER_WALLET,

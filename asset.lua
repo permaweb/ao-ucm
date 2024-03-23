@@ -79,7 +79,7 @@ Handlers.add('Read', Handlers.utils.hasMatchingTag('Action', 'Read'), function(m
 	})
 end)
 
--- Transfer balance to recipient (msg.Data - { Recipient, Quantity })
+-- Transfer balance to recipient (Data - { Recipient, Quantity })
 Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
 	local data, error = validateRecipientData(msg)
 
@@ -100,26 +100,26 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Balances[data.Recipient] = nil
 		end
 
-		-- Send a credit notice to the recipient
-		ao.send({
-			Target = data.Recipient,
-			Action = 'Credit-Notice',
-			Tags = { Status = 'Success', Message = 'Balance transferred' },
-			Data = json.encode({
-				TransferTxId = msg.Id,
-				Sender = msg.From,
-				Quantity = tostring(data.Quantity)
-			})
-		})
-
 		-- Send a debit notice to the sender
 		ao.send({
 			Target = msg.From,
 			Action = 'Debit-Notice',
-			Tags = { Status = 'Success', Message = 'Balance transferred' },
+			Tags = { Status = 'Success', Message = 'Balance transferred, debit notice issued' },
 			Data = json.encode({
 				TransferTxId = msg.Id,
 				Recipient = data.Recipient,
+				Quantity = tostring(data.Quantity)
+			})
+		})
+
+		-- Send a credit notice to the recipient
+		ao.send({
+			Target = data.Recipient,
+			Action = 'Credit-Notice',
+			Tags = { Status = 'Success', Message = 'Balance transferred, credit notice issued' },
+			Data = json.encode({
+				TransferTxId = msg.Id,
+				Sender = msg.From,
 				Quantity = tostring(data.Quantity)
 			})
 		})

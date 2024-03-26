@@ -28,7 +28,7 @@ local function decodeMessageData(data)
 	return true, decodedData
 end
 
-local function validateRecipientData(msg)
+local function validateTransferData(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
 
 	if not decodeCheck or not data then
@@ -83,9 +83,9 @@ Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(m
 	})
 end)
 
--- Transfer balance to recipient (Data - { Recipient, Quantity })
+-- Transfer balance to recipient (Data - { Recipient, Quantity }) -- TODO: validation errors
 Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
-	local data, error = validateRecipientData(msg)
+	local data, error = validateTransferData(msg)
 
 	if data then
 		-- Transfer is valid, calculate balances
@@ -110,7 +110,6 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Action = 'Debit-Notice',
 			Tags = { Status = 'Success', Message = 'Balance transferred, debit notice issued' },
 			Data = json.encode({
-				TransferTxId = msg.Id,
 				Recipient = data.Recipient,
 				Quantity = tostring(data.Quantity)
 			})
@@ -122,7 +121,6 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Action = 'Credit-Notice',
 			Tags = { Status = 'Success', Message = 'Balance transferred, credit notice issued' },
 			Data = json.encode({
-				TransferTxId = msg.Id,
 				Sender = msg.From,
 				Quantity = tostring(data.Quantity)
 			})
@@ -135,7 +133,8 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		})
 	end
 end)
--- Mint new tokens
+
+-- Mint new tokens (Data - { Quantity })
 Handlers.add('Mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
 

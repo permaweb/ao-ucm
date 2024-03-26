@@ -5,13 +5,17 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "format": "eslint --fix . && npx prettier --write .",
+    "test": "uvu tests",
     "start": "node index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@permaweb/aoconnect": "^0.0.45",
-    "arweave": "^1.14.4"
+    "@permaweb/aoconnect": "^0.0.45"
+  },
+  "devDependencies": {
+    "uvu": "^0.5.6"
   }
 }

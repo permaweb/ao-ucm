@@ -3,9 +3,9 @@ local bint = require('.bint')(256)
 
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
--- Orderbook: {
--- 	Pair: [TokenId, TokenId],
--- 	Orders: {
+-- Orderbook {
+-- 	Pair [TokenId, TokenId],
+-- 	Orders {
 -- 		Id,
 -- 		DepositTxId,
 -- 		Creator,
@@ -14,17 +14,17 @@ if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Market
 -- 		Token,
 -- 		DateCreated,
 -- 		Price?
--- 	}[]
--- }[]
+-- 	} []
+-- } []
 
 if not Orderbook then Orderbook = {} end
 
--- Deposits: {
--- 	Owner: {
+-- Deposits {
+-- 	Owner {
 -- 		DepositTxId,
 -- 		Quantity
--- 	}[]
--- }[]
+-- 	} []
+-- } []
 
 if not Deposits then Deposits = {} end
 
@@ -149,28 +149,22 @@ Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 		})
 	end)
 
--- Add credit notice to the deposits table (Data - { TransferTxId, Sender, Quantity })
+-- Add credit notice to the deposits table (Data - { Sender, Quantity })
 Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
 	local decodeCheck, data = decodeMessageData(msg.Data)
 
 	if decodeCheck and data then
 		-- Check if all required fields are present
-		if not data.TransferTxId or not data.Sender or not data.Quantity then
+		if not data.Sender or not data.Quantity then
 			ao.send({
 				Target = msg.From,
 				Action = 'Input-Error',
 				Tags = {
 					Status = 'Error',
 					Message =
-					'Invalid arguments, required { TransferTxId, Sender, Quantity }'
+					'Invalid arguments, required { Sender, Quantity }'
 				}
 			})
-			return
-		end
-
-		-- Check if transfer transaction is a valid address
-		if not checkValidAddress(data.TransferTxId) then
-			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'TransferTxId must be a valid address' } })
 			return
 		end
 
@@ -191,7 +185,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 
 		-- Enter the transfer information into the deposits table
 		table.insert(Deposits[data.Sender], {
-			DepositTxId = data.TransferTxId,
+			DepositTxId = msg['Pushed-For'],
 			Quantity = tostring(data.Quantity),
 		})
 	else
@@ -202,7 +196,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 				Status = 'Error',
 				Message = string.format(
 					'Failed to parse data, received: %s. %s.', msg.Data,
-					'Data must be an object - { TransferTxId, Sender, Quantity }')
+					'Data must be an object - { Sender, Quantity }')
 			}
 		})
 	end

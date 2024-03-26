@@ -1,27 +1,26 @@
 import { readFileSync } from 'node:fs';
 
-import Arweave from 'arweave';
-import { createDataItemSigner, dryrun, message, result, results } from '@permaweb/aoconnect';
+import { createDataItemSigner, dryrun, message, result } from '@permaweb/aoconnect';
 
-const UCM_PROCESS = 'RDNSwCBS1TLoj9E9gman_Bhe0UsA5v-A7VmfDoWmZ-A';
-const ASSET_PROCESS = 'u2kzJz1hoslvFadOSVUhFsc1IKy8B0KMxdGNTiu6KBo';
-const TOKEN_PROCESS = 'Z6qlHim8aRabSbYFuxA03Tfi2T-83gPqdwot7TiwP0Y';
+export const UCM_PROCESS = 'RDNSwCBS1TLoj9E9gman_Bhe0UsA5v-A7VmfDoWmZ-A';
+export const ASSET_PROCESS = 'u2kzJz1hoslvFadOSVUhFsc1IKy8B0KMxdGNTiu6KBo';
+export const TOKEN_PROCESS = 'Z6qlHim8aRabSbYFuxA03Tfi2T-83gPqdwot7TiwP0Y';
 
-const ORDER_QUANTITY = '1';
-const ORDER_PRICE = '100';
+export const ORDER_QUANTITY = '1';
+export const ORDER_PRICE = '100';
 
-const ORDER_PAIR_SELL = [ASSET_PROCESS, TOKEN_PROCESS];
-const ORDER_PAIR_BUY = [TOKEN_PROCESS, ASSET_PROCESS];
+export const ORDER_PAIR_SELL = [ASSET_PROCESS, TOKEN_PROCESS];
+export const ORDER_PAIR_BUY = [TOKEN_PROCESS, ASSET_PROCESS];
 
-const SELLER_WALLET = JSON.parse(
+export const SELLER_WALLET = JSON.parse(
 	readFileSync('./wallets/seller-wallet.json').toString(),
 );
 
-const BUYER_WALLET = JSON.parse(
+export const BUYER_WALLET = JSON.parse(
 	readFileSync('./wallets/buyer-wallet.json').toString(),
 );
 
-const TOKEN_OWNER_WALLET = JSON.parse(
+export const TOKEN_OWNER_WALLET = JSON.parse(
 	readFileSync('./wallets/token-owner.json').toString(),
 );
 
@@ -36,10 +35,10 @@ function getTagValue(list, name) {
 	return null;
 }
 
-async function readState(processId) {
+export async function readState(processId) {
 	const messageResult = await dryrun({
 		process: processId,
-		tags: [{ name: 'Action', value: 'Read' }],
+		tags: [{ name: 'Action', value: 'Info' }],
 	});
 
 	if (messageResult.Messages && messageResult.Messages.length && messageResult.Messages[0].Data) {
@@ -47,7 +46,7 @@ async function readState(processId) {
 	}
 }
 
-async function sendMessage(args) {
+export async function sendMessage(args) {
 	try {
 		const txId = await message({
 			process: args.processId,
@@ -63,6 +62,8 @@ async function sendMessage(args) {
 
 			Messages.forEach((message) => {
 				const action = getTagValue(message.Tags, 'Action') || args.action;
+
+				console.log(message)
 
 				let responseData = null;
 				const messageData = message.Data;
@@ -117,7 +118,7 @@ async function handleOrderCreate(args) {
 		});
 		console.log(depositResponse);
 
-		const validCreditNotice = depositResponse['Credit-Notice'] && depositResponse['Credit-Notice'].status === 'Success' && depositResponse['Credit-Notice'].data.TransferTxId;
+		const validCreditNotice = depositResponse['Credit-Notice'] && depositResponse['Credit-Notice'].status === 'Success';
 
 		if (validCreditNotice) {
 			const depositTxId = depositResponse['Credit-Notice'].data.TransferTxId;
@@ -157,7 +158,7 @@ async function handleOrderCreate(args) {
 					console.log('Creating order...');
 					const orderData = {
 						Pair: args.orderPair,
-						DepositTxId: depositResponse['Credit-Notice'].data.TransferTxId,
+						DepositTxId: depositResponse.id,
 						Quantity: args.orderQuantity,
 					}
 					if (args.orderPrice) orderData.Price = args.orderPrice;
@@ -170,7 +171,6 @@ async function handleOrderCreate(args) {
 				else {
 					console.error('Failed to resolve deposit status after 3 retries.');
 				}
-
 			}
 			else {
 				console.error('Failed to check deposit status')
@@ -217,37 +217,35 @@ async function handleMint() {
 	}
 }
 
-(async function () {
-	// await handleMint()
+// (async function () {
+// 	// await handleMint()
 	
-	// Sell order
-	await handleOrderCreate({
-		clientWallet: SELLER_WALLET,
-		orderPair: ORDER_PAIR_SELL,
-		orderQuantity: ORDER_QUANTITY,
-		orderPrice: ORDER_PRICE
-	});
+// 	// Sell order
+// 	await handleOrderCreate({
+// 		clientWallet: SELLER_WALLET,
+// 		orderPair: ORDER_PAIR_SELL,
+// 		orderQuantity: ORDER_QUANTITY,
+// 		orderPrice: ORDER_PRICE
+// 	});
 
-	// await new Promise((r) => setTimeout(r, 1000));
+// 	// Buy order
+// 	// await handleOrderCreate({
+// 	// 	clientWallet: BUYER_WALLET,
+// 	// 	orderPair: ORDER_PAIR_BUY,
+// 	// 	orderQuantity: ((parseInt(ORDER_QUANTITY) * parseInt(ORDER_PRICE))).toString(),
+// 	// });
 
-	// Buy order
-	// await handleOrderCreate({
-	// 	clientWallet: BUYER_WALLET,
-	// 	orderPair: ORDER_PAIR_BUY,
-	// 	orderQuantity: ((parseInt(ORDER_QUANTITY) * parseInt(ORDER_PRICE))).toString(),
-	// });
+// 	// Cancel order
+// 	// await handleOrderCancel({
+// 	// 	clientWallet: SELLER_WALLET,
+// 	// 	orderPair: ORDER_PAIR_SELL,
+// 	// 	orderTxId: 'TGnNQjm4kqnSUwSNEdf4x_2ijrBHLhmccnAfs4GdEZ8'
+// 	// });
 
-	// Cancel order
-	// await handleOrderCancel({
-	// 	clientWallet: SELLER_WALLET,
-	// 	orderPair: ORDER_PAIR_SELL,
-	// 	orderTxId: 'TGnNQjm4kqnSUwSNEdf4x_2ijrBHLhmccnAfs4GdEZ8'
-	// });
-
-	// Cancel allow
-	// await handleAllowCancel({
-	// 	clientWallet: SELLER_WALLET,
-	// 	processId: ASSET_PROCESS,
-	// 	txId: 'LmpOLlkTvzWeyQ1D5A2kAFxmqQlzt1wRVbVitLyuCLU'
-	// })
-})()
+// 	// Cancel allow
+// 	// await handleAllowCancel({
+// 	// 	clientWallet: SELLER_WALLET,
+// 	// 	processId: ASSET_PROCESS,
+// 	// 	txId: 'LmpOLlkTvzWeyQ1D5A2kAFxmqQlzt1wRVbVitLyuCLU'
+// 	// })
+// })()

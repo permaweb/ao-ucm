@@ -1,10 +1,10 @@
 local bint = require('.bint')(256)
 local json = require('json')
 
-if Name ~= 'Rai' then Name = 'Rai' end
-if Ticker ~= 'RAI' then Ticker = 'RAI' end
-if Denomination ~= 1 then Denomination = 1 end
-if not Balances then Balances = { [Owner] = '100' } end
+if Name ~= 'AOU' then Name = 'AOU' end
+if Ticker ~= 'AOU' then Ticker = 'AOU' end
+if Denomination ~= 12 then Denomination = 12 end
+if not Balances then Balances = { [Owner] = tostring(bint(10000 * 1e12)) } end
 
 local function checkValidAddress(address)
 	if not address or type(address) ~= 'string' then

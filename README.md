@@ -18,7 +18,7 @@ The UCM functions by accepting a deposit from a buyer or seller and fulfilling o
 
 #### AOS
 
-###### Transfer
+###### Deposit (Transfer)
 
 ```lua
 Send({ 
@@ -40,6 +40,8 @@ Send({
 
 #### NodeJS
 
+###### Deposit (Transfer)
+
 ```js
 const depositTxId = await message({ 
 	process: <Token-Process>,
@@ -51,6 +53,8 @@ const depositTxId = await message({
 	}
  })
 ```
+
+###### Create-Order
 
 ```js
 const orderTxId = await message({ 

@@ -536,11 +536,14 @@ Handlers.add('Create-Order',
 							-- If there is a receiving amount then push the match
 							if receiveFromCurrent > 0 then
 								table.insert(matches,
-									{ Id = currentOrderEntry.Id, Quantity = receiveFromCurrent, Price = dominantPrice })
+									{ Id = currentOrderEntry.Id, Quantity = tostring(receiveFromCurrent), Price = dominantPrice })
 							end
 
 							-- If the current order is not completely filled then keep it in the orderbook
-							if currentOrderEntry.Quantity ~= 0 then
+							if tonumber(currentOrderEntry.Quantity) ~= 0 then
+								-- Reassign quantity as a string
+								currentOrderEntry.Quantity = tostring(currentOrderEntry.Quantity)
+
 								table.insert(updatedOrderbook, currentOrderEntry)
 							end
 						end
@@ -598,7 +601,7 @@ Handlers.add('Create-Order',
 						local sumVolume = 0
 
 						for _, match in ipairs(matches) do
-							local volume = match.Quantity
+							local volume = tonumber(match.Quantity)
 							local price = tonumber(match.Price)
 
 							sumVolumePrice = sumVolumePrice + (volume * price)
@@ -608,7 +611,7 @@ Handlers.add('Create-Order',
 						local vwap = sumVolumePrice / sumVolume
 
 						Orderbook[pairIndex].PriceData = {
-							Vwap = vwap,
+							Vwap = tostring(vwap),
 							Block = tostring(msg['Block-Height']),
 							DominantToken = dominantToken,
 							MatchLogs = matches

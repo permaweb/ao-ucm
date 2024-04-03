@@ -50,8 +50,8 @@ export async function sendMessage(args) {
 	try {
 		const txId = await message({
 			process: args.processId,
-			tags: [{ name: 'Action', value: args.action }],
 			signer: createDataItemSigner(args.wallet),
+			tags: [{ name: 'Action', value: args.action }],
 			data: JSON.stringify(args.data)
 		});
 
@@ -217,35 +217,35 @@ async function handleMint() {
 	}
 }
 
-// (async function () {
-// 	// await handleMint()
+(async function () {
+	// await handleMint()
 	
-// 	// Sell order
-// 	await handleOrderCreate({
-// 		clientWallet: SELLER_WALLET,
-// 		orderPair: ORDER_PAIR_SELL,
-// 		orderQuantity: ORDER_QUANTITY,
-// 		orderPrice: ORDER_PRICE
-// 	});
+	// Sell order
+	await handleOrderCreate({
+		clientWallet: SELLER_WALLET,
+		orderPair: ORDER_PAIR_SELL,
+		orderQuantity: ORDER_QUANTITY,
+		orderPrice: ORDER_PRICE
+	});
 
-// 	// Buy order
-// 	// await handleOrderCreate({
-// 	// 	clientWallet: BUYER_WALLET,
-// 	// 	orderPair: ORDER_PAIR_BUY,
-// 	// 	orderQuantity: ((parseInt(ORDER_QUANTITY) * parseInt(ORDER_PRICE))).toString(),
-// 	// });
+	// Buy order
+	// await handleOrderCreate({
+	// 	clientWallet: BUYER_WALLET,
+	// 	orderPair: ORDER_PAIR_BUY,
+	// 	orderQuantity: ((parseInt(ORDER_QUANTITY) * parseInt(ORDER_PRICE))).toString(),
+	// });
 
-// 	// Cancel order
-// 	// await handleOrderCancel({
-// 	// 	clientWallet: SELLER_WALLET,
-// 	// 	orderPair: ORDER_PAIR_SELL,
-// 	// 	orderTxId: 'TGnNQjm4kqnSUwSNEdf4x_2ijrBHLhmccnAfs4GdEZ8'
-// 	// });
+	// Cancel order
+	// await handleOrderCancel({
+	// 	clientWallet: SELLER_WALLET,
+	// 	orderPair: ORDER_PAIR_SELL,
+	// 	orderTxId: 'TGnNQjm4kqnSUwSNEdf4x_2ijrBHLhmccnAfs4GdEZ8'
+	// });
 
-// 	// Cancel allow
-// 	// await handleAllowCancel({
-// 	// 	clientWallet: SELLER_WALLET,
-// 	// 	processId: ASSET_PROCESS,
-// 	// 	txId: 'LmpOLlkTvzWeyQ1D5A2kAFxmqQlzt1wRVbVitLyuCLU'
-// 	// })
-// })()
+	// Cancel allow
+	// await handleAllowCancel({
+	// 	clientWallet: SELLER_WALLET,
+	// 	processId: ASSET_PROCESS,
+	// 	txId: 'LmpOLlkTvzWeyQ1D5A2kAFxmqQlzt1wRVbVitLyuCLU'
+	// })
+})()

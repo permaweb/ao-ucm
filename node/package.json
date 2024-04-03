@@ -13,7 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@permaweb/aoconnect": "^0.0.45"
+    "@permaweb/aoconnect": "^0.0.51"
   },
   "devDependencies": {
     "uvu": "^0.5.6"

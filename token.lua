@@ -15,7 +15,7 @@ local function checkValidAddress(address)
 end
 
 local function checkValidAmount(data)
-	return math.type(tonumber(data)) == 'integer' and bint(data) > 0
+	return (math.type(tonumber(data)) == 'integer' or math.type(tonumber(data)) == 'float') and bint(data) > 0
 end
 
 local function decodeMessageData(data)
@@ -35,6 +35,9 @@ local function validateTransferData(msg)
 		return nil, string.format('Failed to parse data, received: %s. %s.', msg.Data,
 			'Data must be an object - { Recipient: string, Quantity: number }')
 	end
+
+	print(data)
+	print(data.Quantity)
 
 	-- Check if recipient and quantity are present
 	if not data.Recipient or not data.Quantity then

@@ -106,7 +106,7 @@ local function handleRemoveDeposit(target, depositTxId)
 	if target and checkValidAddress(target) and depositTxId and checkValidAddress(depositTxId) then
 		local depositIndex = getDepositIndex(target, depositTxId)
 
-		if Deposits[target][depositIndex] then
+		if Deposits[target] and Deposits[target][depositIndex] then
 			table.remove(Deposits[target], depositIndex)
 
 			-- If the owner no longer has any deposits then remove the entry
@@ -458,11 +458,6 @@ Handlers.add('Create-Order',
 					local dominantToken = Orderbook[pairIndex].Pair[1]
 
 					for _, currentOrderEntry in ipairs(currentOrders) do
-						if remainingQuantity <= 0 then
-							-- Exit if the order is fully matched
-							break
-						end
-
 						-- Price of the current order reversed to the input token
 						local reversePrice = 1 / tonumber(currentOrderEntry.Price)
 
@@ -514,7 +509,7 @@ Handlers.add('Create-Order',
 
 								-- Reduce the remaining tokens to be matched by the amount the user is going to receive from this order
 								remainingQuantity = remainingQuantity - sendAmount
-
+								
 								-- Send tokens to the current order creator
 								ao.send({
 									Target = currentToken,
@@ -536,7 +531,12 @@ Handlers.add('Create-Order',
 							-- If there is a receiving amount then push the match
 							if receiveFromCurrent > 0 then
 								table.insert(matches,
-									{ Id = currentOrderEntry.Id, Quantity = tostring(receiveFromCurrent), Price = dominantPrice })
+									{
+										Id = currentOrderEntry.Id,
+										Quantity = tostring(receiveFromCurrent),
+										Price =
+											dominantPrice
+									})
 							end
 
 							-- If the current order is not completely filled then keep it in the orderbook

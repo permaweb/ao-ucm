@@ -509,7 +509,7 @@ Handlers.add('Create-Order',
 
 								-- Reduce the remaining tokens to be matched by the amount the user is going to receive from this order
 								remainingQuantity = remainingQuantity - sendAmount
-								
+
 								-- Send tokens to the current order creator
 								ao.send({
 									Target = currentToken,

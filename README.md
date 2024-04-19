@@ -22,9 +22,9 @@ The UCM functions by accepting a deposit from a buyer or seller and fulfilling o
 
 ```lua
 Send({ 
-	Target = <Token-Process>, 
+	Target = TOKEN_PROCESS, 
 	Tags = { Action = 'Transfer' }, 
-	Data = '{"Recipient": <UCM-Process>, "Quantity": <Quantity> }' 
+	Data = '{"Recipient": UCM_PROCESS, "Quantity": QUANTITY }' 
 })
 ```
 
@@ -32,9 +32,9 @@ Send({
 
 ```lua
 Send({
-	Target = <UCM-Process>, 
+	Target = UCM_PROCESS, 
 	Tags = { Action = 'Create-Order' }, 
-	Data = '{"Pair": <Swap-Pair>, "DepositTxId": <DepositTxId>, "Quantity": <Quantity>, "Price": <Price> }'
+	Data = '{"Pair": SWAP_PAIR, "DepositTxId": DEPOSIT_TXID, "Quantity": QUANTITY, "Price": PRICE }'
 })
 ```
 
@@ -44,12 +44,12 @@ Send({
 
 ```js
 const depositTxId = await message({ 
-	process: <Token-Process>,
+	process: TOKEN_PROCESS,
 	tags: [{ name: 'Action', value: 'Transfer' }],
 	signer: createDataItemSigner(wallet),
 	data: {
-		Recipient: <UCM-Process>,
-		Quantity: <Quantity>
+		Recipient: UCM_PROCESS,
+		Quantity: QUANTITY
 	}
  })
 ```
@@ -58,14 +58,14 @@ const depositTxId = await message({
 
 ```js
 const orderTxId = await message({ 
-	process: <UCM-Process>,
+	process: UCM_PROCESS,
 	tags: [{ name: 'Action', value: 'Create-Order' }],
 	signer: createDataItemSigner(wallet),
 	data: {
-		Pair: <Swap-Pair>,
+		Pair: SWAP_PAIR,
 		DepositTxId: depositTxId,
-		Quantity: <Quantity>,
-		Price: <Price>
+		Quantity: QUANTITY,
+		Price: PRICE
 	}
  })
 ```

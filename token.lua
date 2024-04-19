@@ -3,6 +3,7 @@ local json = require('json')
 
 if Name ~= 'AOU' then Name = 'AOU' end
 if Ticker ~= 'AOU' then Ticker = 'AOU' end
+if not Logo then Logo = 'xPZUkoOBd8gXIe4fiXypb15vbUbsLrufAWGyF0UqROo' end
 if Denomination ~= 12 then Denomination = 12 end
 if not Balances then Balances = { [Owner] = tostring(bint(10000 * 1e12)) } end
 
@@ -35,9 +36,6 @@ local function validateTransferData(msg)
 		return nil, string.format('Failed to parse data, received: %s. %s.', msg.Data,
 			'Data must be an object - { Recipient: string, Quantity: number }')
 	end
-
-	print(data)
-	print(data.Quantity)
 
 	-- Check if recipient and quantity are present
 	if not data.Recipient or not data.Quantity then
@@ -81,6 +79,7 @@ Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(m
 			Name = Name,
 			Ticker = Ticker,
 			Denomination = Denomination,
+			Logo = Logo,
 			Balances = Balances,
 		})
 	})

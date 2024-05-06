@@ -3,9 +3,9 @@ local json = require('json')
 
 if Name ~= 'AOU' then Name = 'AOU' end
 if Ticker ~= 'AOU' then Ticker = 'AOU' end
-if not Logo then Logo = 'xPZUkoOBd8gXIe4fiXypb15vbUbsLrufAWGyF0UqROo' end
 if Denomination ~= 12 then Denomination = 12 end
 if not Balances then Balances = { [Owner] = tostring(bint(10000 * 1e12)) } end
+if Logo ~= 'r_6_cIZ9ZcAclPkA0Bp4n_HeJ5kWnKgCSwH7oFyDrJY' then Logo = 'r_6_cIZ9ZcAclPkA0Bp4n_HeJ5kWnKgCSwH7oFyDrJY' end
 
 local function checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
@@ -79,8 +79,8 @@ Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(m
 			Name = Name,
 			Ticker = Ticker,
 			Denomination = Denomination,
-			Logo = Logo,
 			Balances = Balances,
+			Logo = Logo
 		})
 	})
 end)
@@ -106,11 +106,28 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Balances[data.Recipient] = nil
 		end
 
+		local debitNoticeTags = {
+			Status = 'Success',
+			Message = 'Balance transferred, debit notice issued'
+		}
+
+		local creditNoticeTags = {
+			Status = 'Success',
+			Message = 'Balance transferred, credit notice issued'
+		}
+
+		for tagName, tagValue in pairs(msg) do
+			if string.sub(tagName, 1, 2) == 'X-' then
+				debitNoticeTags[string.sub(tagName, 3)] = tagValue
+				creditNoticeTags[string.sub(tagName, 3)] = tagValue
+			end
+		end
+
 		-- Send a debit notice to the sender
 		ao.send({
 			Target = msg.From,
 			Action = 'Debit-Notice',
-			Tags = { Status = 'Success', Message = 'Balance transferred, debit notice issued' },
+			Tags = debitNoticeTags,
 			Data = json.encode({
 				Recipient = data.Recipient,
 				Quantity = tostring(data.Quantity)
@@ -121,7 +138,7 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		ao.send({
 			Target = data.Recipient,
 			Action = 'Credit-Notice',
-			Tags = { Status = 'Success', Message = 'Balance transferred, credit notice issued' },
+			Tags = creditNoticeTags,
 			Data = json.encode({
 				Sender = msg.From,
 				Quantity = tostring(data.Quantity)

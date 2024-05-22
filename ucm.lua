@@ -1,6 +1,8 @@
 local json = require('json')
 local bint = require('.bint')(256)
 
+STREAKS_PROCESS = 'jmu9__Fw79vcsCbPD15cy-xR0zFZa3lXv16rbpWQtRA'
+
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
 -- Orderbook {
@@ -18,6 +20,10 @@ if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Market
 -- } []
 
 if not Orderbook then Orderbook = {} end
+
+if not ExecutedOrders then ExecutedOrders = {} end
+
+if not UserSales then UserSales = {} end
 
 local function checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
@@ -93,7 +99,7 @@ local function handleError(args) -- Target, TransferToken, Quantity
 	ao.send({ Target = args.Target, Action = args.Action, Tags = { Status = 'Error', Message = args.Message } })
 end
 
-local function createOrder(args) -- orderId, dominantToken, swapToken, sender, quantity, price?, timestamp, controller
+local function createOrder(args) -- orderId, dominantToken, swapToken, sender, quantity, price?, timestamp
 	local validPair, pairError = validatePairData({ args.dominantToken, args.swapToken })
 
 	-- If the pair is valid then handle the order and remove the claim status entry
@@ -186,9 +192,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						Price = tostring(args.price) -- Price is ensured because it is a limit order
 					})
 
-					if args.controller then
-						ao.send({ Target = args.contoller, Action = 'Order-Success', Tags = { Status = 'Success', Message = 'Order created' } })
-					end
+					ao.send({ Target = args.sender, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order created!', Handler = 'Create-Order' } })
 				end
 				return
 			end
@@ -287,6 +291,27 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 								Price =
 									dominantPrice
 							})
+
+						-- Save executed order
+						table.insert(ExecutedOrders, {
+							OrderId = currentOrderEntry.Id,
+							DominantToken = validPair[2],
+							SwapToken = validPair[1],
+							Sender = currentOrderEntry.Creator,
+							Receiver = args.sender,
+							Quantity = receiveFromCurrent,
+							Price = dominantPrice,
+							Timestamp = args.timestamp
+						})
+
+						-- Update user sales
+						if not UserSales[currentOrderEntry.Creator] then
+							UserSales[currentOrderEntry.Creator] = 0
+						end
+						UserSales[currentOrderEntry.Creator] = UserSales[currentOrderEntry.Creator] + 1
+
+						-- Calculate streaks
+						ao.send({ Target = STREAKS_PROCESS, Action = 'Calculate-Streak', Data = json.encode({ Buyer = args.sender }) })
 					end
 
 					-- If the current order is not completely filled then keep it in the orderbook
@@ -364,9 +389,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 				Orderbook[pairIndex].PriceData = nil
 			end
 
-			if args.contoller then
-				ao.send({ Target = args.contoller, Action = 'Order-Success', Tags = { Status = 'Success', Message = 'Order created' } })
-			end
+			ao.send({ Target = args.sender, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order created!', Handler = 'Create-Order' } })
 		else
 			handleError({
 				Target = args.sender,
@@ -447,10 +470,6 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 				orderArgs.price = tonumber(msg.Tags['Price'])
 			end
 
-			if msg.Tags['Controller'] then
-				orderArgs.controller = msg.Tags['Controller']
-			end
-
 			createOrder(orderArgs)
 		end
 	else
@@ -511,13 +530,13 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 
 			-- The order is not found
 			if not order then
-				ao.send({ Target = msg.From, Action = 'Order-Cancel-Error', Tags = { Status = 'Error', Message = pairError or 'Order not found' } })
+				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Order not found', Handler = 'Cancel-Order' } })
 				return
 			end
 
 			-- Check if the sender is the order creator
 			if msg.From ~= order.Creator then
-				ao.send({ Target = msg.From, Action = 'Order-Cancel-Error', Tags = { Status = 'Error', Message = pairError or 'Unauthorized to cancel this order' } })
+				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Unauthorized to cancel this order', Handler = 'Cancel-Order' } })
 				return
 			end
 
@@ -535,12 +554,12 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 				-- Remove the order from the current table
 				table.remove(Orderbook[pairIndex].Orders, orderIndex)
 
-				ao.send({ Target = msg.From, Action = 'Order-Cancel-Success', Tags = { Status = 'Success', Message = pairError or 'Order cancelled' } })
+				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order cancelled', Handler = 'Cancel-Order' } })
 			else
-				ao.send({ Target = msg.From, Action = 'Order-Cancel-Error', Tags = { Status = 'Error', Message = pairError or 'Error cancelling order' } })
+				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Error cancelling order', Handler = 'Cancel-Order' } })
 			end
 		else
-			ao.send({ Target = msg.From, Action = 'Order-Cancel-Error', Tags = { Status = 'Error', Message = pairError or 'Pair not found' } })
+			ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Pair not found', Handler = 'Cancel-Order' } })
 		end
 	else
 		ao.send({

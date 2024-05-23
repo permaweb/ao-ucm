@@ -1,5 +1,4 @@
 local json = require('json')
-local bint = require('.bint')(256)
 
 UCM_PROCESS = 'fzRGvSW2oSop9xGLxs5mcaRtCbrbug8imI_uRZHKdiU'
 

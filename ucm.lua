@@ -90,6 +90,10 @@ local function handleError(args) -- Target, TransferToken, Quantity
 		ao.send({
 			Target = args.TransferToken,
 			Action = 'Transfer',
+			Tags = {
+				Recipient = args.Target,
+				Quantity = args.Quantity
+			},
 			Data = json.encode({
 				Recipient = args.Target,
 				Quantity = args.Quantity
@@ -241,6 +245,10 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 							ao.send({
 								Target = currentToken,
 								Action = 'Transfer',
+								Tags = {
+									Recipient = currentOrderEntry.Creator,
+									Quantity = tostring(remainingQuantity)
+								},
 								Data = json.encode({
 									Recipient = currentOrderEntry.Creator,
 									Quantity = remainingQuantity
@@ -268,6 +276,10 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						ao.send({
 							Target = currentToken,
 							Action = 'Transfer',
+							Tags = {
+								Recipient = currentOrderEntry.Creator,
+								Quantity = tostring(sendAmount)
+							},
 							Data = json.encode({
 								Recipient = currentOrderEntry.Creator,
 								Quantity = sendAmount
@@ -311,7 +323,8 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						UserSales[currentOrderEntry.Creator] = UserSales[currentOrderEntry.Creator] + 1
 
 						-- Calculate streaks
-						ao.send({ Target = STREAKS_PROCESS, Action = 'Calculate-Streak', Data = json.encode({ Buyer = args.sender }) })
+						ao.send({ Target = STREAKS_PROCESS, Action = 'Calculate-Streak', Data = json.encode({ Buyer =
+						args.sender }) })
 					end
 
 					-- If the current order is not completely filled then keep it in the orderbook
@@ -342,6 +355,10 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 					ao.send({
 						Target = currentToken,
 						Action = 'Transfer',
+						Tags = {
+							Recipient = args.sender,
+							Quantity = tostring(remainingQuantity)
+						},
 						Data = json.encode({
 							Recipient = args.sender,
 							Quantity = remainingQuantity
@@ -354,6 +371,10 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 			ao.send({
 				Target = validPair[2],
 				Action = 'Transfer',
+				Tags = {
+					Recipient = args.sender,
+					Quantity = tostring(receiveAmount)
+				},
 				Data = json.encode({
 					Recipient = args.sender,
 					Quantity = receiveAmount
@@ -425,64 +446,56 @@ Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 
 -- Add credit notice to the deposits table (Data - { Sender, Quantity })
 Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
-	local decodeCheck, data = decodeMessageData(msg.Data)
+	-- local decodeCheck, data = decodeMessageData(msg.Data)
 
-	if decodeCheck and data then
-		-- Check if all required fields are present
-		if not data.Sender or not data.Quantity then
-			ao.send({
-				Target = msg.From,
-				Action = 'Input-Error',
-				Tags = {
-					Status = 'Error',
-					Message =
-					'Invalid arguments, required { Sender, Quantity }'
-				}
-			})
-			return
-		end
+	local data = {
+		Sender = msg.Tags.Sender,
+		Quantity = msg.Tags.Quantity
+	}
 
-		-- Check if sender is a valid address
-		if not checkValidAddress(data.Sender) then
-			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Sender must be a valid address' } })
-			return
-		end
-
-		-- Check if quantity is a valid integer greater than zero
-		if not checkValidAmount(data.Quantity) then
-			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
-			return
-		end
-
-		-- If Order-Action then create the order
-		if (Handlers.utils.hasMatchingTag('Action', 'Order-Action') and msg.Tags['Order-Action'] == 'Create-Order') then
-			local orderArgs = {
-				orderId = msg.Id,
-				dominantToken = msg.From,
-				swapToken = msg.Tags['Swap-Token'],
-				sender = data.Sender,
-				quantity = tonumber(data.Quantity),
-				timestamp = msg.Timestamp,
-				blockheight = msg['Block-Height']
-			}
-
-			if msg.Tags['Price'] then
-				orderArgs.price = tonumber(msg.Tags['Price'])
-			end
-
-			createOrder(orderArgs)
-		end
-	else
+	-- Check if all required fields are present
+	if not data.Sender or not data.Quantity then
 		ao.send({
 			Target = msg.From,
 			Action = 'Input-Error',
 			Tags = {
 				Status = 'Error',
-				Message = string.format(
-					'Failed to parse data, received: %s. %s.', msg.Data,
-					'Data must be an object - { Sender, Quantity }')
+				Message =
+				'Invalid arguments, required { Sender, Quantity }'
 			}
 		})
+		return
+	end
+
+	-- Check if sender is a valid address
+	if not checkValidAddress(data.Sender) then
+		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Sender must be a valid address' } })
+		return
+	end
+
+	-- Check if quantity is a valid integer greater than zero
+	if not checkValidAmount(data.Quantity) then
+		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
+		return
+	end
+
+	-- If Order-Action then create the order
+	if (Handlers.utils.hasMatchingTag('Action', 'X-Order-Action') and msg.Tags['X-Order-Action'] == 'Create-Order') then
+		local orderArgs = {
+			orderId = msg.Id,
+			dominantToken = msg.From,
+			swapToken = msg.Tags['X-Swap-Token'],
+			sender = data.Sender,
+			quantity = tonumber(data.Quantity),
+			timestamp = msg.Timestamp,
+			blockheight = msg['Block-Height']
+		}
+
+		if msg.Tags['X-Price'] then
+			orderArgs.price = tonumber(msg.Tags['X-Price'])
+		end
+
+		createOrder(orderArgs)
 	end
 end)
 
@@ -545,6 +558,10 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 				ao.send({
 					Target = order.Token,
 					Action = 'Transfer',
+					Tags = {
+						Recipient = order.Creator,
+						Quantity = order.Quantity
+					},
 					Data = json.encode({
 						Recipient = order.Creator,
 						Quantity = order.Quantity

@@ -1,7 +1,7 @@
 local json = require('json')
 local bint = require('.bint')(256)
 
-STREAKS_PROCESS = 'jmu9__Fw79vcsCbPD15cy-xR0zFZa3lXv16rbpWQtRA'
+PIXL_PROCESS = 'jmu9__Fw79vcsCbPD15cy-xR0zFZa3lXv16rbpWQtRA'
 
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
@@ -323,8 +323,13 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						UserSales[currentOrderEntry.Creator] = UserSales[currentOrderEntry.Creator] + 1
 
 						-- Calculate streaks
-						ao.send({ Target = STREAKS_PROCESS, Action = 'Calculate-Streak', Data = json.encode({ Buyer =
-						args.sender }) })
+						ao.send({
+							Target = PIXL_PROCESS,
+							Action = 'Calculate-Streak',
+							Tags = {
+								Buyer = args.sender
+							}
+						})
 					end
 
 					-- If the current order is not completely filled then keep it in the orderbook

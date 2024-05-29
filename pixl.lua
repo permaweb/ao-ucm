@@ -208,17 +208,13 @@ Handlers.add('Balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), func
 		return
 	end
 
-	-- Check if target has a balance
-	if not Balances[data.Recipient] then
-		ao.send({ Target = msg.From, Action = 'Read-Error', Tags = { Status = 'Error', Message = 'Recipient does not have a balance' } })
-		return
-	end
+	local balance = Balances[data.Recipient] or '0'
 
 	ao.send({
 		Target = msg.From,
 		Action = 'Read-Success',
-		Tags = { Status = 'Success', Message = 'Balance received' },
-		Data = Balances[data.Recipient]
+		Tags = { Status = 'Success', Message = 'Balance received', Balance = balance },
+		Data = balance
 	})
 end)
 

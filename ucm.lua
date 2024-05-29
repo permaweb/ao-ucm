@@ -9,7 +9,6 @@ if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Market
 -- 	Pair [TokenId, TokenId],
 -- 	Orders {
 -- 		Id,
--- 		DepositTxId,
 -- 		Creator,
 -- 		Quantity,
 -- 		OriginalQuantity,

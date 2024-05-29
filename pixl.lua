@@ -30,6 +30,70 @@ local function checkValidAmount(data)
 	return (math.type(tonumber(data)) == 'integer' or math.type(tonumber(data)) == 'float') and bint(data) > 0
 end
 
+local function getAllocation(currentHeight)
+	if next(Streaks) == nil then
+		return nil
+	end
+
+	local reward = 0
+	local current = 0
+
+	for _, v in pairs(Balances) do
+		current = current + v
+	end
+
+	if current >= HALVING_SUPPLY then
+		if not Balances[Owner] then
+			Balances[Owner] = '0'
+		end
+	end
+
+	local blockHeight = tonumber(currentHeight) - ORIGIN_HEIGHT
+	local currentCycle = math.floor(blockHeight / CYCLE_INTERVAL) + 1
+	local divisor = 2 ^ currentCycle
+
+	reward = math.floor(math.floor(HALVING_SUPPLY / divisor) / 365)
+
+	if reward <= 0 then
+		return nil
+	end
+
+	local multipliers = {}
+
+	for k, v in pairs(Streaks) do
+		if v.days > 0 and v.days < 31 then
+			local multiplier = v.days - 1
+			multipliers[k] = 1 + multiplier * 0.1
+		elseif v.days >= 31 then
+			local multiplier = 30
+			multipliers[k] = 1 + multiplier * 0.1
+		end
+	end
+
+	-- Calculate the total balance
+	local total = 0
+	for _, v in pairs(multipliers) do
+		if v > 0 then
+			total = total + v
+		end
+	end
+
+	-- Initialize allocation table
+	local allocation = {}
+
+	-- Calculate the allocation for each balance
+	for address, multiplier in pairs(multipliers) do
+		if multiplier >= 1 then
+			local pct = (multiplier / total) * 100
+			local amount = math.floor(reward * (pct / 100) + 0.5) -- Round to the nearest integer
+
+			allocation[address] = (allocation[address] or 0) + amount
+		end
+	end
+
+	return allocation
+end
+
 -- Read process state
 Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 	function(msg)
@@ -126,48 +190,36 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 	end
 end)
 
--- Read balance (Data - { Target })
+-- Read balance (Data - { Recipient })
 Handlers.add('Balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
 	local data = {
-		Target = msg.Tags.Target
+		Recipient = msg.Tags.Recipient
 	}
 
-	if data.Target then
-		-- Check if target is present
-		if not data.Target then
-			ao.send({ Target = msg.From, Action = 'Input-Error', Tags = { Status = 'Error', Message = 'Invalid arguments, required { Target }' } })
-			return
-		end
-
-		-- Check if target is a valid address
-		if not checkValidAddress(data.Target) then
-			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Target is not a valid address' } })
-			return
-		end
-
-		-- Check if target has a balance
-		if not Balances[data.Target] then
-			ao.send({ Target = msg.From, Action = 'Read-Error', Tags = { Status = 'Error', Message = 'Target does not have a balance' } })
-			return
-		end
-
-		ao.send({
-			Target = msg.From,
-			Action = 'Read-Success',
-			Tags = { Status = 'Success', Message = 'Balance received' },
-			Data = Balances[data.Target]
-		})
-	else
-		ao.send({
-			Target = msg.From,
-			Action = 'Input-Error',
-			Tags = {
-				Status = 'Error',
-				Message = string.format('Failed to parse data, received: %s. %s', msg.Data,
-					'Data must be an object - { Target }')
-			}
-		})
+	-- Check if target is present
+	if not data.Recipient then
+		ao.send({ Target = msg.From, Action = 'Input-Error', Tags = { Status = 'Error', Message = 'Invalid arguments, required { Recipient }' } })
+		return
 	end
+
+	-- Check if target is a valid address
+	if not checkValidAddress(data.Recipient) then
+		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Recipient is not a valid address' } })
+		return
+	end
+
+	-- Check if target has a balance
+	if not Balances[data.Recipient] then
+		ao.send({ Target = msg.From, Action = 'Read-Error', Tags = { Status = 'Error', Message = 'Recipient does not have a balance' } })
+		return
+	end
+
+	ao.send({
+		Target = msg.From,
+		Action = 'Read-Success',
+		Tags = { Status = 'Success', Message = 'Balance received' },
+		Data = Balances[data.Recipient]
+	})
 end)
 
 -- Read balances
@@ -226,79 +278,56 @@ Handlers.add('Calculate-Streak', Handlers.utils.hasMatchingTag('Action', 'Calcul
 	end)
 
 -- Trigger rewards dispersement
+Handlers.add('Read-Current-Rewards', Handlers.utils.hasMatchingTag('Action', 'Read-Current-Rewards'),
+	function(msg)
+		local data = {
+			Recipient = msg.Tags.Recipient
+		}
+
+		-- Check if target is present
+		if not data.Recipient then
+			ao.send({ Target = msg.From, Action = 'Input-Error', Tags = { Status = 'Error', Message = 'Invalid arguments, required { Recipient }' } })
+			return
+		end
+
+		-- Check if target is a valid address
+		if not checkValidAddress(data.Recipient) then
+			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Recipient is not a valid address' } })
+			return
+		end
+
+		-- Initialize allocation table
+		local allocation = getAllocation(msg['Block-Height'])
+
+		if allocation and allocation[data.Recipient] then
+			ao.send({
+				Target = msg.From,
+				Action = 'Read-Success',
+				Tags = { Status = 'Success', Message = 'Read rewards' },
+				Data = allocation[data.Recipient]
+			})
+		end
+	end)
+
+-- Trigger rewards dispersement
 Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards'),
 	function(msg)
 		if tonumber(LastReward) + DAY_INTERVAL >= tonumber(msg['Block-Height']) then
 			return
 		end
 
-		if next(Streaks) == nil then
-			return
-		end
-
-		local reward = 0
-		local current = 0
-
-		for _, v in pairs(Balances) do
-			current = current + v
-		end
-
-		if current >= HALVING_SUPPLY then
-			if not Balances[Owner] then
-				Balances[Owner] = '0'
-			end
-		end
-
-		local blockHeight = tonumber(msg['Block-Height']) - ORIGIN_HEIGHT
-		local currentCycle = math.floor(blockHeight / CYCLE_INTERVAL) + 1
-		local divisor = 2 ^ currentCycle
-
-		reward = math.floor(math.floor(HALVING_SUPPLY / divisor) / 365)
-
-		if reward == 0 then
-			return
-		end
-
-		local multipliers = {}
-
-		for k, v in pairs(Streaks) do
-			if v.days > 0 and v.days < 31 then
-				local multiplier = v.days - 1
-				multipliers[k] = 1 + multiplier * 0.1
-			elseif v.days >= 31 then
-				local multiplier = 30
-				multipliers[k] = 1 + multiplier * 0.1
-			end
-		end
-
-		-- Calculate the total balance
-		local total = 0
-		for _, v in pairs(multipliers) do
-			if v > 0 then
-				total = total + v
-			end
-		end
-
 		-- Initialize allocation table
-		local allocation = {}
+		local allocation = getAllocation(msg['Block-Height'])
 
-		-- Calculate the allocation for each balance
-		for address, multiplier in pairs(multipliers) do
-			if multiplier >= 1 then
-				local pct = (multiplier / total) * 100
-				local amount = math.floor(reward * (pct / 100) + 0.5) -- Round to the nearest integer
-
-				allocation[address] = (allocation[address] or 0) + amount
+		if allocation then
+			-- Update balances
+			for k, v in pairs(allocation) do
+				if not Balances[k] then
+					Balances[k] = '0'
+				end
+				Balances[k] = tostring(bint(Balances[k] + bint(v)))
 			end
-		end
 
-		-- Update balances
-		for k, v in pairs(allocation) do
-			if not Balances[k] then
-				Balances[k] = '0'
-			end
-			Balances[k] = tostring(bint(Balances[k] + bint(v)))
+			LastReward = msg['Block-Height']
 		end
-
-		LastReward = msg['Block-Height']
 	end)

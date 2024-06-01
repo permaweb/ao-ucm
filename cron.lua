@@ -1,4 +1,4 @@
-PIXL_PROCESS = 'jmu9__Fw79vcsCbPD15cy-xR0zFZa3lXv16rbpWQtRA'
+PIXL_PROCESS = '8Lz_BvNqxlhSlyx282o4v7AIwKQpUn-qklhDnHgUWQs'
 
 Handlers.add('Cron', Handlers.utils.hasMatchingTag('Action', 'Cron'),
 	function(msg)

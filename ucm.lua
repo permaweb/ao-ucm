@@ -19,10 +19,10 @@ if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Market
 -- } []
 
 if not Orderbook then Orderbook = {} end
-
+if not ListedOrders then ListedOrders = {} end
 if not ExecutedOrders then ExecutedOrders = {} end
-
-if not UserSales then UserSales = {} end
+if not SalesByAddress then SalesByAddress = {} end
+if not PurchasesByAddress then PurchasesByAddress = {} end
 
 local function checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
@@ -180,6 +180,17 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						Price = tostring(args.price)
 					})
 
+					table.insert(ListedOrders, {
+						OrderId = args.orderId,
+						DominantToken = validPair[1],
+						SwapToken = validPair[2],
+						Sender = args.sender,
+						Receiver = nil,
+						Quantity = tostring(args.quantity),
+						Price = tostring(args.price),
+						Timestamp = args.timestamp
+					})
+
 					ao.send({ Target = args.sender, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order created!', Handler = 'Create-Order' } })
 				end
 				return
@@ -256,10 +267,15 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 							Timestamp = args.timestamp
 						})
 
-						if not UserSales[currentOrderEntry.Creator] then
-							UserSales[currentOrderEntry.Creator] = 0
+						if not SalesByAddress[currentOrderEntry.Creator] then
+							SalesByAddress[currentOrderEntry.Creator] = 0
 						end
-						UserSales[currentOrderEntry.Creator] = UserSales[currentOrderEntry.Creator] + 1
+						SalesByAddress[currentOrderEntry.Creator] = SalesByAddress[currentOrderEntry.Creator] + 1
+
+						if not PurchasesByAddress[args.sender] then
+							PurchasesByAddress[args.sender] = 0
+						end
+						PurchasesByAddress[args.sender] = PurchasesByAddress[args.sender] + 1
 
 						ao.send({
 							Target = PIXL_PROCESS,
@@ -412,7 +428,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			dominantToken = msg.From,
 			swapToken = msg.Tags['X-Swap-Token'],
 			sender = data.Sender,
-			quantity = data.Quantity,
+			quantity = msg.Tags['X-Quantity'],
 			timestamp = msg.Timestamp,
 			blockheight = msg['Block-Height']
 		}

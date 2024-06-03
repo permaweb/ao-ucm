@@ -2,6 +2,8 @@ local bint = require('.bint')(256)
 local json = require('json')
 
 UCM_PROCESS = 'fzRGvSW2oSop9xGLxs5mcaRtCbrbug8imI_uRZHKdiU'
+CRON_PROCESS = 'MxlafnztzleKXeYY90NzWh0Mo4pgluQA5KV4dz2qsOI'
+
 TOTAL_SUPPLY = bint(26280000 * 1e6)
 HALVING_SUPPLY = TOTAL_SUPPLY * 0.9
 ORIGIN_HEIGHT = 1434247
@@ -308,7 +310,11 @@ Handlers.add('Read-Current-Rewards', Handlers.utils.hasMatchingTag('Action', 'Re
 -- Trigger rewards dispersement
 Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards'),
 	function(msg)
-		if tonumber(LastReward) + DAY_INTERVAL >= tonumber(msg['Block-Height']) then
+		if msg.From ~= CRON_PROCESS then
+			return
+		end
+
+		if (tonumber(LastReward) + DAY_INTERVAL - 20) >= tonumber(msg['Block-Height']) then
 			return
 		end
 

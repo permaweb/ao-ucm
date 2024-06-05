@@ -247,7 +247,8 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						currentOrderEntry.Quantity = '0'
 					end
 
-					local dominantPrice = (dominantToken == currentToken) and (bint(args.price) or reversePrice) or bint(currentOrderEntry.Price)
+					local dominantPrice = (dominantToken == currentToken) and (bint(args.price) or reversePrice) or
+					bint(currentOrderEntry.Price)
 
 					if receiveFromCurrent > bint(0) then
 						table.insert(matches, {
@@ -533,3 +534,16 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 		})
 	end
 end)
+
+-- Read sales by address
+Handlers.add('Get-Sales-By-Address', Handlers.utils.hasMatchingTag('Action', 'Get-Sales-By-Address'), function(msg)
+	ao.send({
+		Target = msg.From,
+		Action = 'Read-Success',
+		Data = json.encode({
+			SalesByAddress = SalesByAddress
+		})
+	})
+end)
+
+Handlers.add('Debit-Notice', Handlers.utils.hasMatchingTag('Action', 'Debit-Notice'), function(msg) end)

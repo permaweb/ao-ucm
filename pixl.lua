@@ -268,7 +268,7 @@ Handlers.add('Calculate-Streak', Handlers.utils.hasMatchingTag('Action', 'Calcul
 			end
 			if heightDiff > (DAY_INTERVAL * 2) then
 				Streaks[data.Buyer] = {
-					days = 1,
+					days = 0,
 					lastHeight = msg['Block-Height']
 				}
 			end

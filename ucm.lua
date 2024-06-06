@@ -1,7 +1,7 @@
 local json = require('json')
 local bint = require('.bint')(256)
 
-PIXL_PROCESS = '8Lz_BvNqxlhSlyx282o4v7AIwKQpUn-qklhDnHgUWQs'
+PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
@@ -248,7 +248,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 					end
 
 					local dominantPrice = (dominantToken == currentToken) and (bint(args.price) or reversePrice) or
-					bint(currentOrderEntry.Price)
+						bint(currentOrderEntry.Price)
 
 					if receiveFromCurrent > bint(0) then
 						table.insert(matches, {
@@ -373,6 +373,23 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 	end
 end
 
+function Trusted(msg)
+	local mu = 'fcoN_xJeisVsPXA-trzVAuIiqO3ydLQxM-L4XbrQKzY'
+	if msg.Owner == mu then
+		return false
+	end
+	if msg.From == msg.Owner then
+		return false
+	end
+	return true
+end
+
+Handlers.prepend('qualify message',
+	Trusted,
+	function(msg)
+		print('This Msg is not trusted!')
+	end
+)
 
 -- Read process state
 Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),

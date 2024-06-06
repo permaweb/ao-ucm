@@ -1,8 +1,8 @@
 local bint = require('.bint')(256)
 local json = require('json')
 
-UCM_PROCESS = 'fzRGvSW2oSop9xGLxs5mcaRtCbrbug8imI_uRZHKdiU'
-CRON_PROCESS = 'MxlafnztzleKXeYY90NzWh0Mo4pgluQA5KV4dz2qsOI'
+UCM_PROCESS = 'U3TjJAZWJjlWBB4KAXSHKzuky81jtyh0zqH8rUL4Wd0'
+CRON_PROCESS = '6lHbf4JMQcGoteBMws8MHjhHkihMevM4Sgfr7ubgOFA'
 
 TOTAL_SUPPLY = bint(26280000 * 1e6)
 HALVING_SUPPLY = TOTAL_SUPPLY * 0.9

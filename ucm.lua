@@ -98,7 +98,7 @@ local function handleError(args) -- Target, TransferToken, Quantity
 	ao.send({ Target = args.Target, Action = args.Action, Tags = { Status = 'Error', Message = args.Message } })
 end
 
-local function createOrder(args) -- orderId, dominantToken, swapToken, sender, quantity, price?, timestamp
+local function createOrder(args) -- orderId, dominantToken, swapToken, sender, quantity, price?, transferDenomination?, timestamp
 	local validPair, pairError = validatePairData({ args.dominantToken, args.swapToken })
 
 	-- If the pair is valid then handle the order and remove the claim status entry
@@ -235,10 +235,20 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 					-- Set the total amount of tokens to be received
 					fillAmount = math.ceil(remainingQuantity * (tonumber(args.price) or reversePrice))
 
+					if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+						fillAmount = math.floor(remainingQuantity * (tonumber(args.price) or reversePrice))
+						fillAmount = bint(fillAmount) * bint(args.transferDenomination)
+					end
+
 					if fillAmount <= tonumber(currentOrderEntry.Quantity) then
 						-- The input order will be completely filled
 						-- Calculate the receiving amount
 						receiveFromCurrent = math.ceil(remainingQuantity * reversePrice)
+
+						if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+							receiveFromCurrent = math.floor(remainingQuantity * reversePrice)
+							receiveFromCurrent = bint(receiveFromCurrent) * bint(args.transferDenomination)
+						end
 
 						-- Reduce the current order quantity
 						currentOrderEntry.Quantity = tonumber(currentOrderEntry.Quantity) - fillAmount
@@ -254,11 +264,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 								Tags = {
 									Recipient = currentOrderEntry.Creator,
 									Quantity = tostring(remainingQuantity)
-								},
-								Data = json.encode({
-									Recipient = currentOrderEntry.Creator,
-									Quantity = remainingQuantity
-								})
+								}
 							})
 						end
 
@@ -268,6 +274,9 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						-- The input order will be partially filled
 						-- Calculate the receiving amount
 						receiveFromCurrent = tonumber(currentOrderEntry.Quantity) or 0
+						if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+							receiveFromCurrent = bint(receiveFromCurrent) * bint(args.transferDenomination)
+						end
 
 						-- Add all the tokens from the current order to fill the input order
 						receiveAmount = receiveAmount + receiveFromCurrent
@@ -285,11 +294,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 							Tags = {
 								Recipient = currentOrderEntry.Creator,
 								Quantity = tostring(sendAmount)
-							},
-							Data = json.encode({
-								Recipient = currentOrderEntry.Creator,
-								Quantity = sendAmount
-							})
+							}
 						})
 
 						-- There are no tokens left in the current order to be matched
@@ -301,7 +306,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						(args.price or reversePrice) or currentOrderEntry.Price
 
 					-- If there is a receiving amount then push the match
-					if receiveFromCurrent > 0 then
+					if bint(receiveFromCurrent) > bint(0) then
 						table.insert(matches,
 							{
 								Id = currentOrderEntry.Id,
@@ -317,7 +322,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 							SwapToken = validPair[1],
 							Sender = currentOrderEntry.Creator,
 							Receiver = args.sender,
-							Quantity = receiveFromCurrent,
+							Quantity = tostring(receiveFromCurrent),
 							Price = dominantPrice,
 							Timestamp = args.timestamp
 						})
@@ -344,7 +349,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 					end
 
 					-- If the current order is not completely filled then keep it in the orderbook
-					if tonumber(currentOrderEntry.Quantity) ~= 0 then
+					if bint(currentOrderEntry.Quantity) ~= bint(0) then
 						-- Reassign quantity as a string
 						currentOrderEntry.Quantity = tostring(currentOrderEntry.Quantity)
 
@@ -374,27 +379,19 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						Tags = {
 							Recipient = args.sender,
 							Quantity = tostring(remainingQuantity)
-						},
-						Data = json.encode({
-							Recipient = args.sender,
-							Quantity = remainingQuantity
-						})
+						}
 					})
 				end
 			end
 
-			-- Send transfer tokens to the input order creator
+			-- Send swap tokens to the input order creator
 			ao.send({
-				Target = validPair[2],
+				Target = args.swapToken,
 				Action = 'Transfer',
 				Tags = {
 					Recipient = args.sender,
 					Quantity = tostring(receiveAmount)
-				},
-				Data = json.encode({
-					Recipient = args.sender,
-					Quantity = receiveAmount
-				})
+				}
 			})
 
 			-- Post match processing
@@ -484,7 +481,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 
 	local data = {
 		Sender = msg.Tags.Sender,
-		Quantity = msg.Tags['X-Quantity']
+		Quantity = msg.Tags.Quantity
 	}
 
 	-- Check if all required fields are present
@@ -520,13 +517,16 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			dominantToken = msg.From,
 			swapToken = msg.Tags['X-Swap-Token'],
 			sender = data.Sender,
-			quantity = msg.Tags['X-Quantity'],
+			quantity = msg.Tags.Quantity,
 			timestamp = msg.Timestamp,
 			blockheight = msg['Block-Height']
 		}
 
 		if msg.Tags['X-Price'] then
 			orderArgs.price = msg.Tags['X-Price']
+		end
+		if msg.Tags['X-Transfer-Denomination'] then
+			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
 		end
 		createOrder(orderArgs)
 	end
@@ -594,11 +594,7 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 					Tags = {
 						Recipient = order.Creator,
 						Quantity = order.Quantity
-					},
-					Data = json.encode({
-						Recipient = order.Creator,
-						Quantity = order.Quantity
-					})
+					}
 				})
 
 				-- Remove the order from the current table

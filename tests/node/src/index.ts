@@ -138,9 +138,9 @@ export async function messageResults(args: {
 	const swapToken: string | null = pair[1];
 	const quantity: string | null = '1';
 	const unitPrice: string | null = '10000000000';
+	
 	const primaryDenomination: number | null = null;
 	const transferDenomination: number | null = null;
-
 
 	if (ORDER_TYPE === 'buy' || ORDER_TYPE === 'sell') {
 		forwardedTags = [
@@ -180,6 +180,5 @@ export async function messageResults(args: {
 		});
 		
 		console.log(response);
-		// await new Promise((resolve) => setTimeout(resolve, 500));
 	}
 })()

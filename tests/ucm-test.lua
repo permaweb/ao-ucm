@@ -7,12 +7,12 @@ SalesByAddress = {}
 PurchasesByAddress = {}
 
 local function printColor(text, color)
-    local colors = {
-        red = "\27[31m",
-        green = "\27[32m",
-        reset = "\27[0m"
-    }
-    print(colors[color] .. text .. colors.reset)
+	local colors = {
+		red = "\27[31m",
+		green = "\27[32m",
+		reset = "\27[0m"
+	}
+	print(colors[color] .. text .. colors.reset)
 end
 
 local function printTable(t, indent)
@@ -407,11 +407,10 @@ local function createOrder(args)
 	end
 end
 
-for i = 1, 100000 do
+for i = 1, 1 do
 	local pair = { "j8mX0PcExUwBbyVqIKr3dgYHh7ah4nmpqp60LIpSmTc", "6Wf1kGJ3NKH0E6rDX6WZCx6GigW3NoWjUN7PVOMXBIU" }
 
-	-- local quantity = math.random(1, 1000000)
-	local quantity = 1
+	local quantity = math.random(1, 1000000)
 	local price = math.random(1, 1000000)
 
 	local limitOrder = {

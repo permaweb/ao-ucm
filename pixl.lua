@@ -70,6 +70,12 @@ local function getAllocation(currentHeight)
 			local multiplier = 30
 			multipliers[k] = 1 + multiplier * 0.1
 		end
+
+		local heightDiff = tonumber(currentHeight) - tonumber(v.lastHeight)
+
+		if heightDiff > (DAY_INTERVAL * 2) then
+			Streaks[k] = nil
+		end
 	end
 
 	-- Calculate the total balance
@@ -252,7 +258,7 @@ Handlers.add('Calculate-Streak', Handlers.utils.hasMatchingTag('Action', 'Calcul
 			return
 		end
 
-		if not Streaks[data.Buyer] then
+		if not Streaks[data.Buyer] or Streaks[data.Buyer].days <= 0 then
 			Streaks[data.Buyer] = {
 				days = 1,
 				lastHeight = msg['Block-Height']

@@ -34,10 +34,10 @@ Send({
 	Tags = {
 		'Recipient' = UCM_PROCESS,
 		'Quantity' = ORDER_QUANTITY,
-		'X-Quantity' = ORDER_QUANTITY,
+		'X-Order-Action' = 'Create-Order'
 		'X-Swap-Token' = SWAP_TOKEN,
 		'X-Price' = UNIT_PRICE,
-		'X-Order-Action' = 'Create-Order'
+		'X-Transfer-Denomination' = TOKEN_DENOMINATION,
 	}
 })
 ```
@@ -70,10 +70,10 @@ const response = await message({
 		{ name: 'Action', value: 'Transfer' },
 		{ name: 'Recipient', value: UCM_PROCESS },
 		{ name: 'Quantity', value: ORDER_QUANTITY },
-		{ name: 'X-Quantity', value: ORDER_QUANTITY },
+		{ name: 'X-Order-Action', value: 'Create-Order' },
 		{ name: 'X-Swap-Token', value: SWAP_TOKEN },
 		{ name: 'X-Price', value: ORDER_PRICE },
-		{ name: 'X-Order-Action', value: 'Create-Order' },
+		{ name: 'X-Transfer-Denomination', value: TOKEN_DENOMINATION },
 	],
 });
 ```

@@ -102,6 +102,24 @@ local function getAllocation(currentHeight)
 	return allocation
 end
 
+function Trusted(msg)
+	local mu = 'fcoN_xJeisVsPXA-trzVAuIiqO3ydLQxM-L4XbrQKzY'
+	if msg.Owner == mu then
+		return false
+	end
+	if msg.From == msg.Owner then
+		return false
+	end
+	return true
+end
+
+Handlers.prepend('qualify message',
+	Trusted,
+	function(msg)
+		print('This Msg is not trusted!')
+	end
+)
+
 -- Read process state
 Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 	function(msg)

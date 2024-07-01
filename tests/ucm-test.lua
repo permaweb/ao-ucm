@@ -1,3 +1,4 @@
+local json = require('json')
 local bint = require('.bint')(256)
 
 PIXL_PROCESS = 'PIXL_PROCESS'

@@ -1,126 +1,44 @@
 local json = require('json')
 local bint = require('.bint')(256)
 
-PIXL_PROCESS = 'PIXL_PROCESS'
-
-Orderbook = {}
-ListedOrders = {}
-ExecutedOrders = {}
-SalesByAddress = {}
-PurchasesByAddress = {}
-
-local function printColor(text, color)
-	local colors = {
-		red = "\27[31m",
-		green = "\27[32m",
-		reset = "\27[0m"
-	}
-	print(colors[color] .. text .. colors.reset)
+local ao
+local success, aoModule = pcall(require, 'ao')
+if success then
+	ao = aoModule
+else
+	ao = { send = function(msg) end }
 end
 
-local function printTable(t, indent)
-	local json = ""
-	local function serialize(tbl, indentLevel)
-		local isArray = #tbl > 0
-		local tab = isArray and "[\n" or "{\n"
-		local sep = isArray and ",\n" or ",\n"
-		local endTab = isArray and "]" or "}"
-		indentLevel = indentLevel + 1
+local utils = require('utils')
 
-		for k, v in pairs(tbl) do
-			tab = tab .. string.rep("  ", indentLevel)
-			if not isArray then
-				tab = tab .. "\"" .. tostring(k) .. "\": "
-			end
+PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 
-			if type(v) == "table" then
-				tab = tab .. serialize(v, indentLevel) .. sep
-			else
-				if type(v) == "string" then
-					tab = tab .. "\"" .. tostring(v) .. "\"" .. sep
-				else
-					tab = tab .. tostring(v) .. sep
-				end
-			end
-		end
+if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
-		if tab:sub(-2) == sep then
-			tab = tab:sub(1, -3) .. "\n"
-		end
+-- Orderbook {
+-- 	Pair [TokenId, TokenId],
+-- 	Orders {
+-- 		Id,
+-- 		Creator,
+-- 		Quantity,
+-- 		OriginalQuantity,
+-- 		Token,
+-- 		DateCreated,
+-- 		Price?
+-- 	} []
+-- } []
 
-		indentLevel = indentLevel - 1
-		tab = tab .. string.rep("  ", indentLevel) .. endTab
-		return tab
-	end
+if not Orderbook then Orderbook = {} end
+if not ListedOrders then ListedOrders = {} end
+if not ExecutedOrders then ExecutedOrders = {} end
+if not SalesByAddress then SalesByAddress = {} end
+if not PurchasesByAddress then PurchasesByAddress = {} end
 
-	json = serialize(t, indent or 0)
-	print(json)
-end
-
-local function compareTables(t1, t2)
-	if type(t1) ~= type(t2) then return false end
-	if type(t1) ~= "table" then return t1 == t2 end
-	for k, v in pairs(t1) do
-		if not compareTables(v, t2[k]) then return false end
-	end
-	for k, v in pairs(t2) do
-		if not compareTables(v, t1[k]) then return false end
-	end
-	return true
-end
-
-local function checkValidAddress(address)
-	if not address or type(address) ~= 'string' then
-		return false
-	end
-
-	return string.match(address, "^[%w%-_]+$") ~= nil and #address == 43
-end
-
-local function checkValidAmount(data)
-	return math.type(tonumber(data)) == 'integer'
-end
-
-local function validatePairData(data)
-	-- Check if pair is a table with exactly two elements
-	if type(data) ~= 'table' or #data ~= 2 then
-		return nil, 'Pair must be a list of exactly two strings - [TokenId, TokenId]'
-	end
-
-	-- Check if both elements of the table are strings
-	if type(data[1]) ~= 'string' or type(data[2]) ~= 'string' then
-		return nil, 'Both pair elements must be strings'
-	end
-
-	-- Check if both elements are valid addresses
-	if not checkValidAddress(data[1]) or not checkValidAddress(data[2]) then
-		return nil, 'Both pair elements must be valid addresses'
-	end
-
-	-- Ensure the addresses are not equal
-	if data[1] == data[2] then
-		return nil, 'Pair addresses cannot be equal'
-	end
-
-	return data
-end
-
-local function getPairIndex(pair)
-	local pairIndex = -1
-
-	for i, existingOrders in ipairs(Orderbook) do
-		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) or
-			(existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1]) then
-			pairIndex = i
-		end
-	end
-
-	return pairIndex
-end
+local ucm = {}
 
 local function handleError(args) -- Target, TransferToken, Quantity
 	-- If there is a valid quantity then return the funds
-	if args.TransferToken and args.Quantity and checkValidAmount(args.Quantity) then
+	if args.TransferToken and args.Quantity and utils.checkValidAmount(args.Quantity) then
 		ao.send({
 			Target = args.TransferToken,
 			Action = 'Transfer',
@@ -133,14 +51,21 @@ local function handleError(args) -- Target, TransferToken, Quantity
 	ao.send({ Target = args.Target, Action = args.Action, Tags = { Status = 'Error', Message = args.Message } })
 end
 
-ao = {
-	send = function(message)
-		-- print("Action: " .. message.Action)
-	end
-}
+function ucm.getPairIndex(pair)
+	local pairIndex = -1
 
-local function createOrder(args) -- orderId, dominantToken, swapToken, sender, quantity, price?, transferDenomination?, timestamp
-	local validPair, pairError = validatePairData({ args.dominantToken, args.swapToken })
+	for i, existingOrders in ipairs(Orderbook) do
+		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) or
+			(existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1]) then
+			pairIndex = i
+		end
+	end
+
+	return pairIndex
+end
+
+function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, quantity, price?, transferDenomination?, timestamp
+	local validPair, pairError = utils.validatePairData({ args.dominantToken, args.swapToken })
 
 	-- If the pair is valid then handle the order and remove the claim status entry
 	if validPair then
@@ -148,16 +73,16 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 		local currentToken = validPair[1]
 
 		-- Ensure the pair exists
-		local pairIndex = getPairIndex(validPair)
+		local pairIndex = ucm.getPairIndex(validPair)
 
 		-- If the pair does not exist yet then add it
 		if pairIndex == -1 then
 			table.insert(Orderbook, { Pair = validPair, Orders = {} })
-			pairIndex = getPairIndex(validPair)
+			pairIndex = ucm.getPairIndex(validPair)
 		end
 
 		-- Check if quantity is a valid integer greater than zero
-		if not checkValidAmount(args.quantity) then
+		if not utils.checkValidAmount(args.quantity) then
 			handleError({
 				Target = args.sender,
 				Action = 'Validation-Error',
@@ -169,7 +94,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 		end
 
 		-- Check if price is a valid integer greater than zero, if it is present
-		if args.price and not checkValidAmount(args.price) then
+		if args.price and not utils.checkValidAmount(args.price) then
 			handleError({
 				Target = args.sender,
 				Action = 'Validation-Error',
@@ -257,7 +182,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 			local receiveAmount = 0
 
 			-- The remaining tokens to be matched with an order
-			local remainingQuantity = tonumber(args.quantity)
+			local remainingQuantity = tostring(bint(args.quantity))
 
 			-- The dominant token from the pair, it will always be the first one
 			local dominantToken = Orderbook[pairIndex].Pair[1]
@@ -276,29 +201,20 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 					-- Set the total amount of tokens to be received
 					fillAmount = math.ceil(remainingQuantity * (tonumber(args.price) or reversePrice))
 
-					------ TODO ------
 					if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
 						fillAmount = math.floor(remainingQuantity * (tonumber(args.price) or reversePrice))
 						fillAmount = bint(fillAmount) * bint(args.transferDenomination)
 					end
-					print(fillAmount)
-					------------------
 
 					if fillAmount <= tonumber(currentOrderEntry.Quantity) then
-						print('Input order will be completely filled')
 						-- The input order will be completely filled
 						-- Calculate the receiving amount
 						receiveFromCurrent = math.ceil(remainingQuantity * reversePrice)
 
-						------ TODO ------
 						if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
 							receiveFromCurrent = math.floor(remainingQuantity * reversePrice)
 							receiveFromCurrent = bint(receiveFromCurrent) * bint(args.transferDenomination)
 						end
-
-						print('Receive from current')
-						print(receiveFromCurrent)
-						------------------
 
 						-- Reduce the current order quantity
 						currentOrderEntry.Quantity = tonumber(currentOrderEntry.Quantity) - fillAmount
@@ -306,11 +222,8 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						-- Fill the remaining tokens
 						receiveAmount = receiveAmount + receiveFromCurrent
 
-						print('Receive amount')
-						print(receiveAmount)
-
 						-- Send tokens to the current order creator
-						if remainingQuantity > 0 then
+						if bint(remainingQuantity) > bint(0) then
 							ao.send({
 								Target = currentToken,
 								Action = 'Transfer',
@@ -322,29 +235,23 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 						end
 
 						-- There are no tokens left in the order to be matched
-						remainingQuantity = 0
+						remainingQuantity = tostring(bint(0))
 					else
-						print('Input order will be partially filled')
 						-- The input order will be partially filled
 						-- Calculate the receiving amount
 						receiveFromCurrent = tonumber(currentOrderEntry.Quantity) or 0
-						------ TODO ------
 						if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
 							receiveFromCurrent = bint(receiveFromCurrent) * bint(args.transferDenomination)
 						end
-
-						print('Receive from current')
-						print(receiveFromCurrent)
-						------------------
 
 						-- Add all the tokens from the current order to fill the input order
 						receiveAmount = receiveAmount + receiveFromCurrent
 
 						-- The amount the current order creator will receive
-						local sendAmount = receiveFromCurrent * tonumber(currentOrderEntry.Price)
+						local sendAmount = receiveFromCurrent * bint(currentOrderEntry.Price)
 
 						-- Reduce the remaining tokens to be matched by the amount the user is going to receive from this order
-						remainingQuantity = remainingQuantity - sendAmount
+						remainingQuantity = tostring(bint(remainingQuantity) - bint(sendAmount))
 
 						-- Send tokens to the current order creator
 						ao.send({
@@ -353,11 +260,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 							Tags = {
 								Recipient = currentOrderEntry.Creator,
 								Quantity = tostring(sendAmount)
-							},
-							Data = json.encode({
-								Recipient = currentOrderEntry.Creator,
-								Quantity = sendAmount
-							})
+							}
 						})
 
 						-- There are no tokens left in the current order to be matched
@@ -413,15 +316,6 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 
 					-- If the current order is not completely filled then keep it in the orderbook
 					if bint(currentOrderEntry.Quantity) ~= bint(0) then
-						print('Keeping entry in orderbook')
-
-						print('Quantity')
-						print(tonumber(currentOrderEntry.Quantity))
-
-						print('Current entry')
-						print(currentOrderEntry.Quantity)
-
-						-- Reassign quantity as a string
 						currentOrderEntry.Quantity = tostring(currentOrderEntry.Quantity)
 
 						table.insert(updatedOrderbook, currentOrderEntry)
@@ -430,7 +324,7 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 			end
 
 			-- If the input order is not completely filled, push it to the orderbook if it is a limit order or return the funds
-			if remainingQuantity > 0 then
+			if bint(remainingQuantity) > bint(0) then
 				if orderType == 'Limit' then
 					-- Push it to the orderbook
 					table.insert(updatedOrderbook, {
@@ -458,9 +352,6 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 					})
 				end
 			end
-
-			print('Receive amount')
-			print(tostring(receiveAmount))
 
 			-- Send swap tokens to the input order creator
 			ao.send({
@@ -522,45 +413,4 @@ local function createOrder(args) -- orderId, dominantToken, swapToken, sender, q
 	end
 end
 
-for i = 1, 1 do
-	local pair = { "j8mX0PcExUwBbyVqIKr3dgYHh7ah4nmpqp60LIpSmTc", "6Wf1kGJ3NKH0E6rDX6WZCx6GigW3NoWjUN7PVOMXBIU" }
-
-	local quantity = math.random(1, 1000000)
-	local price = math.random(1, 1000000)
-
-	local limitOrder = {
-		orderId = tostring(i * 2 - 1),
-		dominantToken = pair[1],
-		swapToken = pair[2],
-		sender = "User" .. tostring(i * 2 - 1),
-		quantity = quantity,
-		price = price,
-		timestamp = os.time(),
-		blockheight = 123456
-	}
-
-	local matchingOrder = {
-		orderId = tostring(i * 2),
-		dominantToken = pair[2],
-		swapToken = pair[1],
-		sender = "User" .. tostring(i * 2),
-		quantity = quantity * price,
-		timestamp = os.time() + 1,
-		blockheight = 123456
-	}
-
-	print("Creating order: " .. limitOrder.orderId)
-	createOrder(limitOrder)
-
-	print("Matching order: " .. matchingOrder.orderId)
-	createOrder(matchingOrder)
-
-	-- Order was not completely filled
-	if #Orderbook[#Orderbook].Orders > 0 then
-		printColor('Order failed', 'red')
-		printTable(Orderbook[#Orderbook].Orders)
-		os.exit(1)
-	else
-		printColor('Order filled ' .. '(total quantity: ' .. quantity * price .. ')', 'green')
-	end
-end
+return ucm

@@ -29,7 +29,7 @@ local function checkValidAddress(address)
 end
 
 local function checkValidAmount(data)
-	return (math.type(tonumber(data)) == 'integer' or math.type(tonumber(data)) == 'float') and bint(data) > 0
+	return bint(data) > bint(0)
 end
 
 local function getAllocation(currentHeight)

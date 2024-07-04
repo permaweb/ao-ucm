@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { createDataItemSigner, message, results } from '@permaweb/aoconnect';
 
-export const AOS = {
+export const AO = {
 	ucm: 'U3TjJAZWJjlWBB4KAXSHKzuky81jtyh0zqH8rUL4Wd0',
 	defaultToken: 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 };
@@ -121,16 +121,16 @@ export async function messageResults(args: {
 
 	switch (ORDER_TYPE) {
 		case 'buy':
-			pair = [AOS.defaultToken, PRIMARY_TOKEN];
-			recipient = AOS.ucm;
+			pair = [AO.defaultToken, PRIMARY_TOKEN];
+			recipient = AO.ucm;
 			break;
 		case 'sell':
-			pair = [PRIMARY_TOKEN, AOS.defaultToken];
-			recipient = AOS.ucm;
+			pair = [PRIMARY_TOKEN, AO.defaultToken];
+			recipient = AO.ucm;
 			break;
 		case 'transfer':
-			pair = [PRIMARY_TOKEN, AOS.defaultToken];
-			recipient = AOS.ucm;
+			pair = [PRIMARY_TOKEN, AO.defaultToken];
+			recipient = AO.ucm;
 			break;
 	}
 

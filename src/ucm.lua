@@ -6,7 +6,11 @@ local success, aoModule = pcall(require, 'ao')
 if success then
 	ao = aoModule
 else
-	ao = { send = function(msg) end }
+	ao = {
+		send = function(msg)
+			-- print(msg.Action .. ' ' .. (msg.Tags.Quantity or ''))
+		end
+	}
 end
 
 local utils = require('utils')
@@ -200,10 +204,9 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 
 					-- Set the total amount of tokens to be received
 					fillAmount = math.ceil(remainingQuantity * (tonumber(args.price) or reversePrice))
-
 					if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
-						fillAmount = math.floor(remainingQuantity * (tonumber(args.price) or reversePrice))
-						fillAmount = bint(fillAmount) * bint(args.transferDenomination)
+						-- fillAmount = math.floor(remainingQuantity * (tonumber(args.price) or reversePrice))
+						if fillAmount > 0 then fillAmount = bint(fillAmount) * bint(args.transferDenomination) end
 					end
 
 					if fillAmount <= tonumber(currentOrderEntry.Quantity) then
@@ -212,18 +215,22 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						receiveFromCurrent = math.ceil(remainingQuantity * reversePrice)
 
 						if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
-							receiveFromCurrent = math.floor(remainingQuantity * reversePrice)
+							-- receiveFromCurrent = math.floor(remainingQuantity * reversePrice)
 							receiveFromCurrent = bint(receiveFromCurrent) * bint(args.transferDenomination)
 						end
 
 						-- Reduce the current order quantity
-						currentOrderEntry.Quantity = tonumber(currentOrderEntry.Quantity) - fillAmount
+						currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
+						-- print(currentOrderEntry.Quantity)
 
 						-- Fill the remaining tokens
 						receiveAmount = receiveAmount + receiveFromCurrent
 
 						-- Send tokens to the current order creator
 						if bint(remainingQuantity) > bint(0) then
+							-- TODO
+							-- print('remaining quantity')
+							-- print(tostring(remainingQuantity))
 							ao.send({
 								Target = currentToken,
 								Action = 'Transfer',
@@ -240,18 +247,37 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						-- The input order will be partially filled
 						-- Calculate the receiving amount
 						receiveFromCurrent = tonumber(currentOrderEntry.Quantity) or 0
-						if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
-							receiveFromCurrent = bint(receiveFromCurrent) * bint(args.transferDenomination)
-						end
+
+						print('Receive from current')
+						print(receiveFromCurrent)
+
+						-- if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+						-- 	receiveFromCurrent = bint(receiveFromCurrent) * bint(args.transferDenomination)
+						-- end
 
 						-- Add all the tokens from the current order to fill the input order
-						receiveAmount = receiveAmount + receiveFromCurrent
+						receiveAmount = bint(receiveAmount) + bint(receiveFromCurrent)
+
+						-- TODO
+						print('Receive amount')
+						print(receiveAmount)
 
 						-- The amount the current order creator will receive
 						local sendAmount = receiveFromCurrent * bint(currentOrderEntry.Price)
+						if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+							sendAmount = math.floor(bint(sendAmount) / bint(args.transferDenomination))
+
+							-- TODO
+							print('Send amount')
+							print(sendAmount)
+						end
 
 						-- Reduce the remaining tokens to be matched by the amount the user is going to receive from this order
 						remainingQuantity = tostring(bint(remainingQuantity) - bint(sendAmount))
+
+						-- TODO
+						print('Send amount')
+						print(tostring(sendAmount))
 
 						-- Send tokens to the current order creator
 						ao.send({
@@ -317,7 +343,6 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 					-- If the current order is not completely filled then keep it in the orderbook
 					if bint(currentOrderEntry.Quantity) ~= bint(0) then
 						currentOrderEntry.Quantity = tostring(currentOrderEntry.Quantity)
-
 						table.insert(updatedOrderbook, currentOrderEntry)
 					end
 				end
@@ -338,21 +363,24 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 					})
 				else
 					-- Return the funds
+					-- TODO
+					-- print('remaining quantity')
+					-- print(remainingQuantity)
+
 					ao.send({
 						Target = currentToken,
 						Action = 'Transfer',
 						Tags = {
 							Recipient = args.sender,
 							Quantity = tostring(remainingQuantity)
-						},
-						Data = json.encode({
-							Recipient = args.sender,
-							Quantity = remainingQuantity
-						})
+						}
 					})
 				end
 			end
 
+			-- TODO
+			-- print('receive amount')
+			-- print(receiveAmount)
 			-- Send swap tokens to the input order creator
 			ao.send({
 				Target = args.swapToken,
@@ -373,8 +401,8 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 				local sumVolume = 0
 
 				for _, match in ipairs(matches) do
-					local volume = tonumber(match.Quantity)
-					local price = tonumber(match.Price)
+					local volume = bint(match.Quantity)
+					local price = bint(match.Price)
 
 					sumVolumePrice = sumVolumePrice + (volume * price)
 					sumVolume = sumVolume + volume

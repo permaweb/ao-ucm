@@ -1,5 +1,5 @@
-local json = require('json')
 local bint = require('.bint')(256)
+local json = require('json')
 
 local ao
 local success, aoModule = pcall(require, 'ao')
@@ -7,14 +7,13 @@ if success then
 	ao = aoModule
 else
 	ao = {
-		send = function(msg)
-			-- print(msg.Action .. ' ' .. (msg.Tags.Quantity or ''))
-		end
+		send = function(msg) print(msg.Action) end
 	}
 end
 
 local utils = require('utils')
 
+ACTIVITY_PROCESS = 'SNDvAf2RF-jhPmRrGUcs_b1nKlzU6vamN9zl0e9Zi4c'
 PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
@@ -33,10 +32,6 @@ if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Market
 -- } []
 
 if not Orderbook then Orderbook = {} end
-if not ListedOrders then ListedOrders = {} end
-if not ExecutedOrders then ExecutedOrders = {} end
-if not SalesByAddress then SalesByAddress = {} end
-if not PurchasesByAddress then PurchasesByAddress = {} end
 
 local ucm = {}
 
@@ -161,15 +156,21 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						Price = tostring(args.price) -- Price is ensured because it is a limit order
 					})
 
-					table.insert(ListedOrders, {
-						OrderId = args.orderId,
-						DominantToken = validPair[1],
-						SwapToken = validPair[2],
-						Sender = args.sender,
-						Receiver = nil,
-						Quantity = tostring(args.quantity),
-						Price = tostring(args.price),
-						Timestamp = args.timestamp
+					ao.send({
+						Target = ACTIVITY_PROCESS,
+						Action = 'Update-Listed-Orders',
+						Data = json.encode({
+							Order = {
+								Id = args.orderId,
+								DominantToken = validPair[1],
+								SwapToken = validPair[2],
+								Sender = args.sender,
+								Receiver = nil,
+								Quantity = tostring(args.quantity),
+								Price = tostring(args.price),
+								Timestamp = args.timestamp
+							}
+						})
 					})
 
 					ao.send({ Target = args.sender, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order created!', Handler = 'Create-Order' } })
@@ -221,16 +222,12 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 
 						-- Reduce the current order quantity
 						currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
-						-- print(currentOrderEntry.Quantity)
 
 						-- Fill the remaining tokens
 						receiveAmount = receiveAmount + receiveFromCurrent
 
 						-- Send tokens to the current order creator
 						if bint(remainingQuantity) > bint(0) then
-							-- TODO
-							-- print('remaining quantity')
-							-- print(tostring(remainingQuantity))
 							ao.send({
 								Target = currentToken,
 								Action = 'Transfer',
@@ -248,36 +245,17 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						-- Calculate the receiving amount
 						receiveFromCurrent = tonumber(currentOrderEntry.Quantity) or 0
 
-						print('Receive from current')
-						print(receiveFromCurrent)
-
-						-- if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
-						-- 	receiveFromCurrent = bint(receiveFromCurrent) * bint(args.transferDenomination)
-						-- end
-
 						-- Add all the tokens from the current order to fill the input order
 						receiveAmount = bint(receiveAmount) + bint(receiveFromCurrent)
-
-						-- TODO
-						print('Receive amount')
-						print(receiveAmount)
 
 						-- The amount the current order creator will receive
 						local sendAmount = receiveFromCurrent * bint(currentOrderEntry.Price)
 						if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
 							sendAmount = math.floor(bint(sendAmount) / bint(args.transferDenomination))
-
-							-- TODO
-							print('Send amount')
-							print(sendAmount)
 						end
 
 						-- Reduce the remaining tokens to be matched by the amount the user is going to receive from this order
 						remainingQuantity = tostring(bint(remainingQuantity) - bint(sendAmount))
-
-						-- TODO
-						print('Send amount')
-						print(tostring(sendAmount))
 
 						-- Send tokens to the current order creator
 						ao.send({
@@ -306,29 +284,23 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 								Price =
 									dominantPrice
 							})
-
-						-- Save executed order
-						table.insert(ExecutedOrders, {
-							OrderId = currentOrderEntry.Id,
-							DominantToken = validPair[2],
-							SwapToken = validPair[1],
-							Sender = currentOrderEntry.Creator,
-							Receiver = args.sender,
-							Quantity = tostring(receiveFromCurrent),
-							Price = dominantPrice,
-							Timestamp = args.timestamp
+						
+						ao.send({
+							Target = ACTIVITY_PROCESS,
+							Action = 'Update-Executed-Orders',
+							Data = json.encode({
+								Order = {
+									Id = currentOrderEntry.Id,
+									DominantToken = validPair[2],
+									SwapToken = validPair[1],
+									Sender = currentOrderEntry.Creator,
+									Receiver = args.sender,
+									Quantity = tostring(receiveFromCurrent),
+									Price = dominantPrice,
+									Timestamp = args.timestamp
+								}
+							})
 						})
-
-						-- Update user sales
-						if not SalesByAddress[currentOrderEntry.Creator] then
-							SalesByAddress[currentOrderEntry.Creator] = 0
-						end
-						SalesByAddress[currentOrderEntry.Creator] = SalesByAddress[currentOrderEntry.Creator] + 1
-
-						if not PurchasesByAddress[args.sender] then
-							PurchasesByAddress[args.sender] = 0
-						end
-						PurchasesByAddress[args.sender] = PurchasesByAddress[args.sender] + 1
 
 						-- Calculate streaks
 						ao.send({
@@ -363,10 +335,6 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 					})
 				else
 					-- Return the funds
-					-- TODO
-					-- print('remaining quantity')
-					-- print(remainingQuantity)
-
 					ao.send({
 						Target = currentToken,
 						Action = 'Transfer',
@@ -378,9 +346,6 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 				end
 			end
 
-			-- TODO
-			-- print('receive amount')
-			-- print(receiveAmount)
 			-- Send swap tokens to the input order creator
 			ao.send({
 				Target = args.swapToken,

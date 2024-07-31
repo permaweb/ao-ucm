@@ -109,9 +109,10 @@ export async function messageResults(args: {
 }
 
 (async function () {
-	const ORDER_TYPE: any = 'sell';
+	const ORDER_TYPE: any = 'buy';
 
-	const PRIMARY_TOKEN = '0PPd-FXKcvcQIltWLy4rbGPxuirSzNpCHwr0J8keTdk'
+	// const PRIMARY_TOKEN = 'e0T2NT6ka_VIp3hBWbjh6mOIcrUx9Dnj_moGC17hlx0'
+	const PRIMARY_TOKEN = 'GRVrK6CJwH5AOE9vYd7lh_TZogiUFuFPMk0eM9Nmfo8'
 	const PROFILE_PROCESS = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M'
 	const WALLET = JSON.parse(readFileSync('./wallets/wallet.json').toString());
 
@@ -136,16 +137,15 @@ export async function messageResults(args: {
 
 	const dominantToken: string | null = pair[0];
 	const swapToken: string | null = pair[1];
-	const quantity: string | null = '1';
-	const unitPrice: string | null = '10000000000';
-	
+	const quantity: string | null = '10000000000';
+	const unitPrice: string | null = null;
+
 	const primaryDenomination: number | null = null;
 	const transferDenomination: number | null = null;
 
 	if (ORDER_TYPE === 'buy' || ORDER_TYPE === 'sell') {
 		forwardedTags = [
 			{ name: 'X-Order-Action', value: 'Create-Order' },
-			{ name: 'X-Quantity', value: quantity },
 			{ name: 'X-Swap-Token', value: swapToken },
 		];
 		if (unitPrice && Number(unitPrice) > 0) {
@@ -164,21 +164,32 @@ export async function messageResults(args: {
 
 	if (forwardedTags) transferTags.push(...forwardedTags);
 
-	for (let i = 0; i < 100; i++) {
-		const response: any = await messageResults({
-			processId: PROFILE_PROCESS,
-			action: 'Transfer',
-			wallet: WALLET,
-			tags: transferTags,
-			data: {
-				Target: dominantToken,
-				Recipient: recipient,
-				Quantity: quantity,
-			},
-			responses: ['Transfer-Success', 'Transfer-Error'],
-			handler: 'Create-Order',
-		});
-		
-		console.log(response);
-	}
+	// Profile transfer
+	await messageResults({
+		processId: dominantToken,
+		action: 'Transfer',
+		wallet: WALLET,
+		tags: [
+			{ name: 'Quantity', value: quantity },
+			{ name: 'Recipient', value: PROFILE_PROCESS },
+		],
+		data: null,
+		responses: ['Transfer-Success', 'Transfer-Error'],
+	});
+
+	const response: any = await messageResults({
+		processId: PROFILE_PROCESS,
+		action: 'Transfer',
+		wallet: WALLET,
+		tags: transferTags,
+		data: {
+			Target: dominantToken,
+			Recipient: recipient,
+			Quantity: quantity,
+		},
+		responses: ['Transfer-Success', 'Transfer-Error'],
+		handler: 'Create-Order',
+	});
+
+	console.log(response);
 })()

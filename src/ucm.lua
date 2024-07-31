@@ -158,7 +158,7 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						DateCreated = tostring(args.timestamp),
 						Price = tostring(args.price) -- Price is ensured because it is a limit order
 					})
-					
+
 					ao.send({
 						Target = ACTIVITY_PROCESS,
 						Action = 'Update-Listed-Orders',
@@ -239,8 +239,14 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						-- Fill the remaining tokens
 						receiveAmount = receiveAmount + receiveFromCurrent
 
+						-- Log
+						print('Receive amount: ' .. receiveAmount)
+
+						-- Log
+						print('Remaining quantity: ' .. remainingQuantity)
+
 						-- Send tokens to the current order creator
-						if bint(remainingQuantity) > bint(0) then
+						if bint(remainingQuantity) > bint(0) and bint(receiveAmount) > bint(0) then
 							ao.send({
 								Target = currentToken,
 								Action = 'Transfer',
@@ -248,6 +254,21 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 									Recipient = currentOrderEntry.Creator,
 									Quantity = tostring(remainingQuantity)
 								}
+							})
+						else
+							-- Log
+							print('Order not filled, returning funds')
+							print('Current token: ' .. currentToken)
+							print('Sender: ' .. args.sender)
+							print('Remaining quantity: ' .. remainingQuantity)
+
+							-- Return the funds
+							handleError({
+								Target = args.sender,
+								Action = 'Order-Error',
+								Message = 'No orders to fulfill, returning funds',
+								Quantity = args.quantity,
+								TransferToken = currentToken,
 							})
 						end
 
@@ -347,14 +368,19 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						Price = tostring(args.price), -- Price is ensured because it is a limit order
 					})
 				else
+					-- Log
+					print('Order not filled, returning funds')
+					print('Current token: ' .. currentToken)
+					print('Sender: ' .. args.sender)
+					print('Remaining quantity: ' .. remainingQuantity)
+
 					-- Return the funds
-					ao.send({
-						Target = currentToken,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = args.sender,
-							Quantity = tostring(remainingQuantity)
-						}
+					handleError({
+						Target = args.sender,
+						Action = 'Order-Error',
+						Message = 'No orders to fulfill, returning funds',
+						Quantity = args.quantity,
+						TransferToken = currentToken,
 					})
 				end
 			end

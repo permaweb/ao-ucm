@@ -7,7 +7,7 @@ if success then
 	ao = aoModule
 else
 	ao = {
-		send = function(msg) print(msg.Action) end
+		send = function(msg) print(msg.Action .. ': ' .. (msg.Tags.Message or 'None')) end
 	}
 end
 
@@ -92,6 +92,9 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 			return
 		end
 
+		-- Log
+		print('Input quantity: ' .. args.quantity)
+
 		-- Check if price is a valid integer greater than zero, if it is present
 		if args.price and not utils.checkValidAmount(args.price) then
 			handleError({
@@ -155,7 +158,7 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						DateCreated = tostring(args.timestamp),
 						Price = tostring(args.price) -- Price is ensured because it is a limit order
 					})
-
+					
 					ao.send({
 						Target = ACTIVITY_PROCESS,
 						Action = 'Update-Listed-Orders',
@@ -203,22 +206,32 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 					-- The input order creator receives this many tokens from the current order
 					local receiveFromCurrent = 0
 
+					-- Log
+					print('Price: ' .. (args.price or 'None'))
+
+					-- Log
+					print('ReversePrice: ' .. reversePrice)
+
 					-- Set the total amount of tokens to be received
-					fillAmount = math.ceil(remainingQuantity * (tonumber(args.price) or reversePrice))
+					fillAmount = math.floor(remainingQuantity * (tonumber(args.price) or reversePrice))
 					if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
-						-- fillAmount = math.floor(remainingQuantity * (tonumber(args.price) or reversePrice))
 						if fillAmount > 0 then fillAmount = bint(fillAmount) * bint(args.transferDenomination) end
 					end
+
+					-- Log
+					print('Fill amount: ' .. fillAmount)
 
 					if fillAmount <= tonumber(currentOrderEntry.Quantity) then
 						-- The input order will be completely filled
 						-- Calculate the receiving amount
-						receiveFromCurrent = math.ceil(remainingQuantity * reversePrice)
+						receiveFromCurrent = math.floor(remainingQuantity * reversePrice)
 
 						if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
-							-- receiveFromCurrent = math.floor(remainingQuantity * reversePrice)
 							receiveFromCurrent = bint(receiveFromCurrent) * bint(args.transferDenomination)
 						end
+
+						-- Log
+						print('Receive from current: ' .. receiveFromCurrent)
 
 						-- Reduce the current order quantity
 						currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
@@ -284,7 +297,7 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 								Price =
 									dominantPrice
 							})
-						
+
 						ao.send({
 							Target = ACTIVITY_PROCESS,
 							Action = 'Update-Executed-Orders',
@@ -381,11 +394,13 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 					DominantToken = dominantToken,
 					MatchLogs = matches
 				}
+
+				-- TODO: Handle sell
+				ao.send({ Target = args.sender, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order created!', Handler = 'Create-Order' } })
 			else
 				Orderbook[pairIndex].PriceData = nil
+				ao.send({ Target = args.sender, Action = 'Action-Response', Tags = { Status = 'Error', Message = 'No orders to fulfill', Handler = 'Create-Order' } })
 			end
-
-			ao.send({ Target = args.sender, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order created!', Handler = 'Create-Order' } })
 		else
 			handleError({
 				Target = args.sender,

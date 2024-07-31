@@ -177,4 +177,11 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 	end
 end)
 
+Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), function(msg)
+	local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
+	if pairIndex > -1 then
+		ao.send({ Target = msg.From, Action = 'Read-Success', Data = json.encode({ Pair = Orderbook[pairIndex] }) })
+	end
+end)
+
 Handlers.add('Debit-Notice', Handlers.utils.hasMatchingTag('Action', 'Debit-Notice'), function(msg) end)

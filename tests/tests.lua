@@ -53,31 +53,9 @@ local function printTable(t, indent)
 end
 
 for i = 1, 1 do
-	local pair = { 'e0T2NT6ka_VIp3hBWbjh6mOIcrUx9Dnj_moGC17hlx0', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' }
-
-	-- local quantity = math.random(1, 1000000000000)
-	-- local price = math.random(1, 1000000000000)
-
-	-- local quantity = 555000000000
-	-- local price = 555000000000
-
-	-- local matchQuantity = tostring(bint(quantity) * bint(price))
-	local matchQuantity = '4830000000000'
-
-	-- local limitOrder = {
-	-- 	orderId = tostring(i * 2 - 1),
-	-- 	dominantToken = pair[1],
-	-- 	swapToken = pair[2],
-	-- 	sender = 'User' .. tostring(i * 2 - 1),
-	-- 	quantity = tostring(quantity),
-	-- 	price = tostring(price),
-	-- 	timestamp = os.time(),
-	-- 	blockheight = '123456789',
-	-- 	transferDenomination = '1000000000000'
-	-- }
-
 	Orderbook = {
 		{
+			Pair = { 'e0T2NT6ka_VIp3hBWbjh6mOIcrUx9Dnj_moGC17hlx0', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
 			Orders = {
 				{
 					Creator = "VM-MdiAiJBatLtT09hBqoEVzsaKRN5G6un3WQ92fAy4",
@@ -89,19 +67,32 @@ for i = 1, 1 do
 					Token = "e0T2NT6ka_VIp3hBWbjh6mOIcrUx9Dnj_moGC17hlx0"
 				},
 			},
-			Pair = { 'e0T2NT6ka_VIp3hBWbjh6mOIcrUx9Dnj_moGC17hlx0', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' }
+		},
+		{
+			Pair = { 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+			Orders = {
+				{
+					Creator = "RZrD7mS8Ih7ExGUmTeUkD57NX1XcKZNQ19r0gSnq_08",
+					DateCreated = "1722428783509",
+					Id = "SDg7KoNnBJNd5VaXCn_sRaL4j4AFKCO_rz-D3Vwe5fc",
+					OriginalQuantity = "1000000000",
+					Price = "1800000000",
+					Quantity = "453000000",
+					Token = "DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo"
+				}
+			}
 		}
 	}
 
 	local matchingOrder = {
 		orderId = tostring(i * 2),
-		dominantToken = pair[2],
-		swapToken = pair[1],
+		dominantToken ='xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+		swapToken = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo',
 		sender = "User" .. tostring(i * 2),
-		quantity = matchQuantity,
+		quantity = '1000000000',
 		timestamp = os.time() + 1,
 		blockheight = '123456789',
-		transferDenomination = '1'
+		transferDenomination = '1000000'
 	}
 
 	-- ucm.createOrder(limitOrder)

@@ -7,7 +7,7 @@ if success then
 	ao = aoModule
 else
 	ao = {
-		send = function(msg) print(msg.Action .. ': ' .. (msg.Tags.Message or 'None')) end
+		send = function(msg) print(msg.Action .. ': ' .. (msg.Tags and msg.Tags.Message or 'None')) end
 	}
 end
 
@@ -159,10 +159,8 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						Price = tostring(args.price) -- Price is ensured because it is a limit order
 					})
 
-					ao.send({
-						Target = ACTIVITY_PROCESS,
-						Action = 'Update-Listed-Orders',
-						Data = json.encode({
+					local listedDataSuccess, listedData = pcall(function()
+						return json.encode({
 							Order = {
 								Id = args.orderId,
 								DominantToken = validPair[1],
@@ -174,6 +172,12 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 								Timestamp = args.timestamp
 							}
 						})
+					end)
+
+					ao.send({
+						Target = ACTIVITY_PROCESS,
+						Action = 'Update-Listed-Orders',
+						Data = listedDataSuccess and listedData or ''
 					})
 
 					ao.send({ Target = args.sender, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order created!', Handler = 'Create-Order' } })
@@ -219,7 +223,7 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 					end
 
 					-- Log
-					print('Fill amount: ' .. fillAmount)
+					print('Fill amount: ' .. tostring(fillAmount))
 
 					if fillAmount <= tonumber(currentOrderEntry.Quantity) then
 						-- The input order will be completely filled
@@ -231,7 +235,7 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						end
 
 						-- Log
-						print('Receive from current: ' .. receiveFromCurrent)
+						print('Receive from current: ' .. tostring(receiveFromCurrent))
 
 						-- Reduce the current order quantity
 						currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
@@ -240,10 +244,10 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						receiveAmount = receiveAmount + receiveFromCurrent
 
 						-- Log
-						print('Receive amount: ' .. receiveAmount)
+						print('Receive amount: ' .. tostring(receiveAmount))
 
 						-- Log
-						print('Remaining quantity: ' .. remainingQuantity)
+						print('Remaining quantity: ' .. tostring(remainingQuantity))
 
 						-- Send tokens to the current order creator
 						if bint(remainingQuantity) > bint(0) and bint(receiveAmount) > bint(0) then
@@ -260,7 +264,7 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 							print('Order not filled, returning funds')
 							print('Current token: ' .. currentToken)
 							print('Sender: ' .. args.sender)
-							print('Remaining quantity: ' .. remainingQuantity)
+							print('Remaining quantity: ' .. tostring(remainingQuantity))
 
 							-- Return the funds
 							handleError({
@@ -319,10 +323,8 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 									dominantPrice
 							})
 
-						ao.send({
-							Target = ACTIVITY_PROCESS,
-							Action = 'Update-Executed-Orders',
-							Data = json.encode({
+						local executedDataSuccess, executedData = pcall(function()
+							return json.encode({
 								Order = {
 									Id = currentOrderEntry.Id,
 									DominantToken = validPair[2],
@@ -334,6 +336,12 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 									Timestamp = args.timestamp
 								}
 							})
+						end)
+
+						ao.send({
+							Target = ACTIVITY_PROCESS,
+							Action = 'Update-Executed-Orders',
+							Data = executedDataSuccess and executedData or ''
 						})
 
 						-- Calculate streaks

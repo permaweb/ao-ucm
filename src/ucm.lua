@@ -194,8 +194,6 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 			local receiveAmount = 0
 
 			-- The remaining tokens to be matched with an order
-			-- TODO
-			-- local remainingQuantity = tostring(bint(args.quantity))
 			local remainingQuantity = args.quantity
 
 			-- Log
@@ -209,7 +207,6 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 
 				-- TODO
 				local reversePrice = 1 / tonumber(currentOrderEntry.Price)
-				-- local reversePrice = tonumber(string.format("%.12f", 1 / tonumber(currentOrderEntry.Price)))
 
 				-- Log
 				print('ReversePrice: ' .. reversePrice)
@@ -242,11 +239,6 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 					print('Non rounded fill amount (raw):', nonRoundedFillAmount)
 					print('Type of nonRoundedFillAmount (raw):', type(nonRoundedFillAmount))
 
-					-- Ensure floating point value is as expected
-					if nonRoundedFillAmount == 1.0 then
-						print("nonRoundedFillAmount is exactly 1.0")
-					end
-
 					-- Check the exact bit representation of the floating point number (if possible)
 					local function toBits(num)
 						local t = {}
@@ -261,7 +253,7 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 					local bits = toBits(nonRoundedFillAmount)
 					print('Bits of nonRoundedFillAmount:', table.concat(bits))
 
-					-- Explicitly print the value before flooring
+					-- -- Explicitly print the value before flooring
 					print('Value before flooring (tostring): ' .. tostring(nonRoundedFillAmount))
 					print('Value before flooring (string.format): ' .. string.format("%.12f", nonRoundedFillAmount))
 
@@ -279,9 +271,7 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 					if fillAmount <= tonumber(currentOrderEntry.Quantity) then
 						-- The input order will be completely filled
 						-- Calculate the receiving amount
-						-- TODO
 						receiveFromCurrent = math.floor(remainingQuantity * reversePrice)
-						-- receiveFromCurrent = (remainingQuantity * reversePrice)
 
 						if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
 							receiveFromCurrent = bint(receiveFromCurrent) * bint(args.transferDenomination)
@@ -300,10 +290,10 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						print('Receive amount: ' .. tostring(receiveAmount))
 
 						-- Log
-						print('Remaining quantity: ' .. tostring(remainingQuantity))
+						print('Remaining quantity: ' .. tonumber(remainingQuantity))
 
 						-- Send tokens to the current order creator
-						if tonumber(remainingQuantity) > (0) and tonumber(receiveAmount) > (0) then
+						if tonumber(remainingQuantity) > 0 and tonumber(tostring(receiveAmount)) > 0 then
 							ao.send({
 								Target = currentToken,
 								Action = 'Transfer',
@@ -367,7 +357,7 @@ function ucm.createOrder(args) -- orderId, dominantToken, swapToken, sender, qua
 						(args.price or reversePrice) or currentOrderEntry.Price
 
 					-- If there is a receiving amount then push the match
-					if tonumber(receiveFromCurrent) > (0) then
+					if tonumber(tostring(receiveFromCurrent)) > (0) then
 						table.insert(matches,
 							{
 								Id = currentOrderEntry.Id,

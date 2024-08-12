@@ -75,9 +75,9 @@ for i = 1, 1 do
 					Creator = 'RZrD7mS8Ih7ExGUmTeUkD57NX1XcKZNQ19r0gSnq_08',
 					DateCreated = '1722428783509',
 					Id = 'SDg7KoNnBJNd5VaXCn_sRaL4j4AFKCO_rz-D3Vwe5fc',
-					OriginalQuantity = '1000000000',
-					Price = '1800000000',
-					Quantity = '453000000',
+					OriginalQuantity = '1',
+					Price = '15200000000000',
+					Quantity = '1',
 					Token = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 				}
 			}
@@ -95,51 +95,37 @@ for i = 1, 1 do
 					Token = '4LV93HuiNV2szr9PiibI0kUHc073Lvmo5XgvAGh_jN0'
 				}
 			},
+		},
+		{
+			Pair = { 'j6pqhdn5wtfFwgt0aG6dHijX398OpINT9BIcVbSrMKE', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+			Orders = {
+				{
+					Creator = 'LNtQf8SGZbHPeoksAqnVKfZvuGNgX4eH-xQYsFt_w-k',
+					DateCreated = '1722535710966',
+					Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+					OriginalQuantity = '1',
+					Price = '5000000000000',
+					Quantity = '1',
+					Token = 'j6pqhdn5wtfFwgt0aG6dHijX398OpINT9BIcVbSrMKE'
+				}
+			},
 		}
 	}
 
 	local matchingOrder
 
-	-- matchingOrder = {
-	-- 	orderId = tostring(i * 2),
-	-- 	dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-	-- 	swapToken = '4LV93HuiNV2szr9PiibI0kUHc073Lvmo5XgvAGh_jN0',
-	-- 	sender = 'User' .. tostring(i * 2),
-	-- 	-- quantity = '88800000001',
-	-- 	quantity = '177600000001',
-	-- 	timestamp = os.time() + 1,
-	-- 	blockheight = '123456789',
-	-- 	transferDenomination = '1'
-	-- }
-
-	-- print('Asset: 4LV93HuiNV2szr9PiibI0kUHc073Lvmo5XgvAGh_jN0')
-	-- ucm.createOrder(matchingOrder)
-
-	-- matchingOrder = {
-	-- 	orderId = tostring(i * 2),
-	-- 	dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-	-- 	swapToken = 'e0T2NT6ka_VIp3hBWbjh6mOIcrUx9Dnj_moGC17hlx0',
-	-- 	sender = 'User' .. tostring(i * 2),
-	-- 	-- quantity = '4530000000000',
-	-- 	-- quantity = '10443999999999',
-	-- 	quantity = '10444000000000',
-	-- 	timestamp = os.time() + 1,
-	-- 	blockheight = '123456789',
-	-- 	transferDenomination = '1'
-	-- }
-
 	matchingOrder = {
 		orderId = tostring(i * 2),
 		dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-		swapToken = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo',
+		swapToken = 'j6pqhdn5wtfFwgt0aG6dHijX398OpINT9BIcVbSrMKE',
 		sender = 'User' .. tostring(i * 2),
-		-- quantity = '4530000000000',
-		-- quantity = '10443999999999',
-		quantity = '1900000001',
+		-- quantity = '15199999999999',
+		quantity = '5000000000001',
 		timestamp = os.time() + 1,
 		blockheight = '123456789',
-		transferDenomination = '1000000'
+		transferDenomination = '1'
 	}
 
 	ucm.createOrder(matchingOrder)
+	printTable(Orderbook)
 end

@@ -1,9 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
-import { createDataItemSigner, message, results } from '@permaweb/aoconnect';
+import { createDataItemSigner, message, result, results } from '@permaweb/aoconnect';
 
 export const AO = {
-	ucm: 'U3TjJAZWJjlWBB4KAXSHKzuky81jtyh0zqH8rUL4Wd0',
+	ucm: 'qtDwylCwyhhsGPKIYAi2Ao342mdhvFUPqdbDOudzaiM',
 	defaultToken: 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 };
 
@@ -33,7 +33,7 @@ export async function messageResults(args: {
 		const tags = [{ name: 'Action', value: args.action }];
 		if (args.tags) tags.push(...args.tags);
 
-		await message({
+		const messageId = await message({
 			process: args.processId,
 			signer: createDataItemSigner(args.wallet),
 			tags: tags,
@@ -42,11 +42,23 @@ export async function messageResults(args: {
 
 		await new Promise((resolve) => setTimeout(resolve, 500));
 
-		const messageResults = await results({
+		let messageResult = await result({
+			process: args.processId,
+			message: messageId
+		});
+
+		writeFileSync(`./logs/result-${args.processId}.txt`, JSON.stringify(messageResult, null, 2), { flag: 'w' });
+
+		let messageResults = await results({
 			process: args.processId,
 			sort: 'DESC',
 			limit: 100,
+			from: ''
 		});
+
+		const cursor = messageResults.edges?.[messageResults.edges.length - 1]?.cursor ?? null
+
+		console.log(`Message Id: ${messageId}`);
 
 		if (messageResults && messageResults.edges && messageResults.edges.length) {
 			const response: any = {};
@@ -55,6 +67,8 @@ export async function messageResults(args: {
 				if (result.node && result.node.Messages && result.node.Messages.length) {
 					const resultSet = [args.action];
 					if (args.responses) resultSet.push(...args.responses);
+
+					writeFileSync(`./logs/${args.processId}.txt`, JSON.stringify(result.node.Messages, null, 2), { flag: 'w' });
 
 					for (const message of result.node.Messages) {
 						const action = getTagValue(message.Tags, 'Action');
@@ -84,16 +98,18 @@ export async function messageResults(args: {
 									};
 								}
 							} else {
-								if (resultSet.includes(action)) {
-									response[action] = {
-										status: responseStatus,
-										message: responseMessage,
-										data: responseData,
-									};
-								}
+								// if (resultSet.includes(action)) {
+								response[action] = {
+									status: responseStatus,
+									message: responseMessage,
+									data: responseData,
+								};
+								// }
 							}
 
-							if (Object.keys(response).length === resultSet.length) break;
+							writeFileSync(`./logs/response-${args.processId}.txt`, JSON.stringify(response, null, 2), { flag: 'w' });
+
+							// if (Object.keys(response).length === resultSet.length) break;
 						}
 					}
 				}
@@ -108,49 +124,49 @@ export async function messageResults(args: {
 	}
 }
 
-(async function () {
-	const ORDER_TYPE: any = 'buy';
-
-	// const PRIMARY_TOKEN = 'e0T2NT6ka_VIp3hBWbjh6mOIcrUx9Dnj_moGC17hlx0'
-	const PRIMARY_TOKEN = 'GRVrK6CJwH5AOE9vYd7lh_TZogiUFuFPMk0eM9Nmfo8'
-	const PROFILE_PROCESS = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M'
-	const WALLET = JSON.parse(readFileSync('./wallets/wallet.json').toString());
+async function createOrder(args: {
+	dominantToken: string;
+	swapToken: string;
+	unitPrice?: string;
+	quantity: string;
+	transferDenomination: number;
+	creator: {
+		profileId: string;
+		wallet: any;
+	}
+}) {
+	const orderType: any = args.unitPrice ? 'sell' : 'buy';
 
 	let pair: string[] | null = null;
 	let forwardedTags: TagType[] | null = null;
 	let recipient: string | null = null;
 
-	switch (ORDER_TYPE) {
+	switch (orderType) {
 		case 'buy':
-			pair = [AO.defaultToken, PRIMARY_TOKEN];
+			pair = [args.swapToken, args.dominantToken];
 			recipient = AO.ucm;
 			break;
 		case 'sell':
-			pair = [PRIMARY_TOKEN, AO.defaultToken];
+			pair = [args.dominantToken, args.swapToken];
 			recipient = AO.ucm;
 			break;
 		case 'transfer':
-			pair = [PRIMARY_TOKEN, AO.defaultToken];
+			pair = [args.dominantToken, args.swapToken];
 			recipient = AO.ucm;
 			break;
 	}
 
 	const dominantToken: string | null = pair[0];
 	const swapToken: string | null = pair[1];
-	const quantity: string | null = '10000000000';
-	const unitPrice: string | null = null;
 
-	const primaryDenomination: number | null = null;
-	const transferDenomination: number | null = null;
-
-	if (ORDER_TYPE === 'buy' || ORDER_TYPE === 'sell') {
+	if (orderType === 'buy' || orderType === 'sell') {
 		forwardedTags = [
 			{ name: 'X-Order-Action', value: 'Create-Order' },
 			{ name: 'X-Swap-Token', value: swapToken },
 		];
-		if (unitPrice && Number(unitPrice) > 0) {
-			let calculatedUnitPrice: string | number = unitPrice;
-			if (transferDenomination) calculatedUnitPrice = Number(unitPrice) * transferDenomination;
+		if (args.unitPrice && Number(args.unitPrice) > 0) {
+			let calculatedUnitPrice: string | number = args.unitPrice;
+			if (args.transferDenomination) calculatedUnitPrice = Number(args.unitPrice) * args.transferDenomination;
 			calculatedUnitPrice = calculatedUnitPrice.toString();
 			forwardedTags.push({ name: 'X-Price', value: calculatedUnitPrice });
 		}
@@ -159,37 +175,121 @@ export async function messageResults(args: {
 	const transferTags = [
 		{ name: 'Target', value: dominantToken },
 		{ name: 'Recipient', value: recipient },
-		{ name: 'Quantity', value: quantity },
+		{ name: 'Quantity', value: args.quantity },
 	];
 
 	if (forwardedTags) transferTags.push(...forwardedTags);
 
-	// Profile transfer
-	await messageResults({
-		processId: dominantToken,
-		action: 'Transfer',
-		wallet: WALLET,
-		tags: [
-			{ name: 'Quantity', value: quantity },
-			{ name: 'Recipient', value: PROFILE_PROCESS },
-		],
-		data: null,
-		responses: ['Transfer-Success', 'Transfer-Error'],
-	});
+	if (orderType === 'buy') {
+		console.log(`Transferring ${args.quantity} ${dominantToken} to profile...`)
+		const transferResponse: any = await messageResults({
+			processId: dominantToken,
+			action: 'Transfer',
+			wallet: args.creator.wallet,
+			tags: [
+				{ name: 'Quantity', value: args.quantity },
+				{ name: 'Recipient', value: args.creator.profileId },
+			],
+			data: null,
+			responses: ['Transfer-Success', 'Transfer-Error'],
+		});
+		console.log(transferResponse);
+	}
 
-	const response: any = await messageResults({
-		processId: PROFILE_PROCESS,
+	console.log(`Creating ${orderType} order...`);
+
+	const orderResponse: any = await messageResults({
+		processId: args.creator.profileId,
 		action: 'Transfer',
-		wallet: WALLET,
+		wallet: args.creator.wallet,
 		tags: transferTags,
 		data: {
 			Target: dominantToken,
 			Recipient: recipient,
-			Quantity: quantity,
+			Quantity: args.quantity,
 		},
-		responses: ['Transfer-Success', 'Transfer-Error'],
+		responses: ['Transfer-Success', 'Transfer-Error', 'Order-Error'],
 		handler: 'Create-Order',
 	});
 
-	console.log(response);
+	return orderResponse;
+}
+
+(async function () {
+	const primaryToken = '0PPd-FXKcvcQIltWLy4rbGPxuirSzNpCHwr0J8keTdk';
+
+	const seller = {
+		profileId: 'YMN2vh_oHx-jzPOXJHuGVYrXEpEbEAplNC8yNmFiBBQ',
+		wallet: JSON.parse(readFileSync('./wallets/seller-wallet-c6.json').toString()),
+	}
+
+	const buyers = {
+		'VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE': {
+			profileId: 'VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE',
+			wallet: JSON.parse(readFileSync('./wallets/buyer-wallet-1-uf.json').toString()),
+		},
+		'n1FZml-9sqWiSx0ErLuJMipNlUaroEBBvkCvNusQoCA': {
+			profileId: 'n1FZml-9sqWiSx0ErLuJMipNlUaroEBBvkCvNusQoCA',
+			wallet: JSON.parse(readFileSync('./wallets/buyer-wallet-2-jnb.json').toString()),
+		},
+	};
+
+	const sellResponse = await createOrder({
+		dominantToken: primaryToken,
+		swapToken: AO.defaultToken,
+		quantity: '2',
+		unitPrice: '10000000000',
+		transferDenomination: 1,
+		creator: seller
+	});
+
+	console.log(sellResponse);
+
+	createOrder({
+		dominantToken: primaryToken,
+		swapToken: AO.defaultToken,
+		quantity: '10000000001',
+		transferDenomination: 1,
+		creator: buyers['n1FZml-9sqWiSx0ErLuJMipNlUaroEBBvkCvNusQoCA']
+	}).then((response) => {
+		console.log(response);
+	});
+
+	createOrder({
+		dominantToken: primaryToken,
+		swapToken: AO.defaultToken,
+		quantity: '20000000001',
+		transferDenomination: 1,
+		creator: buyers['VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE']
+	}).then((response) => {
+		console.log(response);
+	});
+
+	let totalResults = [];
+	console.log('Fetching results...');
+	let resultsFetch = await results({
+		process: 'VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE',
+		sort: 'DESC',
+		limit: 100,
+		from: ''
+	});
+
+	totalResults.push(...resultsFetch.edges);
+
+	let cursor = resultsFetch.edges?.[resultsFetch.edges.length - 1]?.cursor ?? null
+
+	while (cursor) {
+		console.log('Fetching results...');
+		resultsFetch = await results({
+			process: 'VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE',
+			sort: 'DESC',
+			limit: 100,
+			from: cursor
+		});
+
+		totalResults.push(...resultsFetch.edges);
+		cursor = resultsFetch.edges?.[resultsFetch.edges.length - 1]?.cursor ?? null;
+	}
+
+	writeFileSync(`./logs/out.json`, JSON.stringify(resultsFetch, null, 2), { flag: 'w' });
 })()

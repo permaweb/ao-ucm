@@ -157,6 +157,27 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 				table.remove(Orderbook[pairIndex].Orders, orderIndex)
 
 				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order cancelled', Handler = 'Cancel-Order' } })
+
+				local cancelledDataSuccess, cancelledData = pcall(function()
+					return json.encode({
+						Order = {
+							Id = data.OrderTxId,
+							DominantToken = validPair[1],
+							SwapToken = validPair[2],
+							Sender = msg.From,
+							Receiver = nil,
+							Quantity = tostring(order.Quantity),
+							Price = tostring(order.Price),
+							Timestamp = msg.Timestamp
+						}
+					})
+				end)
+
+				ao.send({
+					Target = ACTIVITY_PROCESS,
+					Action = 'Update-Cancelled-Orders',
+					Data = cancelledDataSuccess and cancelledData or ''
+				})
 			else
 				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Error cancelling order', Handler = 'Cancel-Order' } })
 			end

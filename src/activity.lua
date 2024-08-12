@@ -58,7 +58,40 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 	})
 end)
 
--- Read sales by address
+-- Read order counts by address
+Handlers.add('Get-Order-Counts-By-Address', Handlers.utils.hasMatchingTag('Action', 'Get-Order-Counts-By-Address'),
+	function(msg)
+		local salesByAddress = SalesByAddress
+		local purchasesByAddress = PurchasesByAddress
+
+		if msg.Tags.Count then
+			local function getTopN(data, n)
+				local sortedData = {}
+				for k, v in pairs(data) do
+					table.insert(sortedData, { key = k, value = v })
+				end
+				table.sort(sortedData, function(a, b) return a.value > b.value end)
+				local topN = {}
+				for i = 1, n do
+					topN[sortedData[i].key] = sortedData[i].value
+				end
+				return topN
+			end
+
+			salesByAddress = getTopN(SalesByAddress, msg.Tags.Count)
+			purchasesByAddress = getTopN(PurchasesByAddress, msg.Tags.Count)
+		end
+
+		ao.send({
+			Target = msg.From,
+			Action = 'Read-Success',
+			Data = json.encode({
+				SalesByAddress = salesByAddress,
+				PurchasesByAddress = purchasesByAddress
+			})
+		})
+	end)
+
 Handlers.add('Get-Sales-By-Address', Handlers.utils.hasMatchingTag('Action', 'Get-Sales-By-Address'), function(msg)
 	ao.send({
 		Target = msg.From,

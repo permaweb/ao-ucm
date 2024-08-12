@@ -1,4 +1,4 @@
-package.path = package.path .. ";../src/?.lua"
+package.path = package.path .. ';../src/?.lua'
 
 local bint = require('.bint')(256)
 
@@ -6,33 +6,33 @@ local ucm = require('ucm')
 
 local function printColor(text, color)
 	local colors = {
-		red = "\27[31m",
-		green = "\27[32m",
-		reset = "\27[0m"
+		red = '\27[31m',
+		green = '\27[32m',
+		reset = '\27[0m'
 	}
 	print(colors[color] .. text .. colors.reset)
 end
 
 local function printTable(t, indent)
-	local jsonStr = ""
+	local jsonStr = ''
 	local function serialize(tbl, indentLevel)
 		local isArray = #tbl > 0
-		local tab = isArray and "[\n" or "{\n"
-		local sep = isArray and ",\n" or ",\n"
-		local endTab = isArray and "]" or "}"
+		local tab = isArray and '[\n' or '{\n'
+		local sep = isArray and ',\n' or ',\n'
+		local endTab = isArray and ']' or '}'
 		indentLevel = indentLevel + 1
 
 		for k, v in pairs(tbl) do
-			tab = tab .. string.rep("  ", indentLevel)
+			tab = tab .. string.rep('  ', indentLevel)
 			if not isArray then
-				tab = tab .. "\"" .. tostring(k) .. "\": "
+				tab = tab .. '\'' .. tostring(k) .. '\': '
 			end
 
-			if type(v) == "table" then
+			if type(v) == 'table' then
 				tab = tab .. serialize(v, indentLevel) .. sep
 			else
-				if type(v) == "string" then
-					tab = tab .. "\"" .. tostring(v) .. "\"" .. sep
+				if type(v) == 'string' then
+					tab = tab .. '\'' .. tostring(v) .. '\'' .. sep
 				else
 					tab = tab .. tostring(v) .. sep
 				end
@@ -40,11 +40,11 @@ local function printTable(t, indent)
 		end
 
 		if tab:sub(-2) == sep then
-			tab = tab:sub(1, -3) .. "\n"
+			tab = tab:sub(1, -3) .. '\n'
 		end
 
 		indentLevel = indentLevel - 1
-		tab = tab .. string.rep("  ", indentLevel) .. endTab
+		tab = tab .. string.rep('  ', indentLevel) .. endTab
 		return tab
 	end
 
@@ -58,13 +58,13 @@ for i = 1, 1 do
 			Pair = { 'e0T2NT6ka_VIp3hBWbjh6mOIcrUx9Dnj_moGC17hlx0', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
 			Orders = {
 				{
-					Creator = "VM-MdiAiJBatLtT09hBqoEVzsaKRN5G6un3WQ92fAy4",
-					DateCreated = "1722429830403",
-					Id = "hwEH2k7ToU7O7EL831obmTVM_MFjjzXPBuTRX3c96Qc",
-					OriginalQuantity = "58",
-					Price = "10444000000000",
-					Quantity = "56",
-					Token = "e0T2NT6ka_VIp3hBWbjh6mOIcrUx9Dnj_moGC17hlx0"
+					Creator = 'VM-MdiAiJBatLtT09hBqoEVzsaKRN5G6un3WQ92fAy4',
+					DateCreated = '1722429830403',
+					Id = 'hwEH2k7ToU7O7EL831obmTVM_MFjjzXPBuTRX3c96Qc',
+					OriginalQuantity = '58',
+					Price = '10444000000000',
+					Quantity = '56',
+					Token = 'e0T2NT6ka_VIp3hBWbjh6mOIcrUx9Dnj_moGC17hlx0'
 				},
 			},
 		},
@@ -72,39 +72,60 @@ for i = 1, 1 do
 			Pair = { 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
 			Orders = {
 				{
-					Creator = "RZrD7mS8Ih7ExGUmTeUkD57NX1XcKZNQ19r0gSnq_08",
-					DateCreated = "1722428783509",
-					Id = "SDg7KoNnBJNd5VaXCn_sRaL4j4AFKCO_rz-D3Vwe5fc",
-					OriginalQuantity = "1000000000",
-					Price = "1800000000",
-					Quantity = "453000000",
-					Token = "DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo"
+					Creator = 'RZrD7mS8Ih7ExGUmTeUkD57NX1XcKZNQ19r0gSnq_08',
+					DateCreated = '1722428783509',
+					Id = 'SDg7KoNnBJNd5VaXCn_sRaL4j4AFKCO_rz-D3Vwe5fc',
+					OriginalQuantity = '1',
+					Price = '15200000000000',
+					Quantity = '1',
+					Token = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 				}
 			}
+		},
+		{
+			Pair = { '4LV93HuiNV2szr9PiibI0kUHc073Lvmo5XgvAGh_jN0', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+			Orders = {
+				{
+					Creator = 'LNtQf8SGZbHPeoksAqnVKfZvuGNgX4eH-xQYsFt_w-k',
+					DateCreated = '1722535710966',
+					Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+					OriginalQuantity = '111',
+					Price = '88800000000',
+					Quantity = '111',
+					Token = '4LV93HuiNV2szr9PiibI0kUHc073Lvmo5XgvAGh_jN0'
+				}
+			},
+		},
+		{
+			Pair = { 'j6pqhdn5wtfFwgt0aG6dHijX398OpINT9BIcVbSrMKE', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+			Orders = {
+				{
+					Creator = 'LNtQf8SGZbHPeoksAqnVKfZvuGNgX4eH-xQYsFt_w-k',
+					DateCreated = '1722535710966',
+					Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+					OriginalQuantity = '1',
+					Price = '5000000000000',
+					Quantity = '1',
+					Token = 'j6pqhdn5wtfFwgt0aG6dHijX398OpINT9BIcVbSrMKE'
+				}
+			},
 		}
 	}
 
-	local matchingOrder = {
+	local matchingOrder
+
+	matchingOrder = {
 		orderId = tostring(i * 2),
-		dominantToken ='xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-		swapToken = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo',
-		sender = "User" .. tostring(i * 2),
-		quantity = '1000000000',
+		dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+		swapToken = 'j6pqhdn5wtfFwgt0aG6dHijX398OpINT9BIcVbSrMKE',
+		sender = 'User' .. tostring(i * 2),
+		-- quantity = '15199999999999',
+		quantity = '5000000000001',
 		timestamp = os.time() + 1,
 		blockheight = '123456789',
-		transferDenomination = '1000000'
+		transferDenomination = '1'
 	}
 
-	-- ucm.createOrder(limitOrder)
 	ucm.createOrder(matchingOrder)
-	-- printTable(Orderbook)
-
-	-- Order was not completely filled
-	-- if #Orderbook[#Orderbook].Orders > 0 then
-	-- 	printColor('Order failed', 'red')
-	-- 	printTable(Orderbook[#Orderbook].Orders)
-	-- 	os.exit(1)
-	-- else
-	-- 	printColor('Order ' .. i .. ' filled ' .. '(total quantity: ' .. matchQuantity .. ')', 'green')
-	-- end
+	printTable(Orderbook)
 end

@@ -2,6 +2,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 import { createDataItemSigner, message, result, results } from '@permaweb/aoconnect';
 
+// TODO: Test denominanted tokens
+// TODO: Message results get linked messages
+
 export const AO = {
 	ucm: 'qtDwylCwyhhsGPKIYAi2Ao342mdhvFUPqdbDOudzaiM',
 	defaultToken: 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
@@ -49,74 +52,74 @@ export async function messageResults(args: {
 
 		writeFileSync(`./logs/result-${args.processId}.txt`, JSON.stringify(messageResult, null, 2), { flag: 'w' });
 
-		let messageResults = await results({
-			process: args.processId,
-			sort: 'DESC',
-			limit: 100,
-			from: ''
-		});
+		// let messageResults = await results({
+		// 	process: args.processId,
+		// 	sort: 'DESC',
+		// 	limit: 100,
+		// 	from: ''
+		// });
 
-		const cursor = messageResults.edges?.[messageResults.edges.length - 1]?.cursor ?? null
+		// const cursor = messageResults.edges?.[messageResults.edges.length - 1]?.cursor ?? null
 
 		console.log(`Message Id: ${messageId}`);
 
-		if (messageResults && messageResults.edges && messageResults.edges.length) {
-			const response: any = {};
+		// if (messageResults && messageResults.edges && messageResults.edges.length) {
+		// 	const response: any = {};
 
-			for (const result of messageResults.edges) {
-				if (result.node && result.node.Messages && result.node.Messages.length) {
-					const resultSet = [args.action];
-					if (args.responses) resultSet.push(...args.responses);
+		// 	for (const result of messageResults.edges) {
+		// 		if (result.node && result.node.Messages && result.node.Messages.length) {
+		// 			const resultSet = [args.action];
+		// 			if (args.responses) resultSet.push(...args.responses);
 
-					writeFileSync(`./logs/${args.processId}.txt`, JSON.stringify(result.node.Messages, null, 2), { flag: 'w' });
+		// 			writeFileSync(`./logs/${args.processId}.txt`, JSON.stringify(result.node.Messages, null, 2), { flag: 'w' });
 
-					for (const message of result.node.Messages) {
-						const action = getTagValue(message.Tags, 'Action');
+		// 			for (const message of result.node.Messages) {
+		// 				const action = getTagValue(message.Tags, 'Action');
 
-						if (action) {
-							let responseData = null;
-							const messageData = message.Data;
+		// 				if (action) {
+		// 					let responseData = null;
+		// 					const messageData = message.Data;
 
-							if (messageData) {
-								try {
-									responseData = JSON.parse(messageData);
-								} catch {
-									responseData = messageData;
-								}
-							}
+		// 					if (messageData) {
+		// 						try {
+		// 							responseData = JSON.parse(messageData);
+		// 						} catch {
+		// 							responseData = messageData;
+		// 						}
+		// 					}
 
-							const responseStatus = getTagValue(message.Tags, 'Status');
-							const responseMessage = getTagValue(message.Tags, 'Message');
+		// 					const responseStatus = getTagValue(message.Tags, 'Status');
+		// 					const responseMessage = getTagValue(message.Tags, 'Message');
 
-							if (action === 'Action-Response') {
-								const responseHandler = getTagValue(message.Tags, 'Handler');
-								if (args.handler && args.handler === responseHandler) {
-									response[action] = {
-										status: responseStatus,
-										message: responseMessage,
-										data: responseData,
-									};
-								}
-							} else {
-								// if (resultSet.includes(action)) {
-								response[action] = {
-									status: responseStatus,
-									message: responseMessage,
-									data: responseData,
-								};
-								// }
-							}
+		// 					if (action === 'Action-Response') {
+		// 						const responseHandler = getTagValue(message.Tags, 'Handler');
+		// 						if (args.handler && args.handler === responseHandler) {
+		// 							response[action] = {
+		// 								status: responseStatus,
+		// 								message: responseMessage,
+		// 								data: responseData,
+		// 							};
+		// 						}
+		// 					} else {
+		// 						// if (resultSet.includes(action)) {
+		// 						response[action] = {
+		// 							status: responseStatus,
+		// 							message: responseMessage,
+		// 							data: responseData,
+		// 						};
+		// 						// }
+		// 					}
 
-							writeFileSync(`./logs/response-${args.processId}.txt`, JSON.stringify(response, null, 2), { flag: 'w' });
+		// 					writeFileSync(`./logs/response-${args.processId}.txt`, JSON.stringify(response, null, 2), { flag: 'w' });
 
-							// if (Object.keys(response).length === resultSet.length) break;
-						}
-					}
-				}
-			}
+		// 					// if (Object.keys(response).length === resultSet.length) break;
+		// 				}
+		// 			}
+		// 		}
+		// 	}
 
-			return response;
-		}
+		// 	return response;
+		// }
 
 		return null;
 	} catch (e) {
@@ -237,59 +240,31 @@ async function createOrder(args: {
 	const sellResponse = await createOrder({
 		dominantToken: primaryToken,
 		swapToken: AO.defaultToken,
-		quantity: '2',
+		quantity: '1',
 		unitPrice: '10000000000',
 		transferDenomination: 1,
 		creator: seller
 	});
 
-	console.log(sellResponse);
+	// console.log(sellResponse);
 
 	createOrder({
 		dominantToken: primaryToken,
 		swapToken: AO.defaultToken,
-		quantity: '10000000001',
-		transferDenomination: 1,
-		creator: buyers['n1FZml-9sqWiSx0ErLuJMipNlUaroEBBvkCvNusQoCA']
-	}).then((response) => {
-		console.log(response);
-	});
-
-	createOrder({
-		dominantToken: primaryToken,
-		swapToken: AO.defaultToken,
-		quantity: '20000000001',
+		quantity: (10000000000 - 0).toString(),
 		transferDenomination: 1,
 		creator: buyers['VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE']
 	}).then((response) => {
 		console.log(response);
 	});
 
-	let totalResults = [];
-	console.log('Fetching results...');
-	let resultsFetch = await results({
-		process: 'VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE',
-		sort: 'DESC',
-		limit: 100,
-		from: ''
-	});
-
-	totalResults.push(...resultsFetch.edges);
-
-	let cursor = resultsFetch.edges?.[resultsFetch.edges.length - 1]?.cursor ?? null
-
-	while (cursor) {
-		console.log('Fetching results...');
-		resultsFetch = await results({
-			process: 'VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE',
-			sort: 'DESC',
-			limit: 100,
-			from: cursor
-		});
-
-		totalResults.push(...resultsFetch.edges);
-		cursor = resultsFetch.edges?.[resultsFetch.edges.length - 1]?.cursor ?? null;
-	}
-
-	writeFileSync(`./logs/out.json`, JSON.stringify(resultsFetch, null, 2), { flag: 'w' });
+	// createOrder({
+	// 	dominantToken: primaryToken,
+	// 	swapToken: AO.defaultToken,
+	// 	quantity: '10000000001',
+	// 	transferDenomination: 1,
+	// 	creator: buyers['n1FZml-9sqWiSx0ErLuJMipNlUaroEBBvkCvNusQoCA']
+	// }).then((response) => {
+	// 	console.log(response);
+	// });
 })()

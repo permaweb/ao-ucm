@@ -14,6 +14,7 @@ end
 local utils = require('utils')
 
 ACTIVITY_PROCESS = 'SNDvAf2RF-jhPmRrGUcs_b1nKlzU6vamN9zl0e9Zi4c'
+
 PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
@@ -145,6 +146,13 @@ function ucm.createOrder(args)
 					-- Calculate the total cost for the fill amount
 					receiveFromCurrent = fillAmount * bint(currentOrderEntry.Price)
 
+					-- Handle tokens with a denominated value
+					if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+						if fillAmount > bint(0) then fillAmount = fillAmount * bint(args.transferDenomination) end
+						if receiveFromCurrent > bint(0) then receiveFromCurrent = receiveFromCurrent *
+							bint(args.transferDenomination) end
+					end
+
 					-- Subtract the used quantity from the buyer's remaining quantity
 					remainingQuantity = remainingQuantity - receiveFromCurrent
 					currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
@@ -155,6 +163,11 @@ function ucm.createOrder(args)
 					print('Remaining order quantity: ' .. tostring(currentOrderEntry.Quantity))
 
 					local calculatedSendAmount = utils.calculateSendAmount(receiveFromCurrent)
+
+					-- Handle tokens with a denominated value
+					if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+						calculatedSendAmount = tostring(math.floor(bint(calculatedSendAmount) / bint(args.transferDenomination)))
+					end
 
 					-- Send tokens to the current order creator
 					ao.send({
@@ -183,6 +196,36 @@ function ucm.createOrder(args)
 						Price = tostring(currentOrderEntry.Price)
 					})
 
+					local matchedDataSuccess, matchedData = pcall(function()
+						return json.encode({
+							Order = {
+								Id = currentOrderEntry.Id,
+								DominantToken = validPair[2],
+								SwapToken = validPair[1],
+								Sender = currentOrderEntry.Creator,
+								Receiver = args.sender,
+								Quantity = tostring(fillAmount),
+								Price = tostring(currentOrderEntry.Price),
+								Timestamp = args.timestamp
+							}
+						})
+					end)
+
+					ao.send({
+						Target = ACTIVITY_PROCESS,
+						Action = 'Update-Executed-Orders',
+						Data = matchedDataSuccess and matchedData or ''
+					})
+
+					-- Calculate streaks
+					ao.send({
+						Target = PIXL_PROCESS,
+						Action = 'Calculate-Streak',
+						Tags = {
+							Buyer = args.sender
+						}
+					})
+
 					-- If there are remaining shares in the current order, keep it in the order book
 					if bint(currentOrderEntry.Quantity) > bint(0) then
 						table.insert(updatedOrderbook, currentOrderEntry)
@@ -202,7 +245,7 @@ function ucm.createOrder(args)
 				OriginalQuantity = tostring(args.quantity),
 				Creator = args.sender,
 				Token = currentToken,
-				DateCreated = tostring(args.timestamp),
+				DateCreated = args.timestamp,
 				Price = tostring(args.price),
 			})
 
@@ -216,7 +259,7 @@ function ucm.createOrder(args)
 						Receiver = nil,
 						Quantity = tostring(remainingQuantity),
 						Price = tostring(args.price),
-						Timestamp = tostring(args.timestamp)
+						Timestamp = args.timestamp
 					}
 				})
 			end)

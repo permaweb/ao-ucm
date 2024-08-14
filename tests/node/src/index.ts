@@ -1,9 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
-import { createDataItemSigner, message, result, results } from '@permaweb/aoconnect';
-
-// TODO: Test denominanted tokens
-// TODO: Message results get linked messages
+import { createDataItemSigner, message, result } from '@permaweb/aoconnect';
 
 export const AO = {
 	ucm: 'qtDwylCwyhhsGPKIYAi2Ao342mdhvFUPqdbDOudzaiM',
@@ -52,76 +49,7 @@ export async function messageResults(args: {
 
 		writeFileSync(`./logs/result-${args.processId}.txt`, JSON.stringify(messageResult, null, 2), { flag: 'w' });
 
-		// let messageResults = await results({
-		// 	process: args.processId,
-		// 	sort: 'DESC',
-		// 	limit: 100,
-		// 	from: ''
-		// });
-
-		// const cursor = messageResults.edges?.[messageResults.edges.length - 1]?.cursor ?? null
-
-		console.log(`Message Id: ${messageId}`);
-
-		// if (messageResults && messageResults.edges && messageResults.edges.length) {
-		// 	const response: any = {};
-
-		// 	for (const result of messageResults.edges) {
-		// 		if (result.node && result.node.Messages && result.node.Messages.length) {
-		// 			const resultSet = [args.action];
-		// 			if (args.responses) resultSet.push(...args.responses);
-
-		// 			writeFileSync(`./logs/${args.processId}.txt`, JSON.stringify(result.node.Messages, null, 2), { flag: 'w' });
-
-		// 			for (const message of result.node.Messages) {
-		// 				const action = getTagValue(message.Tags, 'Action');
-
-		// 				if (action) {
-		// 					let responseData = null;
-		// 					const messageData = message.Data;
-
-		// 					if (messageData) {
-		// 						try {
-		// 							responseData = JSON.parse(messageData);
-		// 						} catch {
-		// 							responseData = messageData;
-		// 						}
-		// 					}
-
-		// 					const responseStatus = getTagValue(message.Tags, 'Status');
-		// 					const responseMessage = getTagValue(message.Tags, 'Message');
-
-		// 					if (action === 'Action-Response') {
-		// 						const responseHandler = getTagValue(message.Tags, 'Handler');
-		// 						if (args.handler && args.handler === responseHandler) {
-		// 							response[action] = {
-		// 								status: responseStatus,
-		// 								message: responseMessage,
-		// 								data: responseData,
-		// 							};
-		// 						}
-		// 					} else {
-		// 						// if (resultSet.includes(action)) {
-		// 						response[action] = {
-		// 							status: responseStatus,
-		// 							message: responseMessage,
-		// 							data: responseData,
-		// 						};
-		// 						// }
-		// 					}
-
-		// 					writeFileSync(`./logs/response-${args.processId}.txt`, JSON.stringify(response, null, 2), { flag: 'w' });
-
-		// 					// if (Object.keys(response).length === resultSet.length) break;
-		// 				}
-		// 			}
-		// 		}
-		// 	}
-
-		// 	return response;
-		// }
-
-		return null;
+		return messageId;
 	} catch (e) {
 		console.error(e);
 	}
@@ -246,7 +174,7 @@ async function createOrder(args: {
 		creator: seller
 	});
 
-	// console.log(sellResponse);
+	console.log(`Sell response: ${sellResponse}`);
 
 	createOrder({
 		dominantToken: primaryToken,
@@ -254,17 +182,7 @@ async function createOrder(args: {
 		quantity: (10000000000 - 0).toString(),
 		transferDenomination: 1,
 		creator: buyers['VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE']
-	}).then((response) => {
-		console.log(response);
+	}).then((buyResponse) => {
+		console.log(`Buy response: ${buyResponse}`);
 	});
-
-	// createOrder({
-	// 	dominantToken: primaryToken,
-	// 	swapToken: AO.defaultToken,
-	// 	quantity: '10000000001',
-	// 	transferDenomination: 1,
-	// 	creator: buyers['n1FZml-9sqWiSx0ErLuJMipNlUaroEBBvkCvNusQoCA']
-	// }).then((response) => {
-	// 	console.log(response);
-	// });
 })()

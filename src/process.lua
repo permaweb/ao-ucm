@@ -205,4 +205,14 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 	end
 end)
 
+Handlers.add('Balance-Notice', Handlers.utils.hasMatchingTag('Action', 'Balance-Notice'), function(msg)
+	if msg.From == DEFAULT_SWAP_TOKEN then
+		ucm.executeBuyback({
+			orderId = msg.Id,
+			quantity = msg.Balance,
+			blockheight = msg['Block-Height']
+		})
+	end
+end)
+
 Handlers.add('Debit-Notice', Handlers.utils.hasMatchingTag('Action', 'Debit-Notice'), function(msg) end)

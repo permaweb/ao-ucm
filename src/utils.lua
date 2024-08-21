@@ -46,7 +46,10 @@ function utils.validatePairData(data)
 end
 
 function utils.calculateSendAmount(amount)
-	return tostring(math.floor(tonumber(tostring(amount)) * 0.995))
+	local factor = bint(995)
+	local divisor = bint(1000)
+	local sendAmount = (bint(amount) * factor) // divisor
+	return tostring(sendAmount)
 end
 
 function utils.printTable(t, indent)

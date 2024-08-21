@@ -17,6 +17,8 @@ ACTIVITY_PROCESS = 'SNDvAf2RF-jhPmRrGUcs_b1nKlzU6vamN9zl0e9Zi4c'
 
 PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 
+DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
 -- Orderbook {
@@ -149,25 +151,20 @@ function ucm.createOrder(args)
 					-- Handle tokens with a denominated value
 					if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
 						if fillAmount > bint(0) then fillAmount = fillAmount * bint(args.transferDenomination) end
-						if receiveFromCurrent > bint(0) then receiveFromCurrent = receiveFromCurrent *
-							bint(args.transferDenomination) end
 					end
 
 					-- Subtract the used quantity from the buyer's remaining quantity
 					remainingQuantity = remainingQuantity - receiveFromCurrent
 					currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
 
-					-- Log
-					print('Fill amount: ' .. tostring(fillAmount))
-					print('Total cost: ' .. tostring(receiveFromCurrent))
-					print('Remaining order quantity: ' .. tostring(currentOrderEntry.Quantity))
-
 					local calculatedSendAmount = utils.calculateSendAmount(receiveFromCurrent)
 
-					-- Handle tokens with a denominated value
-					if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
-						calculatedSendAmount = tostring(math.floor(bint(calculatedSendAmount) / bint(args.transferDenomination)))
-					end
+					-- Log
+					print('Fill amount (to buyer): ' .. tostring(fillAmount))
+					print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.05% fee captured)')
+					print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity))
+					print('Remaining fill quantity (purchase amount): ' .. tostring(remainingQuantity))
+					print('Receive from current (total cost): ' .. tostring(receiveFromCurrent))
 
 					-- Send tokens to the current order creator
 					ao.send({
@@ -175,7 +172,7 @@ function ucm.createOrder(args)
 						Action = 'Transfer',
 						Tags = {
 							Recipient = currentOrderEntry.Creator,
-							Quantity = calculatedSendAmount
+							Quantity = tostring(calculatedSendAmount)
 						}
 					})
 
@@ -225,6 +222,11 @@ function ucm.createOrder(args)
 							Buyer = args.sender
 						}
 					})
+
+					-- Get balance notice and execute PIXL buyback
+					if orderType == 'Market' and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
+						ao.send({ Target = DEFAULT_SWAP_TOKEN, Action = 'Balance', Recipient = ao.id })
+					end
 
 					-- If there are remaining shares in the current order, keep it in the order book
 					if bint(currentOrderEntry.Quantity) > bint(0) then
@@ -285,7 +287,7 @@ function ucm.createOrder(args)
 
 			local vwap = sumVolumePrice / sumVolume
 			Orderbook[pairIndex].PriceData = {
-				Vwap = tostring(vwap),
+				Vwap = tostring(math.floor(vwap)),
 				Block = tostring(args.blockheight),
 				DominantToken = currentToken,
 				MatchLogs = matches
@@ -305,6 +307,40 @@ function ucm.createOrder(args)
 			Quantity = args.quantity,
 			TransferToken = currentToken,
 		})
+	end
+end
+
+function ucm.executeBuyback(args)
+	local pixlPairIndex = ucm.getPairIndex({ DEFAULT_SWAP_TOKEN, PIXL_PROCESS })
+
+	if pixlPairIndex > -1 then
+		local pixlPrice = bint(1000000000)
+		-- local pixlBuybackAmount = bint(0)
+
+		if Orderbook[pixlPairIndex].PriceData and Orderbook[pixlPairIndex].PriceData.Vwap then
+			pixlPrice = math.floor(Orderbook[pixlPairIndex].PriceData.Vwap)
+		end
+
+		-- pixlBuybackAmount = math.floor(bint(args.balance) / bint(pixlPrice))
+
+		print('UCM wAR Balance: ' .. tostring(args.quantity))
+		print('Pixl price: ' .. tostring(pixlPrice))
+
+		if pixlPrice and Orderbook[pixlPairIndex].Orders and #Orderbook[pixlPairIndex].Orders > 0 then
+			-- There is a PIXL market, execute buyback
+			ucm.createOrder({
+				orderId = args.orderId,
+				dominantToken = DEFAULT_SWAP_TOKEN,
+				swapToken = PIXL_PROCESS,
+				sender = ao.id,
+				quantity = tostring(args.quantity),
+				timestamp = args.timestamp,
+				blockheight = args.blockheight,
+				transferDenomination = '1000000'
+			})
+		end
+	else
+
 	end
 end
 

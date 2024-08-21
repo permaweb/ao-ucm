@@ -338,10 +338,6 @@ Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards
 			return
 		end
 
-		if (tonumber(LastReward) + DAY_INTERVAL - 20) >= tonumber(msg['Block-Height']) then
-			return
-		end
-
 		-- Initialize allocation table
 		local allocation = getAllocation(msg['Block-Height'])
 
@@ -356,4 +352,6 @@ Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards
 
 			LastReward = msg['Block-Height']
 		end
+
+		ao.send({ Target = msg.From, Action = 'Rewards-Dispersed' })
 	end)

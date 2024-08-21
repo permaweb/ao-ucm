@@ -1,3 +1,4 @@
+local bint = require('.bint')(256)
 local json = require('json')
 
 local utils = require('utils')
@@ -26,13 +27,28 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 	local filteredExecutedOrders = {}
 	local filteredCancelledOrders = {}
 
-	local function filterOrders(orders, assetIdsSet, owner)
+	local function filterOrders(orders, assetIdsSet, owner, startDate, endDate)
 		local filteredOrders = {}
 		for _, order in ipairs(orders) do
 			local isAssetMatch = not assetIdsSet or assetIdsSet[order.DominantToken]
 			local isOwnerMatch = not owner or order.Sender == owner or order.Receiver == owner
 
-			if isAssetMatch and isOwnerMatch then
+			local isDateMatch = true
+			if order.Timestamp and (startDate or endDate) then
+				local orderDate = bint(order.Timestamp)
+
+				if startDate then startDate = bint(startDate) end
+				if endDate then endDate = bint(endDate) end
+
+				if startDate and orderDate < startDate then
+					isDateMatch = false
+				end
+				if endDate and orderDate > endDate then
+					isDateMatch = false
+				end
+			end
+
+			if isAssetMatch and isOwnerMatch and isDateMatch then
 				table.insert(filteredOrders, order)
 			end
 		end
@@ -47,9 +63,14 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 		end
 	end
 
-	filteredListedOrders = filterOrders(ListedOrders, assetIdsSet, data.Address)
-	filteredExecutedOrders = filterOrders(ExecutedOrders, assetIdsSet, data.Address)
-	filteredCancelledOrders = filterOrders(CancelledOrders, assetIdsSet, data.Address)
+	local startDate = nil
+	local endDate = nil
+	if data.StartDate then startDate = data.StartDate end
+	if data.EndDate then endDate = data.EndDate end
+
+	filteredListedOrders = filterOrders(ListedOrders, assetIdsSet, data.Address, startDate, endDate)
+	filteredExecutedOrders = filterOrders(ExecutedOrders, assetIdsSet, data.Address, startDate, endDate)
+	filteredCancelledOrders = filterOrders(CancelledOrders, assetIdsSet, data.Address, startDate, endDate)
 
 	ao.send({
 		Target = msg.From,

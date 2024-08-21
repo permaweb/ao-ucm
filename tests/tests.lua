@@ -1,7 +1,6 @@
 package.path = package.path .. ';../src/?.lua'
 
 local ucm = require('ucm')
-local utils = require('utils')
 
 Orderbook = {
 	{
@@ -47,18 +46,44 @@ Orderbook = {
 		},
 	},
 	{
+		Pair = { 'pazXumQI-HPH7iFGfTC-4_7biSnqz_U67oFAGry5zUY', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
 		Orders = {
 			{
-				Id = "rir99Wf-rG1UUOhWOQsHf5eegCR2SzxVfKgJE1Lsa2I",
-				Token = "DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo",
-				Quantity = "1000000",
-				OriginalQuantity = "1000000",
-				DateCreated = "1723638517093",
-				Price = "123000000000",
-				Creator = "YMN2vh_oHx-jzPOXJHuGVYrXEpEbEAplNC8yNmFiBBQ"
+				Creator = 'LNtQf8SGZbHPeoksAqnVKfZvuGNgX4eH-xQYsFt_w-k',
+				DateCreated = '1722535710966',
+				Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+				OriginalQuantity = '50000000000000',
+				Price = '1499900000',
+				Quantity = '49000000000000',
+				Token = 'pazXumQI-HPH7iFGfTC-4_7biSnqz_U67oFAGry5zUY'
 			}
 		},
-		Pair = { "DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo", "xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10" }
+	},
+	{
+		Pair = { "DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo", "xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10" },
+		Orders = {
+			{
+				Id = "trnl8bp8ICxaJkeBQgT8CG-zfYz03Nw9aRvqzN8Yft0",
+				Token = "DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo",
+				Quantity = "100000000",
+				OriginalQuantity = "100000000",
+				DateCreated = '1724165230555',
+				Price = "400000000",
+				Creator = "n1FZml-9sqWiSx0ErLuJMipNlUaroEBBvkCvNusQoCA"
+			}
+		},
+		PriceData = {
+			Block = "1489769",
+			MatchLogs = {
+				{
+					Id = "trnl8bp8ICxaJkeBQgT8CG-zfYz03Nw9aRvqzN8Yft0",
+					Price = "400000000",
+					Quantity = "100000000"
+				}
+			},
+			Vwap = "400000000",
+			DominantToken = "xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10"
+		}
 	}
 }
 
@@ -67,15 +92,12 @@ local order
 order = {
 	orderId = tostring(1),
 	dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-	swapToken = '4LV93HuiNV2szr9PiibI0kUHc073Lvmo5XgvAGh_jN0',
+	swapToken = 'pazXumQI-HPH7iFGfTC-4_7biSnqz_U67oFAGry5zUY',
 	sender = 'User' .. tostring(1),
-	quantity = '1',
-	price = tostring(88800000000),
+	quantity = tostring(1499900000),
 	timestamp = os.time() + 1,
 	blockheight = '123456789',
-	transferDenomination = '1'
+	transferDenomination = '1000000000000'
 }
 
 ucm.createOrder(order)
-
-utils.printTable(Orderbook)

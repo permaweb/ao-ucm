@@ -276,8 +276,8 @@ function ucm.createOrder(args)
 		-- Update the order book with remaining and new orders
 		Orderbook[pairIndex].Orders = updatedOrderbook
 
+		local sumVolumePrice, sumVolume = 0, 0
 		if #matches > 0 then
-			local sumVolumePrice, sumVolume = 0, 0
 			for _, match in ipairs(matches) do
 				local volume = tonumber(match.Quantity)
 				local price = tonumber(match.Price)
@@ -292,13 +292,21 @@ function ucm.createOrder(args)
 				DominantToken = currentToken,
 				MatchLogs = matches
 			}
-
-			ao.send({
-				Target = args.sender,
-				Action = 'Action-Response',
-				Tags = { Status = 'Success', Message = 'Order created!', Handler = 'Create-Order' }
-			})
 		end
+
+		ao.send({
+			Target = args.sender,
+			Action = 'Order-Success',
+			Tags = {
+				Status = 'Success',
+				Handler = 'Create-Order',
+				DominantToken = currentToken,
+				SwapToken = args.swapToken,
+				Quantity = tostring(sumVolume),
+				Price = args.price and tostring(args.price) or 'None',
+				Message = 'Order created!',
+			}
+		})
 	else
 		handleError({
 			Target = args.sender,
@@ -314,33 +322,30 @@ function ucm.executeBuyback(args)
 	local pixlPairIndex = ucm.getPairIndex({ DEFAULT_SWAP_TOKEN, PIXL_PROCESS })
 
 	if pixlPairIndex > -1 then
-		local pixlPrice = bint(1000000000)
-		-- local pixlBuybackAmount = bint(0)
+		if Orderbook[pixlPairIndex].Orders and #Orderbook[pixlPairIndex].Orders > 0 then
+			-- Calculate buyback amount
+			local buybackAmount = bint(0)
+			for _, order in ipairs(Orderbook[pixlPairIndex].Orders) do
+				buybackAmount = buybackAmount + ((bint(order.Quantity) * bint(order.Price)) // bint(1000000))
+				if bint(args.quantity) >= buybackAmount then
+					break
+				end
+			end
 
-		if Orderbook[pixlPairIndex].PriceData and Orderbook[pixlPairIndex].PriceData.Vwap then
-			pixlPrice = math.floor(Orderbook[pixlPairIndex].PriceData.Vwap)
+			if buybackAmount > bint(0) and bint(args.quantity) >= bint(buybackAmount) then
+				-- Execute buyback
+				ucm.createOrder({
+					orderId = args.orderId,
+					dominantToken = DEFAULT_SWAP_TOKEN,
+					swapToken = PIXL_PROCESS,
+					sender = ao.id,
+					quantity = tostring(buybackAmount),
+					timestamp = args.timestamp,
+					blockheight = args.blockheight,
+					transferDenomination = '1000000'
+				})
+			end
 		end
-
-		-- pixlBuybackAmount = math.floor(bint(args.balance) / bint(pixlPrice))
-
-		print('UCM wAR Balance: ' .. tostring(args.quantity))
-		print('Pixl price: ' .. tostring(pixlPrice))
-
-		if pixlPrice and Orderbook[pixlPairIndex].Orders and #Orderbook[pixlPairIndex].Orders > 0 then
-			-- There is a PIXL market, execute buyback
-			ucm.createOrder({
-				orderId = args.orderId,
-				dominantToken = DEFAULT_SWAP_TOKEN,
-				swapToken = PIXL_PROCESS,
-				sender = ao.id,
-				quantity = tostring(args.quantity),
-				timestamp = args.timestamp,
-				blockheight = args.blockheight,
-				transferDenomination = '1000000'
-			})
-		end
-	else
-
 	end
 end
 

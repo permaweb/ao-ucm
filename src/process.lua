@@ -215,4 +215,21 @@ Handlers.add('Balance-Notice', Handlers.utils.hasMatchingTag('Action', 'Balance-
 	end
 end)
 
+Handlers.add('Order-Success', Handlers.utils.hasMatchingTag('Action', 'Order-Success'), function(msg)
+	if msg.From == ao.id and
+		msg.Tags.DominantToken and msg.Tags.DominantToken == DEFAULT_SWAP_TOKEN and
+		msg.Tags.SwapToken and msg.Tags.SwapToken == PIXL_PROCESS then
+		if msg.Tags.Quantity and tonumber(msg.Tags.Quantity) > 0 then
+			ao.send({
+				Target = PIXL_PROCESS,
+				Action = 'Transfer',
+				Tags = {
+					Recipient = string.rep('0', 43),
+					Quantity = msg.Tags.Quantity
+				}
+			})
+		end
+	end
+end)
+
 Handlers.add('Debit-Notice', Handlers.utils.hasMatchingTag('Action', 'Debit-Notice'), function(msg) end)

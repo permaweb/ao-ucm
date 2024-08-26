@@ -161,7 +161,7 @@ function ucm.createOrder(args)
 
 					-- Log
 					print('Fill amount (to buyer): ' .. tostring(fillAmount))
-					print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.05% fee captured)')
+					print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.5% fee captured)')
 					print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity))
 					print('Remaining fill quantity (purchase amount): ' .. tostring(remainingQuantity))
 					print('Receive from current (total cost): ' .. tostring(receiveFromCurrent))

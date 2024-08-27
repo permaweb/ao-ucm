@@ -210,7 +210,8 @@ Handlers.add('Balance-Notice', Handlers.utils.hasMatchingTag('Action', 'Balance-
 		ucm.executeBuyback({
 			orderId = msg.Id,
 			quantity = msg.Balance,
-			blockheight = msg['Block-Height']
+			blockheight = msg['Block-Height'],
+			timestamp = msg.Timestamp
 		})
 	end
 end)

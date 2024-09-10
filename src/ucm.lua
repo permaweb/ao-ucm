@@ -111,7 +111,14 @@ function ucm.createOrder(args)
 	end
 
 	if pairIndex > -1 then
-		local orderType = args.price and 'Limit' or 'Market'
+		local orderType
+
+		if args.price then
+			orderType = 'Limit'
+		else
+			orderType = 'Market'
+		end
+
 		local remainingQuantity = bint(args.quantity)
 		local currentOrders = Orderbook[pairIndex].Orders
 		local updatedOrderbook = {}
@@ -122,128 +129,11 @@ function ucm.createOrder(args)
 			return bint(a.Price) < bint(b.Price)
 		end)
 
-		-- Log
-		print('Order type: ' .. orderType)
-		print('Input quantity: ' .. tostring(remainingQuantity))
-
-		for _, currentOrderEntry in ipairs(currentOrders) do
-			if currentToken ~= currentOrderEntry.Token then
-				local fillAmount, receiveFromCurrent
-
-				-- Calculate the minimum required amount to buy at least one share
-				local minRequiredAmount = bint(currentOrderEntry.Price)
-
-				-- If the buyer's remaining quantity is less than the minimum required amount, skip this order
-				if remainingQuantity < minRequiredAmount then
-					table.insert(updatedOrderbook, currentOrderEntry)
-				else
-					-- Calculate how many shares can be bought with the remaining quantity
-					fillAmount = remainingQuantity // bint(currentOrderEntry.Price)
-
-					-- Ensure the fill amount does not exceed the available quantity in the order
-					if fillAmount > bint(currentOrderEntry.Quantity) then
-						fillAmount = bint(currentOrderEntry.Quantity)
-					end
-
-					-- Calculate the total cost for the fill amount
-					receiveFromCurrent = fillAmount * bint(currentOrderEntry.Price)
-
-					-- Handle tokens with a denominated value
-					if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
-						if fillAmount > bint(0) then fillAmount = fillAmount * bint(args.transferDenomination) end
-					end
-
-					-- Subtract the used quantity from the buyer's remaining quantity
-					remainingQuantity = remainingQuantity - receiveFromCurrent
-					currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
-
-					local calculatedSendAmount = utils.calculateSendAmount(receiveFromCurrent)
-
-					-- Log
-					print('Fill amount (to buyer): ' .. tostring(fillAmount))
-					print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.5% fee captured)')
-					print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity))
-					print('Remaining fill quantity (purchase amount): ' .. tostring(remainingQuantity))
-					print('Receive from current (total cost): ' .. tostring(receiveFromCurrent))
-
-					-- Send tokens to the current order creator
-					ao.send({
-						Target = currentToken,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = currentOrderEntry.Creator,
-							Quantity = tostring(calculatedSendAmount)
-						}
-					})
-
-					-- Send swap tokens to the input order creator
-					ao.send({
-						Target = args.swapToken,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = args.sender,
-							Quantity = tostring(fillAmount)
-						}
-					})
-
-					-- Record the match
-					table.insert(matches, {
-						Id = currentOrderEntry.Id,
-						Quantity = tostring(fillAmount),
-						Price = tostring(currentOrderEntry.Price)
-					})
-
-					local matchedDataSuccess, matchedData = pcall(function()
-						return json.encode({
-							Order = {
-								Id = currentOrderEntry.Id,
-								DominantToken = validPair[2],
-								SwapToken = validPair[1],
-								Sender = currentOrderEntry.Creator,
-								Receiver = args.sender,
-								Quantity = tostring(fillAmount),
-								Price = tostring(currentOrderEntry.Price),
-								Timestamp = args.timestamp
-							}
-						})
-					end)
-
-					ao.send({
-						Target = ACTIVITY_PROCESS,
-						Action = 'Update-Executed-Orders',
-						Data = matchedDataSuccess and matchedData or ''
-					})
-
-					-- Calculate streaks
-					ao.send({
-						Target = PIXL_PROCESS,
-						Action = 'Calculate-Streak',
-						Tags = {
-							Buyer = args.sender
-						}
-					})
-
-					-- Get balance notice and execute PIXL buyback
-					if orderType == 'Market' and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
-						ao.send({ Target = DEFAULT_SWAP_TOKEN, Action = 'Balance', Recipient = ao.id })
-					end
-
-					-- If there are remaining shares in the current order, keep it in the order book
-					if bint(currentOrderEntry.Quantity) > bint(0) then
-						table.insert(updatedOrderbook, currentOrderEntry)
-					end
-				end
-			else
-				-- If the token does match the current token, just add the order back
-				table.insert(updatedOrderbook, currentOrderEntry)
-			end
-		end
-
-		-- If there is remaining quantity from the incoming order and it's a limit order, add it to the order book
-		if remainingQuantity > bint(0) and orderType == 'Limit' then
-			table.insert(updatedOrderbook, {
+		-- If the incoming order is a limit order, add it to the order book
+		if orderType == 'Limit' then
+			table.insert(currentOrders, {
 				Id = args.orderId,
-				Quantity = tostring(remainingQuantity),
+				Quantity = tostring(args.quantity),
 				OriginalQuantity = tostring(args.quantity),
 				Creator = args.sender,
 				Token = currentToken,
@@ -259,7 +149,7 @@ function ucm.createOrder(args)
 						SwapToken = validPair[2],
 						Sender = args.sender,
 						Receiver = nil,
-						Quantity = tostring(remainingQuantity),
+						Quantity = tostring(args.quantity),
 						Price = tostring(args.price),
 						Timestamp = args.timestamp
 					}
@@ -271,6 +161,125 @@ function ucm.createOrder(args)
 				Action = 'Update-Listed-Orders',
 				Data = limitDataSuccess and limitData or ''
 			})
+
+			return
+		end
+
+		-- Log
+		print('Order type: ' .. orderType)
+		print('Input quantity: ' .. tostring(remainingQuantity))
+		print('Current orders: ' .. #currentOrders)
+		print('Order recipient: ' .. args.sender)
+
+		for _, currentOrderEntry in ipairs(currentOrders) do
+			if remainingQuantity > bint(0) then
+				local fillAmount, receiveFromCurrent
+
+				-- Calculate how many shares can be bought with the remaining quantity
+				fillAmount = remainingQuantity // bint(currentOrderEntry.Price)
+
+				-- Calculate the total cost for the fill amount
+				receiveFromCurrent = fillAmount * bint(currentOrderEntry.Price)
+
+				-- Handle tokens with a denominated value
+				if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+					if fillAmount > bint(0) then fillAmount = fillAmount * bint(args.transferDenomination) end
+				end
+
+				-- Ensure the fill amount does not exceed the available quantity in the order
+				if fillAmount > bint(currentOrderEntry.Quantity) then
+					fillAmount = bint(currentOrderEntry.Quantity)
+				end
+
+				-- Subtract the used quantity from the buyer's remaining quantity
+				if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+					remainingQuantity = remainingQuantity - (fillAmount // bint(args.transferDenomination) * bint(currentOrderEntry.Price))
+				else
+					remainingQuantity = remainingQuantity - fillAmount * bint(currentOrderEntry.Price)
+				end
+
+				currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
+
+				local calculatedSendAmount = utils.calculateSendAmount(receiveFromCurrent)
+
+				-- Log
+				print('Order creator: ' .. currentOrderEntry.Creator)
+				print('Fill amount (to buyer): ' .. tostring(fillAmount))
+				print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.5% fee captured)')
+				print('Remaining fill quantity (purchase amount): ' .. tostring(remainingQuantity))
+				print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity))
+				print('Receive from current (total cost): ' .. tostring(receiveFromCurrent))
+
+				-- Send tokens to the current order creator
+				ao.send({
+					Target = currentToken,
+					Action = 'Transfer',
+					Tags = {
+						Recipient = currentOrderEntry.Creator,
+						Quantity = tostring(calculatedSendAmount)
+					}
+				})
+
+				-- Send swap tokens to the input order creator
+				ao.send({
+					Target = args.swapToken,
+					Action = 'Transfer',
+					Tags = {
+						Recipient = args.sender,
+						Quantity = tostring(fillAmount)
+					}
+				})
+
+				-- Record the match
+				table.insert(matches, {
+					Id = currentOrderEntry.Id,
+					Quantity = tostring(fillAmount),
+					Price = tostring(currentOrderEntry.Price)
+				})
+
+				local matchedDataSuccess, matchedData = pcall(function()
+					return json.encode({
+						Order = {
+							Id = currentOrderEntry.Id,
+							DominantToken = validPair[2],
+							SwapToken = validPair[1],
+							Sender = currentOrderEntry.Creator,
+							Receiver = args.sender,
+							Quantity = tostring(fillAmount),
+							Price = tostring(currentOrderEntry.Price),
+							Timestamp = args.timestamp
+						}
+					})
+				end)
+
+				ao.send({
+					Target = ACTIVITY_PROCESS,
+					Action = 'Update-Executed-Orders',
+					Data = matchedDataSuccess and matchedData or ''
+				})
+
+				-- Calculate streaks
+				ao.send({
+					Target = PIXL_PROCESS,
+					Action = 'Calculate-Streak',
+					Tags = {
+						Buyer = args.sender
+					}
+				})
+
+				-- Get balance notice and execute PIXL buyback
+				if orderType == 'Market' and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
+					ao.send({ Target = DEFAULT_SWAP_TOKEN, Action = 'Balance', Recipient = ao.id })
+				end
+
+				-- If there are remaining shares in the current order, keep it in the order book
+				if bint(currentOrderEntry.Quantity) > bint(0) then
+					table.insert(updatedOrderbook, currentOrderEntry)
+				end
+			else
+				-- If there is no remaining quantity, add the order back
+				table.insert(updatedOrderbook, currentOrderEntry)
+			end
 		end
 
 		-- Update the order book with remaining and new orders

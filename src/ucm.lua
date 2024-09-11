@@ -162,6 +162,20 @@ function ucm.createOrder(args)
 				Data = limitDataSuccess and limitData or ''
 			})
 
+			ao.send({
+				Target = args.sender,
+				Action = 'Order-Success',
+				Tags = {
+					Status = 'Success',
+					Handler = 'Create-Order',
+					DominantToken = currentToken,
+					SwapToken = args.swapToken,
+					Quantity = tostring(args.quantity),
+					Price = tostring(args.price),
+					Message = 'Order created!'
+				}
+			})
+
 			return
 		end
 

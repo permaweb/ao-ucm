@@ -181,16 +181,21 @@ function ucm.createOrder(args)
 
 		-- Log
 		print('Order type: ' .. orderType)
-		print('Input quantity: ' .. tostring(remainingQuantity))
-		print('Current orders: ' .. #currentOrders)
+		print('Swap token: ' .. args.swapToken)
 		print('Order recipient: ' .. args.sender)
+		print('Input quantity: ' .. tostring(remainingQuantity))
 
 		for _, currentOrderEntry in ipairs(currentOrders) do
 			if remainingQuantity > bint(0) then
 				local fillAmount, receiveFromCurrent
 
+				print('Remaining quantity: ' .. tostring(remainingQuantity))
+				print('Current order price: ' .. tostring(currentOrderEntry.Price))
+
 				-- Calculate how many shares can be bought with the remaining quantity
-				fillAmount = remainingQuantity // bint(currentOrderEntry.Price)
+				fillAmount = remainingQuantity / bint(currentOrderEntry.Price)
+
+				print('Fill amount: ' .. tostring(fillAmount))
 
 				-- Calculate the total cost for the fill amount
 				receiveFromCurrent = fillAmount * bint(currentOrderEntry.Price)
@@ -207,7 +212,8 @@ function ucm.createOrder(args)
 
 				-- Subtract the used quantity from the buyer's remaining quantity
 				if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
-					remainingQuantity = remainingQuantity - (fillAmount // bint(args.transferDenomination) * bint(currentOrderEntry.Price))
+					remainingQuantity = remainingQuantity -
+						(fillAmount // bint(args.transferDenomination) * bint(currentOrderEntry.Price))
 				else
 					remainingQuantity = remainingQuantity - fillAmount * bint(currentOrderEntry.Price)
 				end
@@ -215,6 +221,16 @@ function ucm.createOrder(args)
 				currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
 
 				local calculatedSendAmount = utils.calculateSendAmount(receiveFromCurrent)
+
+				if fillAmount <= bint(0) then
+					handleError({
+						Target = args.sender,
+						Action = 'Order-Error',
+						Message = 'Order not filled',
+						Quantity = args.quantity,
+						TransferToken = currentToken,
+					})
+				end
 
 				-- Log
 				print('Order creator: ' .. currentOrderEntry.Creator)
@@ -234,13 +250,14 @@ function ucm.createOrder(args)
 					}
 				})
 
+
 				-- Send swap tokens to the input order creator
 				ao.send({
 					Target = args.swapToken,
 					Action = 'Transfer',
 					Tags = {
 						Recipient = args.sender,
-						Quantity = tostring(fillAmount)
+						Quantity = tostring(math.floor(fillAmount))
 					}
 				})
 
@@ -317,19 +334,23 @@ function ucm.createOrder(args)
 			}
 		end
 
-		ao.send({
-			Target = args.sender,
-			Action = 'Order-Success',
-			Tags = {
-				Status = 'Success',
-				Handler = 'Create-Order',
-				DominantToken = currentToken,
-				SwapToken = args.swapToken,
-				Quantity = tostring(sumVolume),
-				Price = args.price and tostring(args.price) or 'None',
-				Message = 'Order created!',
-			}
-		})
+		if sumVolume > 0 then
+			ao.send({
+				Target = args.sender,
+				Action = 'Order-Success',
+				Tags = {
+					Status = 'Success',
+					Handler = 'Create-Order',
+					DominantToken = currentToken,
+					SwapToken = args.swapToken,
+					Quantity = tostring(sumVolume),
+					Price = args.price and tostring(args.price) or 'None',
+					Message = 'Order created!',
+				}
+			})
+		else
+			print('Order not filled')
+		end
 	else
 		handleError({
 			Target = args.sender,

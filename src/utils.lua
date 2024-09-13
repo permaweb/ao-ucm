@@ -52,6 +52,10 @@ function utils.calculateSendAmount(amount)
 	return tostring(sendAmount)
 end
 
+function utils.calculateFillAmount(amount)
+	return tostring(math.floor(tostring(amount)))
+end
+
 function utils.printTable(t, indent)
 	local jsonStr = ''
 	local function serialize(tbl, indentLevel)
@@ -89,6 +93,74 @@ function utils.printTable(t, indent)
 
 	jsonStr = serialize(t, indent or 0)
 	print(jsonStr)
+end
+
+function utils.checkTables(t1, t2)
+	if t1 == t2 then return true end
+	if type(t1) ~= 'table' or type(t2) ~= 'table' then return false end
+	for k, v in pairs(t1) do
+		if not utils.checkTables(v, t2[k]) then return false end
+	end
+	for k in pairs(t2) do
+		if t1[k] == nil then return false end
+	end
+	return true
+end
+
+local testResults = {
+    total = 0,
+    passed = 0,
+    failed = 0,
+}
+
+function utils.test(description, fn, expected)
+    local colors = {
+        red = '\27[31m',
+        green = '\27[32m',
+        blue = '\27[34m',
+        reset = '\27[0m',
+    }
+
+    testResults.total = testResults.total + 1
+    local testIndex = testResults.total
+
+    print('\n' .. colors.blue .. 'Running test ' .. testIndex .. '... ' .. description .. colors.reset)
+    local status, result = pcall(fn)
+    if not status then
+        testResults.failed = testResults.failed + 1
+        print(colors.red .. 'Failed - ' .. description .. ' - ' .. result .. colors.reset .. '\n')
+    else
+        if utils.checkTables(result, expected) then
+            testResults.passed = testResults.passed + 1
+            print(colors.green .. 'Passed - ' .. description .. colors.reset)
+        else
+            testResults.failed = testResults.failed + 1
+            print(colors.red .. 'Failed - ' .. description .. colors.reset .. '\n')
+            print(colors.red .. 'Expected' .. colors.reset)
+            utils.printTable(expected)
+            print('\n' .. colors.red .. 'Got' .. colors.reset)
+            utils.printTable(result)
+        end
+    end
+end
+
+-- Test summary function
+function utils.testSummary()
+    local colors = {
+        red = '\27[31m',
+        green = '\27[32m',
+        reset = '\27[0m',
+    }
+
+    print('\nTest Summary')
+    print('Total tests (' .. testResults.total .. ')')
+    print('Result: ' .. testResults.passed .. '/' .. testResults.total .. ' tests passed')
+    if testResults.passed == testResults.total then
+        print(colors.green .. 'All tests passed!' .. colors.reset)
+    else
+        print(colors.green .. 'Tests passed: ' .. testResults.passed .. '/' .. testResults.total .. colors.reset)
+        print(colors.red .. 'Tests failed: ' .. testResults.failed .. '/' .. testResults.total .. colors.reset .. '\n')
+    end
 end
 
 return utils

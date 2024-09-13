@@ -187,18 +187,22 @@ function ucm.createOrder(args)
 
 		for _, currentOrderEntry in ipairs(currentOrders) do
 			if remainingQuantity > bint(0) then
-				local fillAmount, receiveFromCurrent
+				local fillAmount, sendAmount
 
 				print('Remaining quantity: ' .. tostring(remainingQuantity))
 				print('Current order price: ' .. tostring(currentOrderEntry.Price))
 
 				-- Calculate how many shares can be bought with the remaining quantity
-				fillAmount = remainingQuantity / bint(currentOrderEntry.Price)
+				if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+					fillAmount = remainingQuantity // bint(currentOrderEntry.Price)
+				else
+					fillAmount = math.floor(remainingQuantity / bint(currentOrderEntry.Price))
+				end
 
 				print('Fill amount: ' .. tostring(fillAmount))
 
 				-- Calculate the total cost for the fill amount
-				receiveFromCurrent = fillAmount * bint(currentOrderEntry.Price)
+				sendAmount = fillAmount * bint(currentOrderEntry.Price)
 
 				-- Handle tokens with a denominated value
 				if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
@@ -220,8 +224,6 @@ function ucm.createOrder(args)
 
 				currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
 
-				local calculatedSendAmount = utils.calculateSendAmount(receiveFromCurrent)
-
 				if fillAmount <= bint(0) then
 					handleError({
 						Target = args.sender,
@@ -230,7 +232,11 @@ function ucm.createOrder(args)
 						Quantity = args.quantity,
 						TransferToken = currentToken,
 					})
+					return
 				end
+
+				local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
+				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
 				-- Log
 				print('Order creator: ' .. currentOrderEntry.Creator)
@@ -238,7 +244,6 @@ function ucm.createOrder(args)
 				print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.5% fee captured)')
 				print('Remaining fill quantity (purchase amount): ' .. tostring(remainingQuantity))
 				print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity))
-				print('Receive from current (total cost): ' .. tostring(receiveFromCurrent))
 
 				-- Send tokens to the current order creator
 				ao.send({
@@ -257,14 +262,14 @@ function ucm.createOrder(args)
 					Action = 'Transfer',
 					Tags = {
 						Recipient = args.sender,
-						Quantity = tostring(math.floor(fillAmount))
+						Quantity = calculatedFillAmount
 					}
 				})
 
 				-- Record the match
 				table.insert(matches, {
 					Id = currentOrderEntry.Id,
-					Quantity = tostring(fillAmount),
+					Quantity = calculatedFillAmount,
 					Price = tostring(currentOrderEntry.Price)
 				})
 
@@ -276,7 +281,7 @@ function ucm.createOrder(args)
 							SwapToken = validPair[1],
 							Sender = currentOrderEntry.Creator,
 							Receiver = args.sender,
-							Quantity = tostring(fillAmount),
+							Quantity = calculatedFillAmount,
 							Price = tostring(currentOrderEntry.Price),
 							Timestamp = args.timestamp
 						}

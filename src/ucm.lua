@@ -313,8 +313,9 @@ function ucm.createOrder(args)
 					table.insert(updatedOrderbook, currentOrderEntry)
 				end
 			else
-				-- If there is no remaining quantity, add the order back
-				table.insert(updatedOrderbook, currentOrderEntry)
+				if bint(currentOrderEntry.Quantity) > bint(0) then
+					table.insert(updatedOrderbook, currentOrderEntry)
+				end
 			end
 		end
 

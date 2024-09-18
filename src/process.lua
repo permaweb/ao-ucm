@@ -198,6 +198,23 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 	end
 end)
 
+Handlers.add('Read-Orders', Handlers.utils.hasMatchingTag('Action', 'Read-Orders'), function(msg)
+	if msg.From == ao.id then
+		local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
+
+		if pairIndex > -1 then
+			for i, order in ipairs(Orderbook[pairIndex].Orders) do
+				print('Index: ' .. i)
+				print('Id: ' .. order.Id)
+				print('Creator: ' .. order.Creator)
+				print('Quantity: ' .. order.Quantity)
+				print('Price: ' .. order.Price)
+				print('Timestamp: ' .. order.Timestamp)
+			end
+		end
+	end
+end)
+
 Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), function(msg)
 	local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 	if pairIndex > -1 then

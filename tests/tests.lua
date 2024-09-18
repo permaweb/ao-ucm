@@ -38,6 +38,31 @@ utils.test('Create listing',
 	}
 )
 
+utils.test('Create listing (invalid quantity)',
+	function()
+		Orderbook = {}
+
+		ucm.createOrder({
+			orderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+			dominantToken = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo',
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+			quantity = 0,
+			price = '99000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+		})
+
+		return Orderbook
+	end,
+	{
+		{
+			Pair = { 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+			Orders = {}
+		},
+	}
+)
+
 utils.test('Single order fully matched',
 	function()
 		Orderbook = {

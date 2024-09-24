@@ -3,6 +3,10 @@ package.path = package.path .. ';../src/?.lua'
 local ucm = require('ucm')
 local utils = require('utils')
 
+ao = {
+	send = function(msg) print(msg.Action) end
+}
+
 utils.test('Create listing',
 	function()
 		Orderbook = {}

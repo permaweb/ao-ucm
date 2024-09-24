@@ -154,6 +154,10 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		Quantity = msg.Tags.Quantity
 	}
 
+	print('PIXL Transfer')
+	print('Recipient: ' .. data.Recipient)
+	print('Quantity: ' .. data.Quantity)
+
 	if checkValidAddress(data.Recipient) and checkValidAmount(data.Quantity) then
 		-- Transfer is valid, calculate balances
 		if not Balances[data.Recipient] then

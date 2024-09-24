@@ -1,25 +1,13 @@
 local bint = require('.bint')(256)
 local json = require('json')
 
-local ao
-local success, aoModule = pcall(require, 'ao')
-if success then
-	ao = aoModule
-else
-	ao = {
-		send = function(msg) print(msg.Action) end
-	}
-end
-
 local utils = require('utils')
 
-ACTIVITY_PROCESS = 'SNDvAf2RF-jhPmRrGUcs_b1nKlzU6vamN9zl0e9Zi4c'
-
-PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
-
-DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
-
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
+
+ACTIVITY_PROCESS = 'SNDvAf2RF-jhPmRrGUcs_b1nKlzU6vamN9zl0e9Zi4c'
+PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
+DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 
 -- Orderbook {
 -- 	Pair [TokenId, TokenId],
@@ -186,11 +174,11 @@ function ucm.createOrder(args)
 		print('Input quantity: ' .. tostring(remainingQuantity))
 
 		for _, currentOrderEntry in ipairs(currentOrders) do
-			if remainingQuantity > bint(0) then
+			if remainingQuantity > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 				local fillAmount, sendAmount
 
-				print('Remaining quantity: ' .. tostring(remainingQuantity))
-				print('Current order price: ' .. tostring(currentOrderEntry.Price))
+				-- print('Remaining quantity: ' .. tostring(remainingQuantity))
+				-- print('Current order price: ' .. tostring(currentOrderEntry.Price))
 
 				-- Calculate how many shares can be bought with the remaining quantity
 				if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
@@ -199,19 +187,23 @@ function ucm.createOrder(args)
 					fillAmount = math.floor(remainingQuantity / bint(currentOrderEntry.Price))
 				end
 
-				print('Fill amount: ' .. tostring(fillAmount))
+				-- print('Fill amount: ' .. tostring(fillAmount))
 
 				-- Calculate the total cost for the fill amount
 				sendAmount = fillAmount * bint(currentOrderEntry.Price)
 
+				-- print('Send amount: ' .. tostring(sendAmount))
+
 				-- Handle tokens with a denominated value
 				if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
 					if fillAmount > bint(0) then fillAmount = fillAmount * bint(args.transferDenomination) end
+					-- print('Fill amount with denomination: ' .. tostring(fillAmount))
 				end
 
 				-- Ensure the fill amount does not exceed the available quantity in the order
 				if fillAmount > bint(currentOrderEntry.Quantity) then
 					fillAmount = bint(currentOrderEntry.Quantity)
+					-- print('Fill amount adjusted: ' .. tostring(fillAmount))
 				end
 
 				-- Subtract the used quantity from the buyer's remaining quantity
@@ -222,7 +214,11 @@ function ucm.createOrder(args)
 					remainingQuantity = remainingQuantity - fillAmount * bint(currentOrderEntry.Price)
 				end
 
+				-- print('Remaining quantity: ' .. tostring(remainingQuantity))
+
 				currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
+
+				-- print('Current order quantity: ' .. tostring(currentOrderEntry.Quantity))
 
 				if fillAmount <= bint(0) then
 					handleError({
@@ -239,11 +235,14 @@ function ucm.createOrder(args)
 				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
 				-- Log
+				print('Calculated send amount: ' .. tostring(calculatedSendAmount))
+				print('Calculated fill amount: ' .. tostring(calculatedFillAmount))
 				print('Order creator: ' .. currentOrderEntry.Creator)
 				print('Fill amount (to buyer): ' .. tostring(fillAmount))
 				print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.5% fee captured)')
 				print('Remaining fill quantity (purchase amount): ' .. tostring(remainingQuantity))
 				print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity))
+				print('Order ID: ' .. args.orderId .. '\n')
 
 				-- Send tokens to the current order creator
 				ao.send({
@@ -255,14 +254,13 @@ function ucm.createOrder(args)
 					}
 				})
 
-
 				-- Send swap tokens to the input order creator
 				ao.send({
 					Target = args.swapToken,
 					Action = 'Transfer',
 					Tags = {
 						Recipient = args.sender,
-						Quantity = calculatedFillAmount
+						Quantity = tostring(calculatedFillAmount)
 					}
 				})
 

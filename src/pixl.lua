@@ -242,7 +242,7 @@ Handlers.add('Balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), func
 
 	ao.send({
 		Target = msg.From,
-		Action = 'Read-Success',
+		Action = 'Balance-Notice',
 		Tags = { Status = 'Success', Message = 'Balance received', Balance = balance },
 		Data = balance
 	})

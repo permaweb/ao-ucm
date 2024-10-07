@@ -169,6 +169,7 @@ function ucm.createOrder(args)
 
 		-- Log
 		print('Order type: ' .. orderType)
+		print('Match ID: ' .. args.orderId)
 		print('Swap token: ' .. args.swapToken)
 		print('Order recipient: ' .. args.sender)
 		print('Input quantity: ' .. tostring(remainingQuantity))
@@ -177,48 +178,50 @@ function ucm.createOrder(args)
 			if remainingQuantity > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 				local fillAmount, sendAmount
 
-				-- print('Remaining quantity: ' .. tostring(remainingQuantity))
-				-- print('Current order price: ' .. tostring(currentOrderEntry.Price))
+				local transferDenomination = args.transferDenomination and bint(args.transferDenomination) > bint(1)
 
 				-- Calculate how many shares can be bought with the remaining quantity
-				if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+				if transferDenomination then
 					fillAmount = remainingQuantity // bint(currentOrderEntry.Price)
 				else
 					fillAmount = math.floor(remainingQuantity / bint(currentOrderEntry.Price))
 				end
 
-				-- print('Fill amount: ' .. tostring(fillAmount))
-
 				-- Calculate the total cost for the fill amount
 				sendAmount = fillAmount * bint(currentOrderEntry.Price)
 
-				-- print('Send amount: ' .. tostring(sendAmount))
+				-- Adjust the fill amount to not exceed the order's available quantity
+				local quantityCheck = bint(currentOrderEntry.Quantity)
+				if transferDenomination then
+					quantityCheck = quantityCheck // bint(args.transferDenomination)
+				end
+
+				if sendAmount > (quantityCheck * bint(currentOrderEntry.Price)) then
+					sendAmount = bint(currentOrderEntry.Quantity) * bint(currentOrderEntry.Price)
+					if transferDenomination then
+						sendAmount = sendAmount // bint(args.transferDenomination)
+					end
+				end
 
 				-- Handle tokens with a denominated value
-				if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+				if transferDenomination then
 					if fillAmount > bint(0) then fillAmount = fillAmount * bint(args.transferDenomination) end
-					-- print('Fill amount with denomination: ' .. tostring(fillAmount))
 				end
 
 				-- Ensure the fill amount does not exceed the available quantity in the order
 				if fillAmount > bint(currentOrderEntry.Quantity) then
 					fillAmount = bint(currentOrderEntry.Quantity)
-					-- print('Fill amount adjusted: ' .. tostring(fillAmount))
 				end
 
 				-- Subtract the used quantity from the buyer's remaining quantity
-				if args.transferDenomination and bint(args.transferDenomination) > bint(1) then
+				if transferDenomination then
 					remainingQuantity = remainingQuantity -
 						(fillAmount // bint(args.transferDenomination) * bint(currentOrderEntry.Price))
 				else
 					remainingQuantity = remainingQuantity - fillAmount * bint(currentOrderEntry.Price)
 				end
 
-				-- print('Remaining quantity: ' .. tostring(remainingQuantity))
-
 				currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
-
-				-- print('Current order quantity: ' .. tostring(currentOrderEntry.Quantity))
 
 				if fillAmount <= bint(0) then
 					handleError({
@@ -235,14 +238,11 @@ function ucm.createOrder(args)
 				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
 				-- Log
-				print('Calculated send amount: ' .. tostring(calculatedSendAmount))
-				print('Calculated fill amount: ' .. tostring(calculatedFillAmount))
 				print('Order creator: ' .. currentOrderEntry.Creator)
 				print('Fill amount (to buyer): ' .. tostring(fillAmount))
 				print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.5% fee captured)')
 				print('Remaining fill quantity (purchase amount): ' .. tostring(remainingQuantity))
-				print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity))
-				print('Order ID: ' .. args.orderId .. '\n')
+				print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity) .. '\n')
 
 				-- Send tokens to the current order creator
 				ao.send({
@@ -323,8 +323,8 @@ function ucm.createOrder(args)
 		local sumVolumePrice, sumVolume = 0, 0
 		if #matches > 0 then
 			for _, match in ipairs(matches) do
-				local volume = tonumber(match.Quantity)
-				local price = tonumber(match.Price)
+				local volume = bint(match.Quantity)
+				local price = bint(match.Price)
 				sumVolumePrice = sumVolumePrice + (volume * price)
 				sumVolume = sumVolume + volume
 			end

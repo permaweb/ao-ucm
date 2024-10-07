@@ -4,7 +4,13 @@ local ucm = require('ucm')
 local utils = require('utils')
 
 ao = {
-	send = function(msg) print(msg.Action) end
+	send = function(msg)
+		if msg.Action == 'Transfer' then
+			print(msg.Action .. ' ' .. msg.Tags.Quantity .. ' to ' .. msg.Tags.Recipient)
+		else
+			print(msg.Action)
+		end
+	 end
 }
 
 utils.test('Create listing',
@@ -338,6 +344,148 @@ utils.test('Single order fully matched (denominated / fractional)',
 					}
 				},
 				Vwap = '50000000',
+				Block = '123456789',
+				DominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+			}
+		}
+	}
+)
+
+utils.test('Multi order fully matched (denominated)',
+	function()
+		Orderbook = {
+			{
+				Pair = { 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+				Orders = {
+					{
+						Creator = 'LNtQf8SGZbHPeoksAqnVKfZvuGNgX4eH-xQYsFt_w-k',
+						DateCreated = '1722535710966',
+						Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+						OriginalQuantity = '10000000',
+						Price = '500000000000',
+						Quantity = '10000000',
+						Token = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
+					},
+					{
+						Creator = 'LNtQf8SGZbHPeoksAqnVKfZvuGNgX4eH-xQYsFt_w-k',
+						DateCreated = '1722535710966',
+						Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+						OriginalQuantity = '10000000',
+						Price = '500000000000',
+						Quantity = '10000000',
+						Token = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
+					},
+				},
+			},
+		}
+
+		ucm.createOrder({
+			orderId = tostring(1),
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			swapToken = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo',
+			sender = 'User' .. tostring(1),
+			quantity = tostring(10000000000000),
+			timestamp = os.time() + 1,
+			blockheight = '123456789',
+			transferDenomination = '1000000'
+		})
+
+		return Orderbook
+	end,
+	{
+		{
+			Pair = { 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+			Orders = {},
+			PriceData = {
+				MatchLogs = {
+					{
+						Quantity = '10000000',
+						Price = '500000000000',
+						Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'
+					},
+					{
+						Quantity = '10000000',
+						Price = '500000000000',
+						Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'
+					},
+				},
+				Vwap = '500000000000',
+				Block = '123456789',
+				DominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+			}
+		}
+	}
+)
+
+utils.test('Multi order partially matched (denominated)',
+	function()
+		Orderbook = {
+			{
+				Pair = { 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+				Orders = {
+					{
+						Creator = 'LNtQf8SGZbHPeoksAqnVKfZvuGNgX4eH-xQYsFt_w-k',
+						DateCreated = '1722535710966',
+						Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+						OriginalQuantity = '10000000',
+						Price = '500000000000',
+						Quantity = '10000000',
+						Token = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
+					},
+					{
+						Creator = 'LNtQf8SGZbHPeoksAqnVKfZvuGNgX4eH-xQYsFt_w-k',
+						DateCreated = '1722535710966',
+						Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+						OriginalQuantity = '10000000',
+						Price = '500000000000',
+						Quantity = '10000000',
+						Token = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
+					},
+				},
+			},
+		}
+
+		ucm.createOrder({
+			orderId = tostring(1),
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			swapToken = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo',
+			sender = 'User' .. tostring(1),
+			quantity = tostring(5500000000000),
+			timestamp = os.time() + 1,
+			blockheight = '123456789',
+			transferDenomination = '1000000'
+		})
+
+		return Orderbook
+	end,
+	{
+		{
+			Pair = { 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+			Orders = {
+				{
+					Creator = 'LNtQf8SGZbHPeoksAqnVKfZvuGNgX4eH-xQYsFt_w-k',
+					DateCreated = '1722535710966',
+					Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+					OriginalQuantity = '10000000',
+					Price = '500000000000',
+					Quantity = '9000000',
+					Token = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
+				},
+			},
+			PriceData = {
+				MatchLogs = {
+					{
+						Quantity = '10000000',
+						Price = '500000000000',
+						Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'
+					},
+					{
+						Quantity = '1000000',
+						Price = '500000000000',
+						Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'
+					},
+				},
+				Vwap = '500000000000',
 				Block = '123456789',
 				DominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 			}

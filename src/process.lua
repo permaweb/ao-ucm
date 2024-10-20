@@ -222,7 +222,7 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 	end
 end)
 
-Handlers.add('Balance-Notice', Handlers.utils.hasMatchingTag('Action', 'Balance-Notice'), function(msg)
+Handlers.add('Balance-Notice', function(msg) return msg.Balance and msg.From == DEFAULT_SWAP_TOKEN end, function(msg)
 	if msg.From == DEFAULT_SWAP_TOKEN then
 		ucm.executeBuyback({
 			orderId = msg.Id,

@@ -6,7 +6,7 @@ CRON_PROCESS = '6lHbf4JMQcGoteBMws8MHjhHkihMevM4Sgfr7ubgOFA'
 
 TOTAL_SUPPLY = bint(26280000 * 1e6)
 HALVING_SUPPLY = TOTAL_SUPPLY * 0.9
-ORIGIN_HEIGHT = 1434247
+ORIGIN_HEIGHT = 1232228
 DAY_INTERVAL = 720
 CYCLE_INTERVAL = DAY_INTERVAL * 365
 
@@ -153,10 +153,6 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		Recipient = msg.Tags.Recipient,
 		Quantity = msg.Tags.Quantity
 	}
-
-	print('PIXL Transfer')
-	print('Recipient: ' .. data.Recipient)
-	print('Quantity: ' .. data.Quantity)
 
 	if checkValidAddress(data.Recipient) and checkValidAmount(data.Quantity) then
 		-- Transfer is valid, calculate balances

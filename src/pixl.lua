@@ -356,3 +356,13 @@ Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards
 
 		msg.reply({ Action = 'Rewards-Dispersed' })
 	end)
+
+Handlers.add('Total-Supply', Handlers.utils.hasMatchingTag('Action', 'Total-Supply'), function(msg)
+	assert(msg.From ~= ao.id, 'Cannot call Total-Supply from the same process!')
+
+	msg.reply({
+		Action = 'Total-Supply',
+		Data = tostring(TOTAL_SUPPLY),
+		Ticker = Ticker
+	})
+end)

@@ -25,7 +25,7 @@ local function checkValidAddress(address)
 		return false
 	end
 
-	return string.match(address, "^[%w%-_]+$") ~= nil and #address == 43
+	return string.match(address, '^[%w%-_]+$') ~= nil and #address == 43
 end
 
 local function checkValidAmount(data)
@@ -120,30 +120,36 @@ Handlers.prepend('qualify message',
 	end
 )
 
+local function patchReply(msg)
+	if not msg.reply then
+		msg.reply = function(replyMsg)
+			replyMsg.Target = msg['Reply-To'] or (replyMsg.Target or msg.From)
+			replyMsg['X-Reference'] = msg['X-Reference'] or msg.Reference or ''
+			replyMsg['X-Origin'] = msg['X-Origin'] or ''
+
+			return ao.send(replyMsg)
+		end
+	end
+end
+
+Handlers.prepend('_patch_reply', function(msg) return 'continue' end, patchReply)
+
 -- Read process state
 Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 	function(msg)
-		ao.send({
-			Target = msg.From,
-			Action = 'Read-Success',
-			Tags = {
-				Name = Name,
-				Ticker = Ticker,
-				Logo = Logo,
-				Denomination = tostring(Denomination)
-			}
+		msg.reply({
+			Name = Name,
+			Ticker = Ticker,
+			Logo = Logo,
+			Denomination = tostring(Denomination)
 		})
 	end)
 
 -- Get streaks table
 Handlers.add('Get-Streaks', Handlers.utils.hasMatchingTag('Action', 'Get-Streaks'),
 	function(msg)
-		ao.send({
-			Target = msg.From,
-			Action = 'Read-Success',
-			Data = json.encode({
-				Streaks = Streaks
-			})
+		msg.reply({
+			Data = json.encode({ Streaks = Streaks })
 		})
 	end)
 
@@ -193,7 +199,7 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		end
 
 		-- Send a debit notice to the sender
-		ao.send({
+		msg.reply({
 			Target = msg.From,
 			Action = 'Debit-Notice',
 			Tags = debitNoticeTags,
@@ -204,7 +210,7 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		})
 
 		-- Send a credit notice to the recipient
-		ao.send({
+		msg.reply({
 			Target = data.Recipient,
 			Action = 'Credit-Notice',
 			Tags = creditNoticeTags,
@@ -236,17 +242,17 @@ Handlers.add('Balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), func
 
 	local balance = Balances[data.Recipient] or '0'
 
-	ao.send({
-		Target = msg.From,
-		Action = 'Balance-Notice',
-		Tags = { Status = 'Success', Message = 'Balance received', Balance = balance },
+	msg.reply({
+		Balance = balance,
+		Ticker = Ticker,
+		Account = data.Recipient or msg.From,
 		Data = balance
 	})
 end)
 
 -- Read balances
-Handlers.add('Balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
-	function(msg) ao.send({ Target = msg.From, Action = 'Read-Success', Data = json.encode(Balances) }) end)
+Handlers.add('Balances', 'Balances',
+	function(msg) msg.reply({ Data = json.encode(Balances) }) end)
 
 -- Update streaks table by buyer (Data - { Buyer })
 Handlers.add('Calculate-Streak', Handlers.utils.hasMatchingTag('Action', 'Calculate-Streak'),
@@ -322,12 +328,7 @@ Handlers.add('Read-Current-Rewards', Handlers.utils.hasMatchingTag('Action', 'Re
 		local allocation = getAllocation(msg['Block-Height'])
 
 		if allocation and allocation[data.Recipient] then
-			ao.send({
-				Target = msg.From,
-				Action = 'Read-Success',
-				Tags = { Status = 'Success', Message = 'Read rewards' },
-				Data = allocation[data.Recipient]
-			})
+			msg.reply({ Data = allocation[data.Recipient] })
 		end
 	end)
 
@@ -353,5 +354,5 @@ Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards
 			LastReward = msg['Block-Height']
 		end
 
-		ao.send({ Target = msg.From, Action = 'Rewards-Dispersed' })
+		msg.reply({ Action = 'Rewards-Dispersed' })
 	end)

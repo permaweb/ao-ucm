@@ -200,17 +200,28 @@ end)
 
 Handlers.add('Read-Orders', Handlers.utils.hasMatchingTag('Action', 'Read-Orders'), function(msg)
 	if msg.From == ao.id then
+		local readOrders = {}
 		local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 
 		if pairIndex > -1 then
 			for i, order in ipairs(Orderbook[pairIndex].Orders) do
-				print('Index: ' .. i)
-				print('Id: ' .. order.Id)
-				print('Creator: ' .. order.Creator)
-				print('Quantity: ' .. order.Quantity)
-				print('Price: ' .. order.Price)
-				print('Timestamp: ' .. order.Timestamp)
+				if not msg.Tags.Creator or order.Creator == msg.Tags.Creator then
+					table.insert(readOrders, {
+						index = i,
+						id = order.Id,
+						creator = order.Creator,
+						quantity = order.Quantity,
+						price = order.Price,
+						timestamp = order.Timestamp
+					})
+				end
 			end
+
+			ao.send({
+				Target = msg.From,
+				Action = 'Read-Orders-Response',
+				Data = json.encode(readOrders)
+			})
 		end
 	end
 end)

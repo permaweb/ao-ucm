@@ -336,10 +336,12 @@ Handlers.add('Read-Current-Rewards', Handlers.utils.hasMatchingTag('Action', 'Re
 Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards'),
 	function(msg)
 		if msg.From ~= CRON_PROCESS then
+			msg.reply({ Action = 'Unauthorized' })
 			return
 		end
 
 		if (tonumber(msg['Block-Height']) - LastReward) < DAY_INTERVAL then
+			msg.reply({ Action = 'Invalid-Reward-Interval' })
 			return
 		end
 

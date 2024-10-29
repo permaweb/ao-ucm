@@ -304,3 +304,175 @@ Handlers.add('Get-Most-Traded-Tokens', Handlers.utils.hasMatchingTag('Action', '
 			Data = json.encode(result)
 		})
 	end)
+
+Handlers.add('Get-Activity-Lengths', Handlers.utils.hasMatchingTag('Action', 'Get-Activity-Lengths'), function(msg)
+	local function countTableEntries(tbl)
+		local count = 0
+		for _ in pairs(tbl) do
+			count = count + 1
+		end
+		return count
+	end
+
+	ao.send({
+		Target = msg.From,
+		Action = 'Table-Lengths-Result',
+		Data = json.encode({
+			ListedOrders = #ListedOrders,
+			ExecutedOrders = #ExecutedOrders,
+			CancelledOrders = #CancelledOrders,
+			SalesByAddress = countTableEntries(SalesByAddress),
+			PurchasesByAddress = countTableEntries(PurchasesByAddress)
+		})
+	})
+end)
+
+Handlers.add('Migrate-Activity', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity'), function(msg)
+	if msg.From ~= ao.id and msg.From ~= Owner then return end
+	print('Starting migration process...')
+
+	local function sendBatch(orders, orderType, startIndex)
+		local batch = {}
+
+		for i = startIndex, math.min(startIndex + 99, #orders) do
+			table.insert(batch, {
+				OrderId = orders[i].OrderId or '',
+				DominantToken = orders[i].DominantToken or '',
+				SwapToken = orders[i].SwapToken or '',
+				Sender = orders[i].Sender or '',
+				Receiver = orders[i].Receiver or nil,
+				Quantity = orders[i].Quantity and tostring(orders[i].Quantity) or '0',
+				Price = orders[i].Price and tostring(orders[i].Price) or '0',
+				Timestamp = orders[i].Timestamp or ''
+			})
+		end
+
+		if #batch > 0 then
+			print('Sending ' .. orderType .. ' Batch: ' .. #batch .. ' orders starting at index ' .. startIndex)
+
+			local success, encoded = pcall(json.encode, batch)
+			if not success then
+				print('Failed to encode batch: ' .. tostring(encoded))
+				return
+			end
+
+			ao.send({
+				Target = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4',
+				Action = 'Migrate-Activity-Batch',
+				Tags = {
+					['Order-Type'] = orderType,
+					['Start-Index'] = tostring(startIndex)
+				},
+				Data = encoded
+			})
+		end
+	end
+
+	local orderType = msg.Tags['Order-Type']
+	if not orderType then
+		print('No Order-Type specified in message tags')
+		return
+	end
+
+	local orderTable
+	if orderType == 'ListedOrders' then
+		orderTable = ListedOrders
+	elseif orderType == 'ExecutedOrders' then
+		orderTable = ExecutedOrders
+	elseif orderType == 'CancelledOrders' then
+		orderTable = CancelledOrders
+	else
+		print('Invalid Order-Type: ' .. orderType)
+		return
+	end
+
+	print('Starting ' .. orderType .. 'Orders migration (total: ' .. #orderTable .. ')')
+	sendBatch(orderTable, orderType, tonumber(msg.Tags.StartIndex))
+	print('Migration initiation completed')
+end)
+
+Handlers.add('Migrate-Activity-Batch', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Batch'), function(msg)
+	if msg.From ~= 'SNDvAf2RF-jhPmRrGUcs_b1nKlzU6vamN9zl0e9Zi4c' then
+		print('Rejected batch: unauthorized sender')
+		return
+	end
+
+	local decodeCheck, data = utils.decodeMessageData(msg.Data)
+	if not decodeCheck or not data then
+		print('Failed to decode batch data')
+		return
+	end
+
+	local orderType = msg.Tags['Order-Type']
+	local startIndex = tonumber(msg.Tags['Start-Index'])
+	if not orderType or not startIndex then
+		print('Missing required tags in batch message')
+		return
+	end
+
+	print('Processing ' .. orderType .. ' batch: ' .. #data .. ' orders at index ' .. startIndex)
+
+	-- Select the appropriate table based on order type
+	local targetTable
+	if orderType == 'ListedOrders' then
+		targetTable = ListedOrders
+	elseif orderType == 'ExecutedOrders' then
+		targetTable = ExecutedOrders
+	elseif orderType == 'CancelledOrders' then
+		targetTable = CancelledOrders
+	else
+		print('Invalid order type: ' .. orderType)
+		return
+	end
+
+	local existingOrders = {}
+	for _, order in ipairs(targetTable) do
+		if order.OrderId then
+			existingOrders[order.OrderId] = true
+		end
+	end
+
+	-- Insert only non-duplicate orders
+	local insertedCount = 0
+	for _, order in ipairs(data) do
+		if order.OrderId and not existingOrders[order.OrderId] then
+			table.insert(targetTable, order)
+			existingOrders[order.OrderId] = true
+			insertedCount = insertedCount + 1
+		end
+	end
+
+	print('Successfully processed ' .. orderType .. ' batch of ' .. #data .. ' orders')
+
+	ao.send({
+		Target = msg.From,
+		Action = 'Batch-Processed'
+	})
+
+end)
+
+Handlers.add('Migrate-Activity-Stats', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Stats'), function(msg)
+	if msg.From ~= 'SNDvAf2RF-jhPmRrGUcs_b1nKlzU6vamN9zl0e9Zi4c' then
+		print('Rejected stats: unauthorized sender')
+		return
+	end
+
+	local decodeCheck, stats = utils.decodeMessageData(msg.Data)
+	if not decodeCheck or not stats then
+		print('Failed to decode stats data')
+		return
+	end
+
+	print('Processing address statistics...')
+
+	-- Update the tables
+	if stats.SalesByAddress then
+		SalesByAddress = stats.SalesByAddress
+	end
+
+	if stats.PurchasesByAddress then
+		PurchasesByAddress = stats.PurchasesByAddress
+	end
+
+	print('Successfully processed address statistics')
+end)

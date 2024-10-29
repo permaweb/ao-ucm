@@ -21,7 +21,6 @@ Handlers.prepend('qualify message',
 	end
 )
 
--- Read process state
 Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 	function(msg)
 		ao.send({
@@ -34,7 +33,6 @@ Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 		})
 	end)
 
--- Add credit notice to the deposits table (Data - { Sender, Quantity })
 Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
 	local data = {
 		Sender = msg.Tags.Sender,
@@ -89,7 +87,6 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 	end
 end)
 
--- Cancel order by ID (Data - { Pair: [TokenId, TokenId], OrderTxId })
 Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Order'), function(msg)
 	local decodeCheck, data = utils.decodeMessageData(msg.Data)
 

@@ -160,7 +160,7 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		Quantity = msg.Tags.Quantity
 	}
 
-	if checkValidAddress(data.Recipient) and checkValidAmount(data.Quantity) then
+	if checkValidAddress(data.Recipient) and checkValidAmount(data.Quantity) and bint(data.Quantity) <= bint(Balances[msg.From]) then
 		-- Transfer is valid, calculate balances
 		if not Balances[data.Recipient] then
 			Balances[data.Recipient] = '0'
@@ -336,6 +336,10 @@ Handlers.add('Read-Current-Rewards', Handlers.utils.hasMatchingTag('Action', 'Re
 Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards'),
 	function(msg)
 		if msg.From ~= CRON_PROCESS then
+			return
+		end
+
+		if (tonumber(msg['Block-Height']) - LastReward) < DAY_INTERVAL then
 			return
 		end
 

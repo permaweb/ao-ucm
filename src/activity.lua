@@ -327,6 +327,44 @@ Handlers.add('Get-Activity-Lengths', Handlers.utils.hasMatchingTag('Action', 'Ge
 	})
 end)
 
+Handlers.add('Migrate-Activity-Dryrun', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Dryrun'), function(msg)
+  local orderTable = {}
+  local orderType = msg.Tags['Order-Type']
+  local stepBy = tonumber(msg.Tags['Step-By'])
+  local ordersToUse
+  if orderType == 'ListedOrders' then
+		orderTable = table.move(
+      ListedOrders, 
+      tonumber(msg.Tags.StartIndex), 
+      tonumber(msg.Tags.StartIndex) + stepBy, 
+      1, 
+      orderTable
+    )
+    print(json.encode(orderTable))
+	elseif orderType == 'ExecutedOrders' then
+    orderTable = table.move(
+      ExecutedOrders, 
+      tonumber(msg.Tags.StartIndex), 
+      tonumber(msg.Tags.StartIndex) + stepBy, 
+      1, 
+      orderTable
+    )
+    print(json.encode(orderTable))
+	elseif orderType == 'CancelledOrders' then
+		orderTable = table.move(
+      CancelledOrders, 
+      tonumber(msg.Tags.StartIndex), 
+      tonumber(msg.Tags.StartIndex) + stepBy, 
+      1, 
+      orderTable
+    )
+    print(json.encode(orderTable))
+	else
+		print('Invalid Order-Type: ' .. orderType)
+		return
+	end
+end)
+
 Handlers.add('Migrate-Activity', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity'), function(msg)
 	if msg.From ~= ao.id and msg.From ~= Owner then return end
 	print('Starting migration process...')
@@ -334,7 +372,7 @@ Handlers.add('Migrate-Activity', Handlers.utils.hasMatchingTag('Action', 'Migrat
 	local function sendBatch(orders, orderType, startIndex)
 		local batch = {}
 
-		for i = startIndex, math.min(startIndex + 99, #orders) do
+		for i = startIndex, math.min(startIndex + 29, #orders) do
 			table.insert(batch, {
 				OrderId = orders[i].OrderId or '',
 				DominantToken = orders[i].DominantToken or '',
@@ -378,7 +416,7 @@ Handlers.add('Migrate-Activity', Handlers.utils.hasMatchingTag('Action', 'Migrat
 	if orderType == 'ListedOrders' then
 		orderTable = ListedOrders
 	elseif orderType == 'ExecutedOrders' then
-		orderTable = ExecutedOrders
+    orderTable = ExecutedOrders
 	elseif orderType == 'CancelledOrders' then
 		orderTable = CancelledOrders
 	else
@@ -392,7 +430,7 @@ Handlers.add('Migrate-Activity', Handlers.utils.hasMatchingTag('Action', 'Migrat
 end)
 
 Handlers.add('Migrate-Activity-Batch', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Batch'), function(msg)
-	if msg.From ~= '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4' then
+	if msg.Owner ~= Owner then
 		print('Rejected batch: unauthorized sender')
 		return
 	end
@@ -417,7 +455,7 @@ Handlers.add('Migrate-Activity-Batch', Handlers.utils.hasMatchingTag('Action', '
 	if orderType == 'ListedOrders' then
 		targetTable = ListedOrders
 	elseif orderType == 'ExecutedOrders' then
-		targetTable = ExecutedOrders
+    targetTable = ExecutedOrders
 	elseif orderType == 'CancelledOrders' then
 		targetTable = CancelledOrders
 	else

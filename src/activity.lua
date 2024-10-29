@@ -72,16 +72,16 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 	filteredExecutedOrders = filterOrders(ExecutedOrders, assetIdsSet, data.Address, startDate, endDate)
 	filteredCancelledOrders = filterOrders(CancelledOrders, assetIdsSet, data.Address, startDate, endDate)
 
-	local function limitResults(orders)
-		if #orders > 1000 then
-			return { table.unpack(orders, 1, 1000) }
-		end
-		return orders
-	end
+	-- local function limitResults(orders)
+	-- 	if #orders > 5000 then
+	-- 		return { table.unpack(orders, 1, 5000) }
+	-- 	end
+	-- 	return orders
+	-- end
 
-	filteredListedOrders = limitResults(filteredListedOrders)
-	filteredExecutedOrders = limitResults(filteredExecutedOrders)
-	filteredCancelledOrders = limitResults(filteredCancelledOrders)
+	-- filteredListedOrders = limitResults(filteredListedOrders)
+	-- filteredExecutedOrders = limitResults(filteredExecutedOrders)
+	-- filteredCancelledOrders = limitResults(filteredCancelledOrders)
 
 	ao.send({
 		Target = msg.From,
@@ -392,7 +392,7 @@ Handlers.add('Migrate-Activity', Handlers.utils.hasMatchingTag('Action', 'Migrat
 end)
 
 Handlers.add('Migrate-Activity-Batch', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Batch'), function(msg)
-	if msg.From ~= 'SNDvAf2RF-jhPmRrGUcs_b1nKlzU6vamN9zl0e9Zi4c' then
+	if msg.From ~= '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4' then
 		print('Rejected batch: unauthorized sender')
 		return
 	end
@@ -452,7 +452,7 @@ Handlers.add('Migrate-Activity-Batch', Handlers.utils.hasMatchingTag('Action', '
 end)
 
 Handlers.add('Migrate-Activity-Stats', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Stats'), function(msg)
-	if msg.From ~= 'SNDvAf2RF-jhPmRrGUcs_b1nKlzU6vamN9zl0e9Zi4c' then
+	if msg.From ~= '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4' then
 		print('Rejected stats: unauthorized sender')
 		return
 	end

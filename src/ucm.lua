@@ -275,6 +275,7 @@ function ucm.createOrder(args)
 					return json.encode({
 						Order = {
 							Id = currentOrderEntry.Id,
+							MatchId = args.orderId,
 							DominantToken = validPair[2],
 							SwapToken = validPair[1],
 							Sender = currentOrderEntry.Creator,

@@ -151,7 +151,7 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 		end
 
 		table.insert(ExecutedOrders, {
-			OrderId = data.Order.Id,
+			OrderId = data.Order.MatchId or data.Order.Id,
 			DominantToken = data.Order.DominantToken,
 			SwapToken = data.Order.SwapToken,
 			Sender = data.Order.Sender,
@@ -328,37 +328,34 @@ Handlers.add('Get-Activity-Lengths', Handlers.utils.hasMatchingTag('Action', 'Ge
 end)
 
 Handlers.add('Migrate-Activity-Dryrun', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Dryrun'), function(msg)
-  local orderTable = {}
-  local orderType = msg.Tags['Order-Type']
-  local stepBy = tonumber(msg.Tags['Step-By'])
-  local ordersToUse
-  if orderType == 'ListedOrders' then
+	local orderTable = {}
+	local orderType = msg.Tags['Order-Type']
+	local stepBy = tonumber(msg.Tags['Step-By'])
+	local ordersToUse
+	if orderType == 'ListedOrders' then
 		orderTable = table.move(
-      ListedOrders, 
-      tonumber(msg.Tags.StartIndex), 
-      tonumber(msg.Tags.StartIndex) + stepBy, 
-      1, 
-      orderTable
-    )
-    print(json.encode(orderTable))
+			ListedOrders,
+			tonumber(msg.Tags.StartIndex),
+			tonumber(msg.Tags.StartIndex) + stepBy,
+			1,
+			orderTable
+		)
 	elseif orderType == 'ExecutedOrders' then
-    orderTable = table.move(
-      ExecutedOrders, 
-      tonumber(msg.Tags.StartIndex), 
-      tonumber(msg.Tags.StartIndex) + stepBy, 
-      1, 
-      orderTable
-    )
-    print(json.encode(orderTable))
+		orderTable = table.move(
+			ExecutedOrders,
+			tonumber(msg.Tags.StartIndex),
+			tonumber(msg.Tags.StartIndex) + stepBy,
+			1,
+			orderTable
+		)
 	elseif orderType == 'CancelledOrders' then
 		orderTable = table.move(
-      CancelledOrders, 
-      tonumber(msg.Tags.StartIndex), 
-      tonumber(msg.Tags.StartIndex) + stepBy, 
-      1, 
-      orderTable
-    )
-    print(json.encode(orderTable))
+			CancelledOrders,
+			tonumber(msg.Tags.StartIndex),
+			tonumber(msg.Tags.StartIndex) + stepBy,
+			1,
+			orderTable
+		)
 	else
 		print('Invalid Order-Type: ' .. orderType)
 		return
@@ -416,7 +413,7 @@ Handlers.add('Migrate-Activity', Handlers.utils.hasMatchingTag('Action', 'Migrat
 	if orderType == 'ListedOrders' then
 		orderTable = ListedOrders
 	elseif orderType == 'ExecutedOrders' then
-    orderTable = ExecutedOrders
+		orderTable = ExecutedOrders
 	elseif orderType == 'CancelledOrders' then
 		orderTable = CancelledOrders
 	else
@@ -455,7 +452,7 @@ Handlers.add('Migrate-Activity-Batch', Handlers.utils.hasMatchingTag('Action', '
 	if orderType == 'ListedOrders' then
 		targetTable = ListedOrders
 	elseif orderType == 'ExecutedOrders' then
-    targetTable = ExecutedOrders
+		targetTable = ExecutedOrders
 	elseif orderType == 'CancelledOrders' then
 		targetTable = CancelledOrders
 	else
@@ -486,7 +483,6 @@ Handlers.add('Migrate-Activity-Batch', Handlers.utils.hasMatchingTag('Action', '
 		Target = msg.From,
 		Action = 'Batch-Processed'
 	})
-
 end)
 
 Handlers.add('Migrate-Activity-Stats', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Stats'), function(msg)

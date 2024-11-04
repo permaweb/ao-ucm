@@ -168,11 +168,11 @@ function ucm.createOrder(args)
 		end
 
 		-- Log
-		print('Order type: ' .. orderType)
-		print('Match ID: ' .. args.orderId)
-		print('Swap token: ' .. args.swapToken)
-		print('Order recipient: ' .. args.sender)
-		print('Input quantity: ' .. tostring(remainingQuantity))
+		-- print('Order type: ' .. orderType)
+		-- print('Match ID: ' .. args.orderId)
+		-- print('Swap token: ' .. args.swapToken)
+		-- print('Order recipient: ' .. args.sender)
+		-- print('Input quantity: ' .. tostring(remainingQuantity))
 
 		for _, currentOrderEntry in ipairs(currentOrders) do
 			if remainingQuantity > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
@@ -238,11 +238,11 @@ function ucm.createOrder(args)
 				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
 				-- Log
-				print('Order creator: ' .. currentOrderEntry.Creator)
-				print('Fill amount (to buyer): ' .. tostring(fillAmount))
-				print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.5% fee captured)')
-				print('Remaining fill quantity (purchase amount): ' .. tostring(remainingQuantity))
-				print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity) .. '\n')
+				-- print('Order creator: ' .. currentOrderEntry.Creator)
+				-- print('Fill amount (to buyer): ' .. tostring(fillAmount))
+				-- print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.5% fee captured)')
+				-- print('Remaining fill quantity (purchase amount): ' .. tostring(remainingQuantity))
+				-- print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity) .. '\n')
 
 				-- Send tokens to the current order creator
 				ao.send({

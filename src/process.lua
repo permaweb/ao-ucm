@@ -226,7 +226,7 @@ end)
 Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), function(msg)
 	local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 	if pairIndex > -1 then
-		ao.send({ Target = msg.From, Action = 'Read-Success', Data = json.encode({ Pair = Orderbook[pairIndex] }) })
+		ao.send({ Target = msg.From, Action = 'Read-Success', Data = json.encode({ Pair = tostring(pairIndex), Orderbook = Orderbook[pairIndex] }) })
 	end
 end)
 

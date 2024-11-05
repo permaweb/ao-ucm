@@ -8,6 +8,7 @@ if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Market
 ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
 PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+PROFILE_REGISTRY = 'SNy4m-DrqxWl01YqGM4sxI8qCni-58re8uuJLvZPypY'
 
 -- Orderbook {
 -- 	Pair [TokenId, TokenId],

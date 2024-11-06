@@ -138,15 +138,30 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 
   local success, rData = pcall(json.decode, resp.Data)
   if not success or type(rData) ~= 'table' then
-    print("Invalid data: " .. resp.Data)
-    return 0
+    ao.send({
+      Target = msg.From,
+      Action = 'Transfer',
+      Tags = {
+        Recipient = msg.Tags.Sender,
+        Quantity = msg.Tags.Quantity
+      }
+    })
+    return print("Invalid vouch data: " .. resp.Data)
   end
 
   local profileWallet = rData.Owner
 
   local score = GetVouchScoreUsd(profileWallet)
 
-  if not (score >= 2) then
+  if not (score >= 2000) then
+    ao.send({
+      Target = msg.From,
+      Action = 'Transfer',
+      Tags = {
+        Recipient = msg.Tags.Sender,
+        Quantity = msg.Tags.Quantity
+      }
+    })
     return print("Vouch score too low: " .. score)
   end
 

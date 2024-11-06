@@ -153,7 +153,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 
   local score = GetVouchScoreUsd(profileWallet)
 
-  if not (score >= 2) then
+  if not (score >= 5) then
     ao.send({
       Target = msg.From,
       Action = 'Transfer',

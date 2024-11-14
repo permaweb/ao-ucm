@@ -126,45 +126,6 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		return
 	end
 
-  ao.send({
-    Target = msg.Tags.Sender,
-    Action = 'Info'
-  })
-
-  local resp = Handlers.receive({
-    From = msg.Tags.Sender,
-    Action = "Read-Success"
-  })
-
-  local success, rData = pcall(json.decode, resp.Data)
-  if not success or type(rData) ~= 'table' then
-    ao.send({
-      Target = msg.From,
-      Action = 'Transfer',
-      Tags = {
-        Recipient = msg.Tags.Sender,
-        Quantity = msg.Tags.Quantity
-      }
-    })
-    return print("Invalid vouch data: " .. resp.Data)
-  end
-
-  local profileWallet = rData.Owner
-
-  local score = GetVouchScoreUsd(profileWallet)
-
-  if not (score >= 5) then
-    ao.send({
-      Target = msg.From,
-      Action = 'Transfer',
-      Tags = {
-        Recipient = msg.Tags.Sender,
-        Quantity = msg.Tags.Quantity
-      }
-    })
-    return print("Vouch score too low: " .. score)
-  end
-
 	-- If Order-Action then create the order
 	if (Handlers.utils.hasMatchingTag('Action', 'X-Order-Action') and msg.Tags['X-Order-Action'] == 'Create-Order') then
 		local orderArgs = {
@@ -183,7 +144,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		if msg.Tags['X-Transfer-Denomination'] then
 			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
 		end
-		ucm.createOrder(orderArgs)
+		ucm.createOrder(orderArgs, msg)
 	end
 end)
 
@@ -337,7 +298,7 @@ Handlers.add('Balance-Notice', function(msg) return msg.From == DEFAULT_SWAP_TOK
 			quantity = msg.Balance,
 			blockheight = msg['Block-Height'],
 			timestamp = msg.Timestamp
-		})
+		}, msg)
 	end
 end)
 

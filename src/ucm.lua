@@ -54,7 +54,7 @@ function ucm.getPairIndex(pair)
 	return pairIndex
 end
 
-function ucm.createOrder(args)
+function ucm.createOrder(args, msg)
 	local validPair, pairError = utils.validatePairData({ args.dominantToken, args.swapToken })
 
 	if not validPair then
@@ -293,14 +293,43 @@ function ucm.createOrder(args)
 					Data = matchedDataSuccess and matchedData or ''
 				})
 
-				-- Calculate streaks
-				ao.send({
-					Target = PIXL_PROCESS,
-					Action = 'Calculate-Streak',
-					Tags = {
-						Buyer = args.sender
-					}
-				})
+        ao.send({
+          Target = msg.Tags.Sender,
+          Action = 'Info'
+        })
+      
+        local resp = Handlers.receive({
+          From = msg.Tags.Sender,
+          Action = "Read-Success"
+        })
+      
+        local success, rData = pcall(json.decode, resp.Data)
+        if not success or type(rData) ~= 'table' then
+          ao.send({
+            Target = msg.From,
+            Action = 'Transfer',
+            Tags = {
+              Recipient = msg.Tags.Sender,
+              Quantity = msg.Tags.Quantity
+            }
+          })
+          return print("Invalid vouch data: " .. resp.Data)
+        end
+      
+        local profileWallet = rData.Owner
+      
+        local score = GetVouchScoreUsd(profileWallet)
+      
+        if score >= 2 then
+          -- Calculate streaks
+          ao.send({
+            Target = PIXL_PROCESS,
+            Action = 'Calculate-Streak',
+            Tags = {
+              Buyer = args.sender
+            }
+          })
+        end
 
 				-- Get balance notice and execute PIXL buyback
 				if orderType == 'Market' and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
@@ -367,7 +396,7 @@ function ucm.createOrder(args)
 	end
 end
 
-function ucm.executeBuyback(args)
+function ucm.executeBuyback(args, msg)
 	local pixlPairIndex = ucm.getPairIndex({ DEFAULT_SWAP_TOKEN, PIXL_PROCESS })
 
 	if pixlPairIndex > -1 then
@@ -392,7 +421,7 @@ function ucm.executeBuyback(args)
 					timestamp = args.timestamp,
 					blockheight = args.blockheight,
 					transferDenomination = '1000000'
-				})
+				}, msg)
 			end
 		end
 	end

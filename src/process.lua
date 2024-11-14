@@ -39,7 +39,19 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		Quantity = msg.Tags.Quantity
 	}
 
-	-- Check if all required fields are present
+  -- Check if sender is a valid address
+	if not utils.checkValidAddress(data.Sender) then
+		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Sender must be a valid address' } })
+		return
+	end
+
+	-- Check if quantity is a valid integer greater than zero
+	if not utils.checkValidAmount(data.Quantity) then
+		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
+		return
+	end
+
+  -- Check if all required fields are present
 	if not data.Sender or not data.Quantity then
 		ao.send({
 			Target = msg.From,
@@ -50,18 +62,6 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 				'Invalid arguments, required { Sender, Quantity }'
 			}
 		})
-		return
-	end
-
-	-- Check if sender is a valid address
-	if not utils.checkValidAddress(data.Sender) then
-		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Sender must be a valid address' } })
-		return
-	end
-
-	-- Check if quantity is a valid integer greater than zero
-	if not utils.checkValidAmount(data.Quantity) then
-		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
 		return
 	end
 
@@ -83,7 +83,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		if msg.Tags['X-Transfer-Denomination'] then
 			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
 		end
-		ucm.createOrder(orderArgs)
+		ucm.createOrder(orderArgs, msg)
 	end
 end)
 
@@ -237,7 +237,7 @@ Handlers.add('Balance-Notice', function(msg) return msg.From == DEFAULT_SWAP_TOK
 			quantity = msg.Balance,
 			blockheight = msg['Block-Height'],
 			timestamp = msg.Timestamp
-		})
+		}, msg)
 	end
 end)
 

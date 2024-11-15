@@ -224,28 +224,23 @@ end)
 
 -- Read balance (Data - { Recipient })
 Handlers.add('Balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
-	local data = {
-		Recipient = msg.Tags.Recipient
-	}
+	local balance = '0'
 
-	-- Check if target is present
-	if not data.Recipient then
-		ao.send({ Target = msg.From, Action = 'Input-Error', Tags = { Status = 'Error', Message = 'Invalid arguments, required { Recipient }' } })
-		return
+	-- If not Recipient is provided, then return the Senders balance
+	if (msg.Tags.Recipient) then
+		if (Balances[msg.Tags.Recipient]) then
+			balance = Balances[msg.Tags.Recipient]
+		end
+	elseif msg.Tags.Target and Balances[msg.Tags.Target] then
+		balance = Balances[msg.Tags.Target]
+	elseif Balances[msg.From] then
+		balance = Balances[msg.From]
 	end
-
-	-- Check if target is a valid address
-	if not checkValidAddress(data.Recipient) then
-		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Recipient is not a valid address' } })
-		return
-	end
-
-	local balance = Balances[data.Recipient] or '0'
 
 	msg.reply({
 		Balance = balance,
 		Ticker = Ticker,
-		Account = data.Recipient or msg.From,
+		Account = msg.Tags.Recipient or msg.From,
 		Data = balance
 	})
 end)

@@ -39,7 +39,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		Quantity = msg.Tags.Quantity
 	}
 
-  -- Check if sender is a valid address
+	-- Check if sender is a valid address
 	if not utils.checkValidAddress(data.Sender) then
 		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Sender must be a valid address' } })
 		return
@@ -51,7 +51,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		return
 	end
 
-  -- Check if all required fields are present
+	-- Check if all required fields are present
 	if not data.Sender or not data.Quantity then
 		ao.send({
 			Target = msg.From,
@@ -226,7 +226,8 @@ end)
 Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), function(msg)
 	local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 	if pairIndex > -1 then
-		ao.send({ Target = msg.From, Action = 'Read-Success', Data = json.encode({ Pair = tostring(pairIndex), Orderbook = Orderbook[pairIndex] }) })
+		ao.send({ Target = msg.From, Action = 'Read-Success', Data = json.encode({ Pair = tostring(pairIndex), Orderbook =
+		Orderbook[pairIndex] }) })
 	end
 end)
 

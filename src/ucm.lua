@@ -355,43 +355,43 @@ function ucm.createOrder(args, msg)
 					Data = matchedDataSuccess and matchedData or ''
 				})
 
+				-- ao.send({
+				-- 	Target = msg.Tags.Sender,
+				-- 	Action = 'Info'
+				-- })
+
+				-- local resp = Handlers.receive({
+				-- 	From = msg.Tags.Sender,
+				-- 	Action = 'Read-Success'
+				-- })
+
+				-- local success, rData = pcall(json.decode, resp.Data)
+				-- if not success or type(rData) ~= 'table' then
+				-- 	ao.send({
+				-- 		Target = msg.From,
+				-- 		Action = 'Transfer',
+				-- 		Tags = {
+				-- 			Recipient = msg.Tags.Sender,
+				-- 			Quantity = msg.Tags.Quantity
+				-- 		}
+				-- 	})
+				-- 	return print('Invalid vouch data: ' .. resp.Data)
+				-- end
+
+				-- local profileWallet = rData.Owner
+
+				-- local score = GetVouchScoreUsd(profileWallet)
+
+				-- if score >= VOUCH_SCORE then
+				-- Calculate streaks
 				ao.send({
-					Target = msg.Tags.Sender,
-					Action = 'Info'
+					Target = PIXL_PROCESS,
+					Action = 'Calculate-Streak',
+					Tags = {
+						Buyer = args.sender
+					}
 				})
-
-				local resp = Handlers.receive({
-					From = msg.Tags.Sender,
-					Action = 'Read-Success'
-				})
-
-				local success, rData = pcall(json.decode, resp.Data)
-				if not success or type(rData) ~= 'table' then
-					ao.send({
-						Target = msg.From,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = msg.Tags.Sender,
-							Quantity = msg.Tags.Quantity
-						}
-					})
-					return print('Invalid vouch data: ' .. resp.Data)
-				end
-
-				local profileWallet = rData.Owner
-
-				local score = GetVouchScoreUsd(profileWallet)
-
-				if score >= VOUCH_SCORE then
-					-- Calculate streaks
-					ao.send({
-						Target = PIXL_PROCESS,
-						Action = 'Calculate-Streak',
-						Tags = {
-							Buyer = args.sender
-						}
-					})
-				end
+				-- end
 
 				-- Get balance notice and execute PIXL buyback
 				if orderType == 'Market' and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then

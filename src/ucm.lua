@@ -289,7 +289,7 @@ function ucm.createOrder(args, msg)
 					handleError({
 						Target = args.sender,
 						Action = 'Order-Error',
-						Message = 'Order not filled',
+						Message = 'No amount to fill',
 						Quantity = args.quantity,
 						TransferToken = currentToken,
 					})
@@ -467,12 +467,23 @@ function ucm.executeBuyback(args, msg)
 			local buybackAmount = bint(0)
 			for _, order in ipairs(Orderbook[pixlPairIndex].Orders) do
 				buybackAmount = buybackAmount + ((bint(order.Quantity) * bint(order.Price)) // bint(1000000))
-				if bint(args.quantity) >= buybackAmount then
+
+				-- if bint(args.quantity) >= buybackAmount then
+				-- 	print('Buyback amount met: ' .. tostring(buybackAmount))
+				-- 	break
+				-- end
+
+				if buybackAmount >= bint(args.quantity) then
+					buybackAmount = bint(args.quantity)
+					print('Buyback amount met: ' .. tostring(buybackAmount))
 					break
 				end
 			end
 
-			if buybackAmount > bint(0) and bint(args.quantity) >= bint(buybackAmount) then
+			print('Quantity: ' .. tostring(args.quantity))
+			print('Buyback amount: ' .. tostring(buybackAmount))
+			if buybackAmount > bint(0) and bint(args.quantity) >= bint(buybackAmount) and bint(buybackAmount) >= bint(Orderbook[pixlPairIndex].Orders[1].Price) then
+				print('Executing buyback...')
 				-- Execute buyback
 				ucm.createOrder({
 					orderId = args.orderId,

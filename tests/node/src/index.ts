@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createDataItemSigner, message, result } from '@permaweb/aoconnect';
 
 export const AO = {
-	ucm: 'qtDwylCwyhhsGPKIYAi2Ao342mdhvFUPqdbDOudzaiM',
+	ucm: 'CDxd81DDaJvpzxoyhXn-dVnZhYIFQEKU8FeUHdktFgQ',
 	defaultToken: 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 };
 
@@ -146,43 +146,64 @@ async function createOrder(args: {
 	return orderResponse;
 }
 
+/* Test for attempting to fulfill orders multiple times, funds should be returned to the second buyer */
 (async function () {
-	const primaryToken = '0PPd-FXKcvcQIltWLy4rbGPxuirSzNpCHwr0J8keTdk';
+	const UNIT_PRICE = '100000000';
+	const PRIMARY_TOKEN = '8GgPV3qrxFCM6qusrF3B00nfFN2mNXhXncptFuQdG6E';
 
 	const seller = {
-		profileId: 'YMN2vh_oHx-jzPOXJHuGVYrXEpEbEAplNC8yNmFiBBQ',
-		wallet: JSON.parse(readFileSync('./wallets/seller-wallet-c6.json').toString()),
+		profileId: 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+		wallet: JSON.parse(readFileSync('./wallets/wallet-1-uf.json').toString()),
 	}
 
 	const buyers = {
-		'VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE': {
-			profileId: 'VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE',
-			wallet: JSON.parse(readFileSync('./wallets/buyer-wallet-1-uf.json').toString()),
+		'9E_fOuT55QKfeXo6hL8Gr65ImtnNKa3s7qV7XUw1V00': {
+			profileId: '9E_fOuT55QKfeXo6hL8Gr65ImtnNKa3s7qV7XUw1V00',
+			wallet: JSON.parse(readFileSync('./wallets/wallet-2-jnb.json').toString()),
 		},
-		'n1FZml-9sqWiSx0ErLuJMipNlUaroEBBvkCvNusQoCA': {
-			profileId: 'n1FZml-9sqWiSx0ErLuJMipNlUaroEBBvkCvNusQoCA',
-			wallet: JSON.parse(readFileSync('./wallets/buyer-wallet-2-jnb.json').toString()),
+		'9lDJVGR9dohGhWmSW57D9pOpFEs_PPBBLb1b0OnlarE': {
+			profileId: '9lDJVGR9dohGhWmSW57D9pOpFEs_PPBBLb1b0OnlarE',
+			wallet: JSON.parse(readFileSync('./wallets/wallet-3-c6.json').toString()),
 		},
 	};
 
+	console.log('Handling initial transfers...')
+
+	for (const buyer of Object.keys(buyers)) {
+		const transferResponse = await messageResults({
+			processId: AO.defaultToken,
+			wallet: seller.wallet,
+			action: 'Transfer',
+			tags: [
+				{ name: 'Recipient', value: buyer },
+				{ name: 'Quantity', value: UNIT_PRICE },
+			],
+			data: null
+		});
+
+		console.log(`Transfer response: ${transferResponse}`);
+	}
+
 	const sellResponse = await createOrder({
-		dominantToken: primaryToken,
+		dominantToken: PRIMARY_TOKEN,
 		swapToken: AO.defaultToken,
 		quantity: '1',
-		unitPrice: '10000000000',
+		unitPrice: UNIT_PRICE,
 		transferDenomination: 1,
 		creator: seller
 	});
 
 	console.log(`Sell response: ${sellResponse}`);
 
-	createOrder({
-		dominantToken: primaryToken,
-		swapToken: AO.defaultToken,
-		quantity: (10000000000 - 0).toString(),
-		transferDenomination: 1,
-		creator: buyers['VkIkVlCws-dUzx_nISV9BxzM4fDrNfJ93kx6PMDdPzE']
-	}).then((buyResponse) => {
+	for (const buyer of Object.keys(buyers)) {
+		const buyResponse = await createOrder({
+			dominantToken: PRIMARY_TOKEN,
+			swapToken: AO.defaultToken,
+			quantity: UNIT_PRICE,
+			transferDenomination: 1,
+			creator: buyers[buyer]
+		})
+
 		console.log(`Buy response: ${buyResponse}`);
-	});
+	}
 })()

@@ -232,15 +232,16 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 end)
 
 Handlers.add('Balance-Notice', function(msg) return msg.From == DEFAULT_SWAP_TOKEN end, function(msg)
-	if msg.From == DEFAULT_SWAP_TOKEN and msg.Account and msg.Account == ao.id then
-		print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. msg.Balance)
-		ucm.executeBuyback({
-			orderId = msg.Id,
-			quantity = msg.Balance,
-			blockheight = msg['Block-Height'],
-			timestamp = msg.Timestamp
-		}, msg)
-	end
+	print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. msg.Balance)
+	-- if msg.From == DEFAULT_SWAP_TOKEN and msg.Account and msg.Account == ao.id then
+	-- 	print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. msg.Balance)
+	-- 	ucm.executeBuyback({
+	-- 		orderId = msg.Id,
+	-- 		quantity = msg.Balance,
+	-- 		blockheight = msg['Block-Height'],
+	-- 		timestamp = msg.Timestamp
+	-- 	}, msg)
+	-- end
 end)
 
 Handlers.add('Order-Success', Handlers.utils.hasMatchingTag('Action', 'Order-Success'), function(msg)

@@ -4,11 +4,7 @@
   "description": "",
   "main": "./lib/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc",
-    "start": "ts-node src/index.ts",
-    "lint": "tslint -c tslint.json src/**/*.ts",
-    "prepublish": "npm run build"
+    "test": "ts-node src/index.ts"
   },
   "keywords": [],
   "author": "",

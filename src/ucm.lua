@@ -41,7 +41,9 @@ local ucm = {}
 
 local function handleError(args) -- Target, TransferToken, Quantity
 	-- If there is a valid quantity then return the funds
+	print('Handling order error...')
 	if args.TransferToken and args.Quantity and utils.checkValidAmount(args.Quantity) then
+		print('Returning funds...')
 		ao.send({
 			Target = args.TransferToken,
 			Action = 'Transfer',
@@ -445,7 +447,14 @@ function ucm.createOrder(args, msg)
 				}
 			})
 		else
-			print('Order not filled')
+			handleError({
+				Target = args.sender,
+				Action = 'Order-Error',
+				Message = 'No amount to fill',
+				Quantity = args.quantity,
+				TransferToken = currentToken,
+			})
+			return
 		end
 	else
 		handleError({

@@ -34,6 +34,8 @@ Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 	end)
 
 Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
+	if not msg.Tags['X-Dominant-Token'] or msg.From ~= msg.Tags['X-Dominant-Token'] then return end
+
 	local data = {
 		Sender = msg.Tags.Sender,
 		Quantity = msg.Tags.Quantity
@@ -200,6 +202,8 @@ Handlers.add('Read-Orders', Handlers.utils.hasMatchingTag('Action', 'Read-Orders
 		local readOrders = {}
 		local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 
+		print('Pair index: ' .. pairIndex)
+
 		if pairIndex > -1 then
 			for i, order in ipairs(Orderbook[pairIndex].Orders) do
 				if not msg.Tags.Creator or order.Creator == msg.Tags.Creator then
@@ -232,9 +236,9 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 end)
 
 Handlers.add('Balance-Notice', function(msg) return msg.From == DEFAULT_SWAP_TOKEN end, function(msg)
-	print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. msg.Balance)
+	-- print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. (msg.Balance or msg.Data or 'None'))
 	-- if msg.From == DEFAULT_SWAP_TOKEN and msg.Account and msg.Account == ao.id then
-	-- 	print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. msg.Balance)
+	-- 	print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. (msg.Balance or msg.Data or 'None'))
 	-- 	ucm.executeBuyback({
 	-- 		orderId = msg.Id,
 	-- 		quantity = msg.Balance,

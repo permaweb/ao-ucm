@@ -41,9 +41,9 @@ local ucm = {}
 
 local function handleError(args) -- Target, TransferToken, Quantity
 	-- If there is a valid quantity then return the funds
-	print('Handling order error...')
+	-- print('Handling order error...')
 	if args.TransferToken and args.Quantity and utils.checkValidAmount(args.Quantity) then
-		print('Returning funds...')
+		-- print('Returning funds...')
 		ao.send({
 			Target = args.TransferToken,
 			Action = 'Transfer',
@@ -86,13 +86,13 @@ function GetVouchScoreUsd(walletId)
 
 	local success, data = pcall(json.decode, resp.Data)
 	if not success or type(data) ~= 'table' then
-		print('Invalid data: ' .. resp.Data)
+		-- print('Invalid data: ' .. resp.Data)
 		return 0
 	end
 
 	local vouches = data['Vouchers']
 	if vouches == nil then
-		print('No Vouchers')
+		-- print('No Vouchers')
 		return 0
 	end
 
@@ -101,13 +101,13 @@ function GetVouchScoreUsd(walletId)
 		if VOUCHER_WHITELIST[voucher] then
 			local vouchFor = vouch['Vouch-For']
 			if vouchFor ~= walletId then
-				print(voucher .. ' has Vouch-For mismatch, expected: ' .. walletId .. ', got: ' .. vouchFor)
+				-- print(voucher .. ' has Vouch-For mismatch, expected: ' .. walletId .. ', got: ' .. vouchFor)
 			else
 				-- 1.34-USD -> 1.34
 				local valueStr = string.match(vouch.Value, '([%d%.]+)-USD')
 				local value = tonumber(valueStr)
 				if valueStr == nil or value == nil then
-					print(voucher .. ' has invalid value: ' .. vouch.Value)
+					-- print(voucher .. ' has invalid value: ' .. vouch.Value)
 				else
 					score = score + value
 				end
@@ -484,15 +484,15 @@ function ucm.executeBuyback(args, msg)
 
 				if buybackAmount >= bint(args.quantity) then
 					buybackAmount = bint(args.quantity)
-					print('Buyback amount met: ' .. tostring(buybackAmount))
+					-- print('Buyback amount met: ' .. tostring(buybackAmount))
 					break
 				end
 			end
 
-			print('Quantity: ' .. tostring(args.quantity))
-			print('Buyback amount: ' .. tostring(buybackAmount))
+			-- print('Quantity: ' .. tostring(args.quantity))
+			-- print('Buyback amount: ' .. tostring(buybackAmount))
 			if buybackAmount > bint(0) and bint(args.quantity) >= bint(buybackAmount) and bint(buybackAmount) >= bint(Orderbook[pixlPairIndex].Orders[1].Price) then
-				print('Executing buyback...')
+				-- print('Executing buyback...')
 				-- Execute buyback
 				ucm.createOrder({
 					orderId = args.orderId,

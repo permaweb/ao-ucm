@@ -53,7 +53,7 @@ local function handleError(args) -- Target, TransferToken, Quantity
 			}
 		})
 	end
-	ao.send({ Target = args.Target, Action = args.Action, Tags = { Status = 'Error', Message = args.Message } })
+	ao.send({ Target = args.Target, Action = args.Action, Tags = { Status = 'Error', Message = args.Message, ['X-Group-ID'] = args.OrderGroupId } })
 end
 
 function ucm.getPairIndex(pair)
@@ -128,6 +128,7 @@ function ucm.createOrder(args, msg)
 			Message = pairError or 'Error validating pair',
 			Quantity = args.quantity,
 			TransferToken = nil,
+			OrderGroupId = args.orderGroupId
 		})
 		return
 	end
@@ -147,6 +148,7 @@ function ucm.createOrder(args, msg)
 			Message = 'Quantity must be an integer greater than zero',
 			Quantity = args.quantity,
 			TransferToken = currentToken,
+			OrderGroupId = args.orderGroupId
 		})
 		return
 	end
@@ -158,6 +160,7 @@ function ucm.createOrder(args, msg)
 			Message = 'Price must be an integer greater than zero',
 			Quantity = args.quantity,
 			TransferToken = currentToken,
+			OrderGroupId = args.orderGroupId
 		})
 		return
 	end
@@ -219,12 +222,14 @@ function ucm.createOrder(args, msg)
 				Action = 'Order-Success',
 				Tags = {
 					Status = 'Success',
+					OrderId = args.orderId,
 					Handler = 'Create-Order',
 					DominantToken = currentToken,
 					SwapToken = args.swapToken,
 					Quantity = tostring(args.quantity),
 					Price = tostring(args.price),
-					Message = 'Order created!'
+					Message = 'Order created!',
+					['X-Group-ID'] = args.orderGroupId
 				}
 			})
 
@@ -294,6 +299,7 @@ function ucm.createOrder(args, msg)
 						Message = 'No amount to fill',
 						Quantity = args.quantity,
 						TransferToken = currentToken,
+						OrderGroupId = args.orderGroupId
 					})
 					return
 				end
@@ -437,6 +443,7 @@ function ucm.createOrder(args, msg)
 				Target = args.sender,
 				Action = 'Order-Success',
 				Tags = {
+					OrderId = args.orderId,
 					Status = 'Success',
 					Handler = 'Create-Order',
 					DominantToken = currentToken,
@@ -444,6 +451,7 @@ function ucm.createOrder(args, msg)
 					Quantity = tostring(sumVolume),
 					Price = args.price and tostring(args.price) or 'None',
 					Message = 'Order created!',
+					['X-Group-ID'] = args.orderGroupId
 				}
 			})
 		else
@@ -453,6 +461,7 @@ function ucm.createOrder(args, msg)
 				Message = 'No amount to fill',
 				Quantity = args.quantity,
 				TransferToken = currentToken,
+				OrderGroupId = args.orderGroupId
 			})
 			return
 		end
@@ -463,6 +472,7 @@ function ucm.createOrder(args, msg)
 			Message = 'Pair not found',
 			Quantity = args.quantity,
 			TransferToken = currentToken,
+			OrderGroupId = args.orderGroupId
 		})
 	end
 end

@@ -228,7 +228,7 @@ function ucm.createOrder(args, msg)
 					SwapToken = args.swapToken,
 					Quantity = tostring(args.quantity),
 					Price = tostring(args.price),
-					Message = 'Order created!',
+					Message = 'Order created successfully!',
 					['X-Group-ID'] = args.orderGroupId
 				}
 			})
@@ -450,7 +450,7 @@ function ucm.createOrder(args, msg)
 					SwapToken = args.swapToken,
 					Quantity = tostring(sumVolume),
 					Price = args.price and tostring(args.price) or 'None',
-					Message = 'Order created!',
+					Message = 'Order created successfully!',
 					['X-Group-ID'] = args.orderGroupId
 				}
 			})

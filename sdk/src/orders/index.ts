@@ -5,13 +5,14 @@ import { getTagValue, getTagValueForAction } from 'helpers/utils';
 
 const MAX_RESULT_RETRIES = 100;
 
+// TODO: Args validation
 export async function createOrder(
 	args: OrderCreateType,
 	wallet: any,
 	callback: (args: { processing: boolean, success: boolean, message: string }) => void
 ): Promise<string> {
 	try {
-		callback({ processing: true, success: false, message: 'Processing your order...' });
+		const MESSAGE_GROUP_ID = Date.now().toString();
 
 		const tags = [
 			{ name: 'Action', value: 'Transfer' },
@@ -20,19 +21,19 @@ export async function createOrder(
 			{ name: 'Quantity', value: args.quantity },
 		];
 
-		const timestamp = Date.now().toString();
-
 		const forwardedTags = [
 			{ name: 'X-Order-Action', value: 'Create-Order' },
 			{ name: 'X-Dominant-Token', value: args.dominantToken },
 			{ name: 'X-Swap-Token', value: args.swapToken },
-			{ name: 'X-Group-ID', value: timestamp },
+			{ name: 'X-Group-ID', value: MESSAGE_GROUP_ID },
 		];
 
 		if (args.unitPrice) forwardedTags.push({ name: 'X-Price', value: args.unitPrice.toString() });
 		if (args.denomination) forwardedTags.push({ name: 'X-Transfer-Denomination', value: args.denomination.toString() });
 
 		tags.push(...forwardedTags);
+
+		callback({ processing: true, success: false, message: 'Processing your order...' });
 
 		const transferId = await message({
 			process: args.profileId,
@@ -46,22 +47,19 @@ export async function createOrder(
 
 		try {
 			const messagesByGroupId = await getMatchingMessages(
-				args.profileId,
-				args.orderbookId,
-				timestamp,
+				[args.profileId, args.orderbookId],
+				MESSAGE_GROUP_ID,
 				successMatch,
 				errorMatch
 			);
-	
-			console.log(messagesByGroupId);
-	
+
 			const currentMatchActions = messagesByGroupId
 				.map((message: any) => getTagValue(message.Tags, 'Action'))
 				.filter((action): action is string => action !== null);
-	
+
 			const isSuccess = successMatch.every(action => currentMatchActions.includes(action));
 			const isError = errorMatch.every(action => currentMatchActions.includes(action));
-	
+
 			if (isSuccess) {
 				const successMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Success', 'Order created 2!');
 				callback({ processing: false, success: true, message: successMessage });
@@ -83,9 +81,8 @@ export async function createOrder(
 }
 
 async function getMatchingMessages(
-	profileId: string,
-	orderbookId: string,
-	timestamp: string,
+	processes: string[],
+	groupId: string,
 	successMatch: string[],
 	errorMatch: string[],
 	maxAttempts: number = MAX_RESULT_RETRIES,
@@ -109,10 +106,7 @@ async function getMatchingMessages(
 
 	do {
 		attempts++;
-		messagesByGroupId = await getMessagesByGroupId(
-			[profileId, orderbookId],
-			timestamp
-		);
+		messagesByGroupId = await getMessagesByGroupId(processes, groupId);
 
 		currentMatchActions = messagesByGroupId
 			.map((message: any) => getTagValue(message.Tags, 'Action'))
@@ -134,7 +128,7 @@ async function getMatchingMessages(
 	return messagesByGroupId;
 }
 
-async function getMessagesByGroupId(processes: string[], timestamp: string): Promise<any[]> {
+async function getMessagesByGroupId(processes: string[], groupId: string): Promise<any[]> {
 	const resultsByGroupId = [];
 	for (const process of processes) {
 		const messageResults = await results({
@@ -147,8 +141,8 @@ async function getMessagesByGroupId(processes: string[], timestamp: string): Pro
 			for (const result of messageResults.edges) {
 				if (result.node?.Messages?.length) {
 					for (const message of result.node.Messages) {
-						const messageTimestamp = getTagValue(message.Tags, 'X-Group-ID');
-						if (messageTimestamp === timestamp) resultsByGroupId.push(message);
+						const messageGroupId = getTagValue(message.Tags, 'X-Group-ID');
+						if (messageGroupId === groupId) resultsByGroupId.push(message);
 					}
 				}
 			}

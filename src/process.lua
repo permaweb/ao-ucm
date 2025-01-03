@@ -71,7 +71,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 	if (Handlers.utils.hasMatchingTag('Action', 'X-Order-Action') and msg.Tags['X-Order-Action'] == 'Create-Order') then
 		local orderArgs = {
 			orderId = msg.Id,
-			orderGroupId = msg.Tags['X-Group-ID'],
+			orderGroupId = msg.Tags['X-Group-ID'] or 'None',
 			dominantToken = msg.From,
 			swapToken = msg.Tags['X-Swap-Token'],
 			sender = data.Sender,

@@ -1,7 +1,9 @@
 import { createDataItemSigner, message, results } from '@permaweb/aoconnect';
 
 import { OrderCreateType } from 'helpers/types';
-import { getTagValue } from 'helpers/utils';
+import { getTagValue, getTagValueForAction } from 'helpers/utils';
+
+const MAX_RESULT_RETRIES = 100;
 
 export async function createOrder(
 	args: OrderCreateType,
@@ -38,65 +40,55 @@ export async function createOrder(
 			tags: tags,
 		});
 
-		const baseMatchActions = ['Transfer', 'Credit-Notice', 'Debit-Notice'];
-
+		const baseMatchActions = ['Transfer'];
 		const successMatch = [...baseMatchActions, 'Order-Success'];
 		const errorMatch = [...baseMatchActions, 'Order-Error'];
 
-		// TODO: Change primary token on purchases
-		const messagesByGroupId = await getMatchingMessages(
-			args.profileId,
-			args.dominantToken,
-			args.orderbookId,
-			timestamp,
-			successMatch,
-			errorMatch
-		);
+		try {
+			const messagesByGroupId = await getMatchingMessages(
+				args.profileId,
+				args.orderbookId,
+				timestamp,
+				successMatch,
+				errorMatch
+			);
+	
+			console.log(messagesByGroupId);
+	
+			const currentMatchActions = messagesByGroupId
+				.map((message: any) => getTagValue(message.Tags, 'Action'))
+				.filter((action): action is string => action !== null);
+	
+			const isSuccess = successMatch.every(action => currentMatchActions.includes(action));
+			const isError = errorMatch.every(action => currentMatchActions.includes(action));
+	
+			if (isSuccess) {
+				const successMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Success', 'Order created 2!');
+				callback({ processing: false, success: true, message: successMessage });
+			} else if (isError) {
+				const errorMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Error', 'Order failed 2');
+				callback({ processing: false, success: false, message: errorMessage });
+			} else {
+				throw new Error('Unexpected state: Order not fully processed.');
+			}
 
-		console.log(messagesByGroupId);
-
-		const currentMatchActions = messagesByGroupId
-			.map((message: any) => getTagValue(message.Tags, 'Action'))
-			.filter((action): action is string => action !== null);
-
-		const isSuccess = successMatch.every(action => currentMatchActions.includes(action));
-		const isError = errorMatch.every(action => currentMatchActions.includes(action));
-
-		if (isSuccess) {
-			const successMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Success', 'Order created 2!');
-			callback({ processing: false, success: true, message: successMessage });
-		} else if (isError) {
-			const errorMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Error', 'Order failed 2');
-			callback({ processing: false, success: false, message: errorMessage });
-		} else {
-			throw new Error('Unexpected state: Order not fully processed.');
+			return getTagValueForAction(messagesByGroupId, 'OrderId', 'Order-Success', transferId);
 		}
-
-		return getTagValueForAction(messagesByGroupId, 'OrderId', 'Order-Success', transferId);
+		catch (e: any) {
+			throw new Error(e);
+		}
 	} catch (e: any) {
 		throw new Error(e.message ?? 'Error creating order in UCM');
 	}
 }
 
-function getTagValueForAction(messages: any[], tagName: string, action: string, defaultValue: string): string {
-	for (const message of messages) {
-		const actionTag = message.Tags.find((tag: any) => tag.name === 'Action' && tag.value === action);
-		if (actionTag) {
-			const messageTag = message.Tags.find((tag: any) => tag.name === tagName);
-			if (messageTag) return messageTag.value;
-		}
-	}
-	return defaultValue;
-}
-
 async function getMatchingMessages(
 	profileId: string,
-	dominantToken: string,
 	orderbookId: string,
 	timestamp: string,
 	successMatch: string[],
 	errorMatch: string[],
-	maxAttempts: number = 10,
+	maxAttempts: number = MAX_RESULT_RETRIES,
 	delayMs: number = 1000
 ): Promise<string[]> {
 	let currentMatchActions: string[] = [];
@@ -118,7 +110,7 @@ async function getMatchingMessages(
 	do {
 		attempts++;
 		messagesByGroupId = await getMessagesByGroupId(
-			[profileId, dominantToken, orderbookId],
+			[profileId, orderbookId],
 			timestamp
 		);
 
@@ -134,14 +126,13 @@ async function getMatchingMessages(
 	} while (!isMatch(currentMatchActions, successMatch, errorMatch) && attempts < maxAttempts);
 
 	if (!isMatch(currentMatchActions, successMatch, errorMatch)) {
-		throw new Error('Failed to match success or error actions within retry limit.');
+		throw new Error('Failed to match actions within retry limit.');
 	}
 
 	console.log('Match found:', currentMatchActions);
 
 	return messagesByGroupId;
 }
-
 
 async function getMessagesByGroupId(processes: string[], timestamp: string): Promise<any[]> {
 	const resultsByGroupId = [];

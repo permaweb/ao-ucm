@@ -8,3 +8,14 @@ export function getTagValue(list: { [key: string]: any }[], name: string): strin
 	}
 	return null;
 }
+
+export function getTagValueForAction(messages: any[], tagName: string, action: string, defaultValue: string): string {
+	for (const message of messages) {
+		const actionTag = message.Tags.find((tag: any) => tag.name === 'Action' && tag.value === action);
+		if (actionTag) {
+			const messageTag = message.Tags.find((tag: any) => tag.name === tagName);
+			if (messageTag) return messageTag.value;
+		}
+	}
+	return defaultValue;
+}

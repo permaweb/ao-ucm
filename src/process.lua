@@ -132,13 +132,13 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 
 			-- The order is not found
 			if not order then
-				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Order not found', Handler = 'Cancel-Order' } })
+				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Order not found', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
 				return
 			end
 
 			-- Check if the sender is the order creator
 			if msg.From ~= order.Creator then
-				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Unauthorized to cancel this order', Handler = 'Cancel-Order' } })
+				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Unauthorized to cancel this order', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
 				return
 			end
 
@@ -156,7 +156,7 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 				-- Remove the order from the current table
 				table.remove(Orderbook[pairIndex].Orders, orderIndex)
 
-				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order cancelled', Handler = 'Cancel-Order' } })
+				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order cancelled', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
 
 				local cancelledDataSuccess, cancelledData = pcall(function()
 					return json.encode({
@@ -179,10 +179,10 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 					Data = cancelledDataSuccess and cancelledData or ''
 				})
 			else
-				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Error cancelling order', Handler = 'Cancel-Order' } })
+				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Error cancelling order', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
 			end
 		else
-			ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Pair not found', Handler = 'Cancel-Order' } })
+			ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Pair not found', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
 		end
 	else
 		ao.send({
@@ -231,8 +231,38 @@ end)
 Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), function(msg)
 	local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 	if pairIndex > -1 then
-		ao.send({ Target = msg.From, Action = 'Read-Success', Data = json.encode({ Pair = tostring(pairIndex), Orderbook =
-		Orderbook[pairIndex] }) })
+		ao.send({
+			Target = msg.From,
+			Action = 'Read-Success',
+			Data = json.encode({
+				Pair = tostring(pairIndex),
+				Orderbook =
+					Orderbook[pairIndex]
+			})
+		})
+	end
+end)
+
+Handlers.add('Return-Transfer', Handlers.utils.hasMatchingTag('Action', 'Return-Transfer'), function(msg)
+	if msg.From ~= Owner then
+		print('Only the owner can access this handler')
+		return
+	end
+
+	local success, decodedData = utils.decodeMessageData(msg.Data)
+
+	if success and decodedData then
+		if decodedData.AssetsToTransfer and msg.Recipient then
+			for _, asset in ipairs(decodedData.AssetsToTransfer) do
+				print('Transferring ' .. asset.Id .. ' to ' .. msg.Recipient .. ', Quantity: ' .. asset.Quantity)
+				ao.send({
+					Target = asset.Id,
+					Action = 'Transfer',
+					Recipient = msg.Recipient,
+					Quantity = asset.Quantity
+				})
+			end
+		end
 	end
 end)
 

@@ -19,3 +19,7 @@ export function getTagValueForAction(messages: any[], tagName: string, action: s
 	}
 	return defaultValue;
 }
+
+export const globalLog = (...args: any[]) => {
+    console.log('[@permaweb/ucm]', ...args);
+};

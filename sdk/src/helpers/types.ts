@@ -7,3 +7,11 @@ export type OrderCreateType = {
 	unitPrice?: string;
 	denomination?: string;
 }
+
+export type OrderCancelType = {
+	orderbookId: string;
+	orderId: string;
+	profileId: string;
+	dominantToken: string;
+	swapToken: string;
+}

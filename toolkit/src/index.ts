@@ -2,9 +2,10 @@ const fs = require('fs');
 import { createObjectCsvWriter } from 'csv-writer';
 
 import { createDataItemSigner, dryrun, message, results } from '@permaweb/aoconnect';
+import { readFileSync } from 'fs';
 
 export const AO = {
-	ucm: 'U3TjJAZWJjlWBB4KAXSHKzuky81jtyh0zqH8rUL4Wd0',
+	ucm: 'hqdL4AZaFZ0huQHbAsYxdTwG6vpibK7ALWKNzmWaD4Q',
 	ucmActivity: '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4',
 	profileRegistry: 'SNy4m-DrqxWl01YqGM4sxI8qCni-58re8uuJLvZPypY',
 };
@@ -686,8 +687,8 @@ export async function getProfilesByWalletAddresses(args: { addresses: string[] }
 	});
 
 	const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
-    let fileName = `Profile-Lookup-${timestamp}`;
-    fileName += '.csv';
+	let fileName = `Profile-Lookup-${timestamp}`;
+	fileName += '.csv';
 
 	const filePath = `${process.env.HOME}/Downloads/${fileName}`;
 
@@ -708,6 +709,65 @@ export async function getProfilesByWalletAddresses(args: { addresses: string[] }
 	}
 }
 
+export async function handleCollectionReturn(collectionId: string) {
+	try {
+		const assetsToTransfer = [];
+		const listedAssets = [];
+
+		const ucmResponse = await readHandler({
+			processId: AO.ucm,
+			action: 'Info'
+		});
+
+		const collectionResponse = await readHandler({
+			processId: collectionId,
+			action: 'Info'
+		});
+
+		if (ucmResponse?.Orderbook && collectionResponse?.Assets) {
+			for (const entry of ucmResponse.Orderbook) {
+				if (collectionResponse.Assets.includes(entry.Pair[0]) && entry.Orders?.length) {
+					listedAssets.push(entry.Pair[0]);
+				}
+			}
+		}
+
+		const filteredAssets = collectionResponse.Assets.filter((assetId: string) => !listedAssets.includes(assetId));
+
+		for (const assetId of filteredAssets) {
+			try {
+				const balancesResponse = await readHandler({
+					processId: assetId,
+					action: 'Balances'
+				});
+	
+				if (balancesResponse && balancesResponse[AO.ucm]) {
+					assetsToTransfer.push({ Id: assetId, Quantity: balancesResponse[AO.ucm] });
+					console.log(`Asset (${assetId}) owned by UCM, Balance: ${balancesResponse[AO.ucm]}`);
+				}
+			}
+			catch (e: any) {
+				console.error(`Error on asset (${assetId})`);
+				console.error(e.message ?? e);
+			}
+		}
+
+		if (assetsToTransfer.length > 0) {
+			console.log(`Running transfer on ${assetsToTransfer.length} assets...`)
+			await messageResults({
+				processId: AO.ucm,
+				action: 'Return-Transfer',
+				wallet: JSON.parse(readFileSync(process.env.UCM_OWNER).toString()),
+				tags: [{ name: 'Recipient', value: 'ypjwVnuXu5h4Hlz45M46yABxv3f1qjziCQmcz5PoDaA' }],
+				data: { AssetsToTransfer: assetsToTransfer }
+			});
+		}
+	}
+	catch (e: any) {
+		console.error(e);
+	}
+}
+
 (async function () {
-	await getTransferData('SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M');
+	await handleCollectionReturn('1NOj1dFvK_ZdXrx8zYlQniXkC3eOUaO7pV8m2-2g1E0');
 })();

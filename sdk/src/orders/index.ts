@@ -1,16 +1,18 @@
 import { createDataItemSigner, message, results } from '@permaweb/aoconnect';
 
-import { OrderCreateType } from 'helpers/types';
-import { getTagValue, getTagValueForAction } from 'helpers/utils';
+import { OrderCancelType, OrderCreateType } from 'helpers/types';
+import { getTagValue, getTagValueForAction, globalLog } from 'helpers/utils';
 
 const MAX_RESULT_RETRIES = 100;
 
-// TODO: Args validation
 export async function createOrder(
 	args: OrderCreateType,
 	wallet: any,
 	callback: (args: { processing: boolean, success: boolean, message: string }) => void
 ): Promise<string> {
+	const validationError = getOrderCreationErrorMessage(args);
+	if (validationError) throw new Error(validationError);
+
 	try {
 		const MESSAGE_GROUP_ID = Date.now().toString();
 
@@ -33,6 +35,7 @@ export async function createOrder(
 
 		tags.push(...forwardedTags);
 
+		globalLog('Processing order...')
 		callback({ processing: true, success: false, message: 'Processing your order...' });
 
 		const transferId = await message({
@@ -80,6 +83,47 @@ export async function createOrder(
 	}
 }
 
+export async function cancelOrder(
+	args: OrderCancelType,
+	wallet: any,
+	callback: (args: { processing: boolean, success: boolean, message: string }) => void
+): Promise<string> {
+	const validationError = getOrderCancelErrorMessage(args);
+	if (validationError) throw new Error(validationError);
+
+	try {
+		const MESSAGE_GROUP_ID = Date.now().toString();
+
+		const tags = [
+			{ name: 'Action', value: 'Run-Action' },
+		];
+
+		const data = JSON.stringify({
+			Target: args.orderbookId,
+			Action: 'Cancel-Order',
+			Input: JSON.stringify({
+				Pair: [args.dominantToken, args.swapToken],
+				OrderTxId: args.orderId,
+				['X-Group-ID']: MESSAGE_GROUP_ID
+			}),
+		});
+
+		globalLog('Cancelling order...')
+		callback({ processing: true, success: false, message: 'Cancelling your order...' });
+
+		const cancelOrderId = await message({
+			process: args.profileId,
+			signer: createDataItemSigner(wallet),
+			tags: tags,
+			data: data
+		});
+
+		return cancelOrderId;
+	} catch (e: any) {
+		throw new Error(e.message ?? 'Error cancelling order in UCM');
+	}
+}
+
 async function getMatchingMessages(
 	processes: string[],
 	groupId: string,
@@ -112,7 +156,7 @@ async function getMatchingMessages(
 			.map((message: any) => getTagValue(message.Tags, 'Action'))
 			.filter((action): action is string => action !== null);
 
-		console.log(`Attempt ${attempts}:`, currentMatchActions);
+		globalLog(`Attempt ${attempts}:`, currentMatchActions);
 
 		if (!isMatch(currentMatchActions, successMatch, errorMatch)) {
 			await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -123,7 +167,7 @@ async function getMatchingMessages(
 		throw new Error('Failed to match actions within retry limit.');
 	}
 
-	console.log('Match found:', currentMatchActions);
+	globalLog('Match found:', currentMatchActions);
 
 	return messagesByGroupId;
 }
@@ -150,4 +194,31 @@ async function getMessagesByGroupId(processes: string[], groupId: string): Promi
 	}
 
 	return resultsByGroupId;
+}
+
+function getOrderCreationErrorMessage(args: OrderCreateType): string | null {
+	if (typeof args !== 'object' || args === null) return 'The provided arguments are invalid or empty.';
+
+	if (typeof args.orderbookId !== 'string' || args.orderbookId.trim() === '') return 'Orderbook ID is required';
+	if (typeof args.profileId !== 'string' || args.profileId.trim() === '') return 'Profile ID is required';
+	if (typeof args.dominantToken !== 'string' || args.dominantToken.trim() === '') return 'Dominant token is required';
+	if (typeof args.swapToken !== 'string' || args.swapToken.trim() === '') return 'Swap token is required';
+	if (typeof args.quantity !== 'string' || args.quantity.trim() === '') return 'Quantity is required';
+
+	if ('unitPrice' in args && typeof args.unitPrice !== 'string') return 'Unit price is invalid';
+	if ('denomination' in args && typeof args.denomination !== 'string') return 'Denomination is invalid';
+
+	return null;
+}
+
+function getOrderCancelErrorMessage(args: OrderCancelType): string | null {
+	if (typeof args !== 'object' || args === null) return 'The provided arguments are invalid or empty.';
+
+	if (typeof args.orderbookId !== 'string' || args.orderbookId.trim() === '') return 'Orderbook ID is required';
+	if (typeof args.orderId !== 'string' || args.orderId.trim() === '') return 'Order ID is required';
+	if (typeof args.profileId !== 'string' || args.profileId.trim() === '') return 'Profile ID is required';
+	if (typeof args.dominantToken !== 'string' || args.dominantToken.trim() === '') return 'Dominant token is required';
+	if (typeof args.swapToken !== 'string' || args.swapToken.trim() === '') return 'Swap token is required';
+
+	return null;
 }

@@ -1,6 +1,8 @@
 **.vscode
 **package-lock.json
 **node_modules
+**dist
 **wallets
 **logs
 **.DS_Store**
+**.npmrc

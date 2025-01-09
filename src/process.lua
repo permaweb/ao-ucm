@@ -116,6 +116,7 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = message or 'Error validating order cancel input' } })
 			return
 		end
+
 		-- Ensure the pair exists
 		local pairIndex = ucm.getPairIndex(validPair)
 
@@ -242,18 +243,6 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 			})
 		})
 	end
-end)
-
-Handlers.add('Balance-Notice', function(msg) return msg.From == DEFAULT_SWAP_TOKEN end, function(msg)
-	-- if msg.From == DEFAULT_SWAP_TOKEN and msg.Balance and msg.Account and msg.Account == ao.id then
-	-- 	print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. msg.Balance)
-		-- ucm.executeBuyback({
-		-- 	orderId = msg.Id,
-		-- 	quantity = msg.Balance,
-		-- 	blockheight = msg['Block-Height'],
-		-- 	timestamp = msg.Timestamp
-		-- })
-	-- end
 end)
 
 Handlers.add('Order-Success', Handlers.utils.hasMatchingTag('Action', 'Order-Success'), function(msg)

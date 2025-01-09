@@ -13,14 +13,6 @@ ao = {
 	 end
 }
 
-msg = {
-	From = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
-	Tags = {
-		Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
-		Quantity = '1'
-	}
-}
-
 utils.test('Create listing',
 	function()
 		Orderbook = {}
@@ -34,7 +26,7 @@ utils.test('Create listing',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-		}, msg)
+		})
 
 		return Orderbook
 	end,
@@ -69,7 +61,7 @@ utils.test('Create listing (invalid quantity)',
 			price = '99000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-		}, msg)
+		})
 
 		return Orderbook
 	end,
@@ -108,7 +100,7 @@ utils.test('Single order fully matched',
 			quantity = tostring(500000000000000),
 			timestamp = os.time() + 1,
 			blockheight = '123456789',
-		}, msg)
+		})
 
 		return Orderbook
 	end,
@@ -159,7 +151,7 @@ utils.test('Single order partially matched',
 			quantity = tostring(500000000000),
 			timestamp = os.time() + 1,
 			blockheight = '123456789',
-		}, msg)
+		})
 
 		return Orderbook
 	end,
@@ -221,7 +213,7 @@ utils.test('Single order fully matched (denominated)',
 			timestamp = os.time() + 1,
 			blockheight = '123456789',
 			transferDenomination = '1000000'
-		}, msg)
+		})
 
 		return Orderbook
 	end,
@@ -273,7 +265,7 @@ utils.test('Single order partially matched (denominated)',
 			timestamp = os.time() + 1,
 			blockheight = '123456789',
 			transferDenomination = '1000000'
-		}, msg)
+		})
 
 		return Orderbook
 	end,
@@ -335,7 +327,7 @@ utils.test('Single order fully matched (denominated / fractional)',
 			timestamp = os.time() + 1,
 			blockheight = '123456789',
 			transferDenomination = '1000000'
-		}, msg)
+		})
 
 		return Orderbook
 	end,
@@ -462,7 +454,7 @@ utils.test('Multi order partially matched (denominated)',
 			timestamp = os.time() + 1,
 			blockheight = '123456789',
 			transferDenomination = '1000000'
-		}, msg)
+		})
 
 		return Orderbook
 	end,

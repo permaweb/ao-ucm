@@ -330,10 +330,6 @@ function ucm.createOrder(args)
 				blockheight = args.blockheight,
 				timestamp = args.timestamp
 			})
-
-			-- BuybackCaptures = {}
-
-			-- ao.send({ Target = DEFAULT_SWAP_TOKEN, Action = 'Balance', Recipient = ao.id })
 		end
 
 		-- Update the order book with remaining and new orders
@@ -437,16 +433,16 @@ function ucm.executeBuyback(args)
 				buybackAmount = maxQuantity
 			end
 
-			-- ucm.createOrder({
-			-- 	orderId = args.orderId,
-			-- 	dominantToken = DEFAULT_SWAP_TOKEN,
-			-- 	swapToken = PIXL_PROCESS,
-			-- 	sender = ao.id,
-			-- 	quantity = tostring(buybackAmount),
-			-- 	timestamp = args.timestamp,
-			-- 	blockheight = args.blockheight,
-			-- 	transferDenomination = tostring(pixlDenomination)
-			-- })
+			ucm.createOrder({
+				orderId = args.orderId,
+				dominantToken = DEFAULT_SWAP_TOKEN,
+				swapToken = PIXL_PROCESS,
+				sender = ao.id,
+				quantity = tostring(buybackAmount),
+				timestamp = args.timestamp,
+				blockheight = args.blockheight,
+				transferDenomination = tostring(pixlDenomination)
+			})
 
 			BuybackCaptures = {}
 		end

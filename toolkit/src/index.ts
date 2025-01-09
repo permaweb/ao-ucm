@@ -7,6 +7,7 @@ import { readFileSync } from 'fs';
 export const AO = {
 	ucm: 'hqdL4AZaFZ0huQHbAsYxdTwG6vpibK7ALWKNzmWaD4Q',
 	ucmActivity: '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4',
+	pixl: 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo',
 	profileRegistry: 'SNy4m-DrqxWl01YqGM4sxI8qCni-58re8uuJLvZPypY',
 };
 
@@ -418,6 +419,43 @@ export function formatDate(dateArg: string | number | null, dateType: any, fullT
 		: `${date.toLocaleString('default', { month: 'long' })} ${date.getDate()}, ${date.getUTCFullYear()}`;
 }
 
+export async function getProfileById(args: { profileId: string }): Promise<any | null> {
+	const emptyProfile = {
+		id: args.profileId,
+		walletAddress: null,
+		displayName: null,
+		username: null,
+		bio: null,
+		avatar: null,
+		banner: null,
+		version: null,
+	};
+
+	try {
+		const fetchedProfile = await readHandler({
+			processId: args.profileId,
+			action: 'Info',
+			data: null,
+		});
+
+		if (fetchedProfile) {
+			return {
+				id: args.profileId,
+				walletAddress: fetchedProfile.Owner || null,
+				displayName: fetchedProfile.Profile.DisplayName || null,
+				username: fetchedProfile.Profile.UserName || null,
+				bio: fetchedProfile.Profile.Description || null,
+				avatar: fetchedProfile.Profile.ProfileImage || null,
+				banner: fetchedProfile.Profile.CoverImage || null,
+				version: fetchedProfile.Profile.Version || null,
+				assets: fetchedProfile.Assets?.map((asset: { Id: string; Quantity: string }) => asset.Id) ?? [],
+			};
+		} else return emptyProfile;
+	} catch (e: any) {
+		throw new Error(e);
+	}
+}
+
 export async function getProfileByWalletAddress(args: { address: string }): Promise<ProfileHeaderType | null> {
 	const emptyProfile = {
 		id: null,
@@ -740,7 +778,7 @@ export async function handleCollectionReturn(collectionId: string) {
 					processId: assetId,
 					action: 'Balances'
 				});
-	
+
 				if (balancesResponse && balancesResponse[AO.ucm]) {
 					assetsToTransfer.push({ Id: assetId, Quantity: balancesResponse[AO.ucm] });
 					console.log(`Asset (${assetId}) owned by UCM, Balance: ${balancesResponse[AO.ucm]}`);
@@ -768,6 +806,42 @@ export async function handleCollectionReturn(collectionId: string) {
 	}
 }
 
+async function getStreaks() {
+	try {
+		const streaks = await readHandler({
+			processId: AO.pixl,
+			action: 'Get-Streaks',
+		});
+
+		const mappedStreaks = Object.entries(streaks.Streaks).map(([id, details]) => ({
+			ID: id,
+			Days: (details as any).days,
+			LastHeight: (details as any).lastHeight,
+		}));
+
+		const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
+		let fileName = `Streaks-${timestamp}`;
+		fileName += '.csv';
+
+		const filePath = `${process.env.HOME}/Downloads/${fileName}`;
+
+		const csvWriter = createObjectCsvWriter({
+		    path: filePath,
+		    header: [
+		        { id: 'ID', title: 'ID' },
+		        { id: 'Days', title: 'Days' },
+		        { id: 'LastHeight', title: 'LastHeight' },
+		    ],
+		});
+
+		await csvWriter.writeRecords(mappedStreaks);
+		console.log(`Logs written successfully to ${filePath}`);
+	} catch (e: any) {
+		console.error(e);
+	}
+}
+
 (async function () {
-	await handleCollectionReturn('1NOj1dFvK_ZdXrx8zYlQniXkC3eOUaO7pV8m2-2g1E0');
+	// await handleCollectionReturn('1NOj1dFvK_ZdXrx8zYlQniXkC3eOUaO7pV8m2-2g1E0');
+	await getStreaks();
 })();

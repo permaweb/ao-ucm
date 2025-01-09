@@ -86,7 +86,8 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		if msg.Tags['X-Transfer-Denomination'] then
 			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
 		end
-		ucm.createOrder(orderArgs, msg)
+
+		ucm.createOrder(orderArgs)
 	end
 end)
 
@@ -243,39 +244,15 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 	end
 end)
 
-Handlers.add('Return-Transfer', Handlers.utils.hasMatchingTag('Action', 'Return-Transfer'), function(msg)
-	if msg.From ~= Owner then
-		print('Only the owner can access this handler')
-		return
-	end
-
-	local success, decodedData = utils.decodeMessageData(msg.Data)
-
-	if success and decodedData then
-		if decodedData.AssetsToTransfer and msg.Recipient then
-			for _, asset in ipairs(decodedData.AssetsToTransfer) do
-				print('Transferring ' .. asset.Id .. ' to ' .. msg.Recipient .. ', Quantity: ' .. asset.Quantity)
-				ao.send({
-					Target = asset.Id,
-					Action = 'Transfer',
-					Recipient = msg.Recipient,
-					Quantity = asset.Quantity
-				})
-			end
-		end
-	end
-end)
-
 Handlers.add('Balance-Notice', function(msg) return msg.From == DEFAULT_SWAP_TOKEN end, function(msg)
-	-- print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. (msg.Balance or msg.Data or 'None'))
-	-- if msg.From == DEFAULT_SWAP_TOKEN and msg.Account and msg.Account == ao.id then
-	-- 	print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. (msg.Balance or msg.Data or 'None'))
-	-- 	ucm.executeBuyback({
-	-- 		orderId = msg.Id,
-	-- 		quantity = msg.Balance,
-	-- 		blockheight = msg['Block-Height'],
-	-- 		timestamp = msg.Timestamp
-	-- 	}, msg)
+	-- if msg.From == DEFAULT_SWAP_TOKEN and msg.Balance and msg.Account and msg.Account == ao.id then
+	-- 	print('Balance-Notice from (' .. DEFAULT_SWAP_TOKEN .. '): ' .. msg.Balance)
+		-- ucm.executeBuyback({
+		-- 	orderId = msg.Id,
+		-- 	quantity = msg.Balance,
+		-- 	blockheight = msg['Block-Height'],
+		-- 	timestamp = msg.Timestamp
+		-- })
 	-- end
 end)
 

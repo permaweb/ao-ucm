@@ -3,7 +3,7 @@ import { createDataItemSigner, message, results } from '@permaweb/aoconnect';
 import { OrderCancelType, OrderCreateType } from 'helpers/types';
 import { getTagValue, getTagValueForAction, globalLog } from 'helpers/utils';
 
-const MAX_RESULT_RETRIES = 100;
+const MAX_RESULT_RETRIES = 1000;
 
 export async function createOrder(
 	args: OrderCreateType,
@@ -44,13 +44,16 @@ export async function createOrder(
 			tags: tags,
 		});
 
-		const baseMatchActions = ['Transfer'];
-		const successMatch = [...baseMatchActions, 'Order-Success'];
-		const errorMatch = [...baseMatchActions, 'Order-Error'];
+		// const baseMatchActions = ['Transfer'];
+		// const successMatch = [...baseMatchActions, 'Order-Success'];
+		// const errorMatch = [...baseMatchActions, 'Order-Error'];
+
+		const successMatch = ['Order-Success'];
+		const errorMatch = ['Order-Error'];
 
 		try {
 			const messagesByGroupId = await getMatchingMessages(
-				[args.profileId, args.orderbookId],
+				[args.orderbookId],
 				MESSAGE_GROUP_ID,
 				successMatch,
 				errorMatch
@@ -156,7 +159,7 @@ async function getMatchingMessages(
 			.map((message: any) => getTagValue(message.Tags, 'Action'))
 			.filter((action): action is string => action !== null);
 
-		globalLog(`Attempt ${attempts}:`, currentMatchActions);
+		globalLog(`Attempt ${attempts} for results...`);
 
 		if (!isMatch(currentMatchActions, successMatch, errorMatch)) {
 			await new Promise((resolve) => setTimeout(resolve, delayMs));

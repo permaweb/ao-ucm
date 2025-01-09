@@ -9,19 +9,6 @@ ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
 PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 
-VOUCH_PROCESS = 'ZTTO02BL2P-lseTLUgiIPD9d0CF1sc4LbMA2AQ7e9jo'
-VOUCHER_WHITELIST = {
-	-- Vouch-X
-	['Ax_uXyLQBPZSQ15movzv9-O1mDo30khslqN64qD27Z8'] = true,
-	-- Vouch-Gitcoin-Passport
-	['k6p1MtqYhQQOuTSfN8gH7sQ78zlHavt8dCDL88btn9s'] = true,
-	-- Vouch-AO-Balance
-	['QeXDjjxcui7W2xU08zOlnFwBlbiID4sACpi0tSS3VgY'] = true,
-	-- Vouch-wAR-Stake
-	['3y0YE11i21hpP8UY0Z1AVhtPoJD4V_AbEBx-g0j9wRc'] = true,
-}
-VOUCH_SCORE = 2
-
 -- Orderbook {
 -- 	Pair [TokenId, TokenId],
 -- 	Orders {
@@ -36,14 +23,13 @@ VOUCH_SCORE = 2
 -- } []
 
 if not Orderbook then Orderbook = {} end
+if not BuybackCaptures then BuybackCaptures = {} end
 
 local ucm = {}
 
 local function handleError(args) -- Target, TransferToken, Quantity
 	-- If there is a valid quantity then return the funds
-	-- print('Handling order error...')
 	if args.TransferToken and args.Quantity and utils.checkValidAmount(args.Quantity) then
-		-- print('Returning funds...')
 		ao.send({
 			Target = args.TransferToken,
 			Action = 'Transfer',
@@ -69,56 +55,7 @@ function ucm.getPairIndex(pair)
 	return pairIndex
 end
 
-function GetVouchScoreUsd(walletId)
-	ao.send({
-		Target = VOUCH_PROCESS,
-		Tags = {
-			Action = 'Get-Vouches',
-			ID = walletId,
-		}
-	})
-
-	local resp = Handlers.receive({
-		From = VOUCH_PROCESS,
-		Action = 'VouchDAO.Vouches',
-		ID = walletId,
-	})
-
-	local success, data = pcall(json.decode, resp.Data)
-	if not success or type(data) ~= 'table' then
-		-- print('Invalid data: ' .. resp.Data)
-		return 0
-	end
-
-	local vouches = data['Vouchers']
-	if vouches == nil then
-		-- print('No Vouchers')
-		return 0
-	end
-
-	local score = 0
-	for voucher, vouch in pairs(vouches) do
-		if VOUCHER_WHITELIST[voucher] then
-			local vouchFor = vouch['Vouch-For']
-			if vouchFor ~= walletId then
-				-- print(voucher .. ' has Vouch-For mismatch, expected: ' .. walletId .. ', got: ' .. vouchFor)
-			else
-				-- 1.34-USD -> 1.34
-				local valueStr = string.match(vouch.Value, '([%d%.]+)-USD')
-				local value = tonumber(valueStr)
-				if valueStr == nil or value == nil then
-					-- print(voucher .. ' has invalid value: ' .. vouch.Value)
-				else
-					score = score + value
-				end
-			end
-		end
-	end
-
-	return score
-end
-
-function ucm.createOrder(args, msg)
+function ucm.createOrder(args)
 	local validPair, pairError = utils.validatePairData({ args.dominantToken, args.swapToken })
 
 	if not validPair then
@@ -307,6 +244,9 @@ function ucm.createOrder(args, msg)
 				local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
 				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
+				-- Gather all fulfillment fees for buyback
+				table.insert(BuybackCaptures, utils.calculateFeeAmount(sendAmount))
+
 				-- Log
 				-- print('Order creator: ' .. currentOrderEntry.Creator)
 				-- print('Fill amount (to buyer): ' .. tostring(fillAmount))
@@ -363,34 +303,6 @@ function ucm.createOrder(args, msg)
 					Data = matchedDataSuccess and matchedData or ''
 				})
 
-				-- ao.send({
-				-- 	Target = msg.Tags.Sender,
-				-- 	Action = 'Info'
-				-- })
-
-				-- local resp = Handlers.receive({
-				-- 	From = msg.Tags.Sender,
-				-- 	Action = 'Read-Success'
-				-- })
-
-				-- local success, rData = pcall(json.decode, resp.Data)
-				-- if not success or type(rData) ~= 'table' then
-				-- 	ao.send({
-				-- 		Target = msg.From,
-				-- 		Action = 'Transfer',
-				-- 		Tags = {
-				-- 			Recipient = msg.Tags.Sender,
-				-- 			Quantity = msg.Tags.Quantity
-				-- 		}
-				-- 	})
-				-- 	return print('Invalid vouch data: ' .. resp.Data)
-				-- end
-
-				-- local profileWallet = rData.Owner
-
-				-- local score = GetVouchScoreUsd(profileWallet)
-
-				-- if score >= VOUCH_SCORE then
 				-- Calculate streaks
 				ao.send({
 					Target = PIXL_PROCESS,
@@ -399,12 +311,6 @@ function ucm.createOrder(args, msg)
 						Buyer = args.sender
 					}
 				})
-				-- end
-
-				-- Get balance notice and execute PIXL buyback
-				if orderType == 'Market' and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
-					ao.send({ Target = DEFAULT_SWAP_TOKEN, Action = 'Balance', Recipient = ao.id })
-				end
 
 				-- If there are remaining shares in the current order, keep it in the order book
 				if bint(currentOrderEntry.Quantity) > bint(0) then
@@ -415,6 +321,19 @@ function ucm.createOrder(args, msg)
 					table.insert(updatedOrderbook, currentOrderEntry)
 				end
 			end
+		end
+
+		-- Execute PIXL buyback
+		if orderType == 'Market' and #BuybackCaptures > 0 and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
+			ucm.executeBuyback({
+				orderId = args.orderId,
+				blockheight = args.blockheight,
+				timestamp = args.timestamp
+			})
+
+			-- BuybackCaptures = {}
+
+			-- ao.send({ Target = DEFAULT_SWAP_TOKEN, Action = 'Balance', Recipient = ao.id })
 		end
 
 		-- Update the order book with remaining and new orders
@@ -451,7 +370,7 @@ function ucm.createOrder(args, msg)
 					Quantity = tostring(sumVolume),
 					Price = args.price and tostring(args.price) or 'None',
 					Message = 'Order created successfully!',
-					['X-Group-ID'] = args.orderGroupId
+					['X-Group-ID'] = args.orderGroupId or 'None'
 				}
 			})
 		else
@@ -477,44 +396,59 @@ function ucm.createOrder(args, msg)
 	end
 end
 
-function ucm.executeBuyback(args, msg)
+function ucm.executeBuyback(args)
+	local pixlDenomination = 1000000
 	local pixlPairIndex = ucm.getPairIndex({ DEFAULT_SWAP_TOKEN, PIXL_PROCESS })
 
 	if pixlPairIndex > -1 then
-		if Orderbook[pixlPairIndex].Orders and #Orderbook[pixlPairIndex].Orders > 0 then
-			-- Calculate buyback amount
-			local buybackAmount = bint(0)
-			for _, order in ipairs(Orderbook[pixlPairIndex].Orders) do
-				buybackAmount = buybackAmount + ((bint(order.Quantity) * bint(order.Price)) // bint(1000000))
+		local pixlOrderbook = Orderbook[pixlPairIndex].Orders
 
-				-- if bint(args.quantity) >= buybackAmount then
-				-- 	print('Buyback amount met: ' .. tostring(buybackAmount))
-				-- 	break
-				-- end
-
-				if buybackAmount >= bint(args.quantity) then
-					buybackAmount = bint(args.quantity)
-					-- print('Buyback amount met: ' .. tostring(buybackAmount))
-					break
+		if pixlOrderbook and #pixlOrderbook > 0 then
+			table.sort(pixlOrderbook, function(a, b)
+				local priceA = bint(a.Price)
+				local priceB = bint(b.Price)
+				if priceA == priceB then
+					local quantityA = bint(a.Quantity)
+					local quantityB = bint(b.Quantity)
+					return quantityA < quantityB
 				end
+				return priceA < priceB
+			end)
+
+			local buybackAmount = bint(0)
+
+			for _, quantity in ipairs(BuybackCaptures) do
+				buybackAmount = buybackAmount + bint(quantity)
 			end
 
-			-- print('Quantity: ' .. tostring(args.quantity))
-			-- print('Buyback amount: ' .. tostring(buybackAmount))
-			if buybackAmount > bint(0) and bint(args.quantity) >= bint(buybackAmount) and bint(buybackAmount) >= bint(Orderbook[pixlPairIndex].Orders[1].Price) then
-				-- print('Executing buyback...')
-				-- Execute buyback
-				ucm.createOrder({
-					orderId = args.orderId,
-					dominantToken = DEFAULT_SWAP_TOKEN,
-					swapToken = PIXL_PROCESS,
-					sender = ao.id,
-					quantity = tostring(buybackAmount),
-					timestamp = args.timestamp,
-					blockheight = args.blockheight,
-					transferDenomination = '1000000'
-				}, msg)
+			local minQuantity = bint(pixlOrderbook[1].Price)
+			local maxQuantity = bint(0)
+
+			for _, order in ipairs(pixlOrderbook) do
+				maxQuantity = maxQuantity + ((bint(order.Quantity) // bint(pixlDenomination)) *
+					bint(order.Price))
 			end
+
+			if buybackAmount < minQuantity then
+				return
+			end
+
+			if buybackAmount > maxQuantity then
+				buybackAmount = maxQuantity
+			end
+
+			-- ucm.createOrder({
+			-- 	orderId = args.orderId,
+			-- 	dominantToken = DEFAULT_SWAP_TOKEN,
+			-- 	swapToken = PIXL_PROCESS,
+			-- 	sender = ao.id,
+			-- 	quantity = tostring(buybackAmount),
+			-- 	timestamp = args.timestamp,
+			-- 	blockheight = args.blockheight,
+			-- 	transferDenomination = tostring(pixlDenomination)
+			-- })
+
+			BuybackCaptures = {}
 		end
 	end
 end

@@ -52,6 +52,13 @@ function utils.calculateSendAmount(amount)
 	return tostring(sendAmount)
 end
 
+function utils.calculateFeeAmount(amount)
+	local factor = bint(5)
+	local divisor = bint(10000)
+	local feeAmount = (bint(amount) * factor) // divisor
+	return tostring(feeAmount)
+end
+
 function utils.calculateFillAmount(amount)
 	return tostring(math.floor(tostring(amount)))
 end
@@ -144,7 +151,6 @@ function utils.test(description, fn, expected)
     end
 end
 
--- Test summary function
 function utils.testSummary()
     local colors = {
         red = '\27[31m',

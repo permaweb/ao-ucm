@@ -62,7 +62,7 @@ async function createOrder(args: {
 	quantity: string;
 	transferDenomination: number;
 	creator: {
-		profileId: string;
+		creatorId: string;
 		wallet: any;
 	}
 }) {
@@ -119,7 +119,7 @@ async function createOrder(args: {
 			wallet: args.creator.wallet,
 			tags: [
 				{ name: 'Quantity', value: args.quantity },
-				{ name: 'Recipient', value: args.creator.profileId },
+				{ name: 'Recipient', value: args.creator.creatorId },
 			],
 			data: null,
 			responses: ['Transfer-Success', 'Transfer-Error'],
@@ -130,7 +130,7 @@ async function createOrder(args: {
 	console.log(`Creating ${orderType} order...`);
 
 	const orderResponse: any = await messageResults({
-		processId: args.creator.profileId,
+		processId: args.creator.creatorId,
 		action: 'Transfer',
 		wallet: args.creator.wallet,
 		tags: transferTags,
@@ -152,17 +152,17 @@ async function createOrder(args: {
 	const PRIMARY_TOKEN = '8GgPV3qrxFCM6qusrF3B00nfFN2mNXhXncptFuQdG6E';
 
 	const seller = {
-		profileId: 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+		creatorId: 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
 		wallet: JSON.parse(readFileSync('./wallets/wallet-1-uf.json').toString()),
 	}
 
 	const buyers = {
 		'9E_fOuT55QKfeXo6hL8Gr65ImtnNKa3s7qV7XUw1V00': {
-			profileId: '9E_fOuT55QKfeXo6hL8Gr65ImtnNKa3s7qV7XUw1V00',
+			creatorId: '9E_fOuT55QKfeXo6hL8Gr65ImtnNKa3s7qV7XUw1V00',
 			wallet: JSON.parse(readFileSync('./wallets/wallet-2-jnb.json').toString()),
 		},
 		'9lDJVGR9dohGhWmSW57D9pOpFEs_PPBBLb1b0OnlarE': {
-			profileId: '9lDJVGR9dohGhWmSW57D9pOpFEs_PPBBLb1b0OnlarE',
+			creatorId: '9lDJVGR9dohGhWmSW57D9pOpFEs_PPBBLb1b0OnlarE',
 			wallet: JSON.parse(readFileSync('./wallets/wallet-3-c6.json').toString()),
 		},
 	};

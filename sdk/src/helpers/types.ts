@@ -1,6 +1,10 @@
+export type OrderbookCreateType = {
+	assetId: string;
+}
+
 export type OrderCreateType = {
 	orderbookId: string;
-	profileId: string;
+	creatorId: string;
 	dominantToken: string;
 	swapToken: string;
 	quantity: string;
@@ -11,7 +15,7 @@ export type OrderCreateType = {
 export type OrderCancelType = {
 	orderbookId: string;
 	orderId: string;
-	profileId: string;
+	creatorId: string;
 	dominantToken: string;
 	swapToken: string;
 }

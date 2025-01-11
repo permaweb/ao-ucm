@@ -28,7 +28,9 @@
 		"build": "node build.js"
 	},
 	"dependencies": {
-		"@permaweb/aoconnect": "^0.0.59"
+		"@permaweb/aoconnect": "^0.0.59",
+		"@permaweb/libs": "^0.0.16",
+		"arweave": "^1.15.5"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.4",

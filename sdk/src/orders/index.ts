@@ -39,14 +39,10 @@ export async function createOrder(
 		callback({ processing: true, success: false, message: 'Processing your order...' });
 
 		const transferId = await message({
-			process: args.profileId,
+			process: args.creatorId,
 			signer: createDataItemSigner(wallet),
 			tags: tags,
 		});
-
-		// const baseMatchActions = ['Transfer'];
-		// const successMatch = [...baseMatchActions, 'Order-Success'];
-		// const errorMatch = [...baseMatchActions, 'Order-Error'];
 
 		const successMatch = ['Order-Success'];
 		const errorMatch = ['Order-Error'];
@@ -115,7 +111,7 @@ export async function cancelOrder(
 		callback({ processing: true, success: false, message: 'Cancelling your order...' });
 
 		const cancelOrderId = await message({
-			process: args.profileId,
+			process: args.creatorId,
 			signer: createDataItemSigner(wallet),
 			tags: tags,
 			data: data
@@ -201,27 +197,22 @@ async function getMessagesByGroupId(processes: string[], groupId: string): Promi
 
 function getOrderCreationErrorMessage(args: OrderCreateType): string | null {
 	if (typeof args !== 'object' || args === null) return 'The provided arguments are invalid or empty.';
-
 	if (typeof args.orderbookId !== 'string' || args.orderbookId.trim() === '') return 'Orderbook ID is required';
-	if (typeof args.profileId !== 'string' || args.profileId.trim() === '') return 'Profile ID is required';
+	if (typeof args.creatorId !== 'string' || args.creatorId.trim() === '') return 'Profile ID is required';
 	if (typeof args.dominantToken !== 'string' || args.dominantToken.trim() === '') return 'Dominant token is required';
 	if (typeof args.swapToken !== 'string' || args.swapToken.trim() === '') return 'Swap token is required';
 	if (typeof args.quantity !== 'string' || args.quantity.trim() === '') return 'Quantity is required';
-
 	if ('unitPrice' in args && typeof args.unitPrice !== 'string') return 'Unit price is invalid';
 	if ('denomination' in args && typeof args.denomination !== 'string') return 'Denomination is invalid';
-
 	return null;
 }
 
 function getOrderCancelErrorMessage(args: OrderCancelType): string | null {
 	if (typeof args !== 'object' || args === null) return 'The provided arguments are invalid or empty.';
-
 	if (typeof args.orderbookId !== 'string' || args.orderbookId.trim() === '') return 'Orderbook ID is required';
 	if (typeof args.orderId !== 'string' || args.orderId.trim() === '') return 'Order ID is required';
-	if (typeof args.profileId !== 'string' || args.profileId.trim() === '') return 'Profile ID is required';
+	if (typeof args.creatorId !== 'string' || args.creatorId.trim() === '') return 'Profile ID is required';
 	if (typeof args.dominantToken !== 'string' || args.dominantToken.trim() === '') return 'Dominant token is required';
 	if (typeof args.swapToken !== 'string' || args.swapToken.trim() === '') return 'Swap token is required';
-
 	return null;
 }

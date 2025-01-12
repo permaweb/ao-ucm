@@ -1,3 +1,8 @@
+export type DependenciesType = {
+	wallet: any,
+	arweave?: any
+}
+
 export type OrderbookCreateType = {
 	assetId: string;
 }

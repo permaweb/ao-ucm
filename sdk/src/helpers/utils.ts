@@ -1,3 +1,8 @@
+export function checkValidAddress(address: string | null) {
+	if (!address) return false;
+	return /^[a-z0-9_-]{43}$/i.test(address);
+}
+
 export function getTagValue(list: { [key: string]: any }[], name: string): string | null {
 	for (let i = 0; i < list.length; i++) {
 		if (list[i]) {

@@ -8,9 +8,9 @@ const sharedConfig = {
 	sourcemap: true,
 	minify: true,
 	inject: [path.resolve('node_modules/process/browser.js')], // Explicitly inject the process polyfill
-  define: {
-    'process.env.NODE_ENV': JSON.stringify('production'),
-  },
+  	define: {
+    	'process.env.NODE_ENV': JSON.stringify('production'),
+  	},
 };
 
 const buildConfigs = [

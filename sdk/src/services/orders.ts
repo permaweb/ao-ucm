@@ -1,13 +1,13 @@
 import { createDataItemSigner, message, results } from '@permaweb/aoconnect';
 
-import { OrderCancelType, OrderCreateType } from 'helpers/types';
+import { DependenciesType, OrderCancelType, OrderCreateType } from 'helpers/types';
 import { getTagValue, getTagValueForAction, globalLog } from 'helpers/utils';
 
 const MAX_RESULT_RETRIES = 1000;
 
 export async function createOrder(
+	deps: DependenciesType,
 	args: OrderCreateType,
-	wallet: any,
 	callback: (args: { processing: boolean, success: boolean, message: string }) => void
 ): Promise<string> {
 	const validationError = getOrderCreationErrorMessage(args);
@@ -40,7 +40,7 @@ export async function createOrder(
 
 		const transferId = await message({
 			process: args.creatorId,
-			signer: createDataItemSigner(wallet),
+			signer: createDataItemSigner(deps.wallet),
 			tags: tags,
 		});
 

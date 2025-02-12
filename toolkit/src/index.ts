@@ -578,39 +578,39 @@ async function fetchData(fetchParams: GQLArgsType, processElementCallback: (elem
 export async function getTransferData(target: string) {
 	appendToLog(`Target: ${target}`);
 
-	console.log('Running outgoing fetch...');
-	await fetchData({
-		gateway: GATEWAYS.goldsky,
-		ids: null,
-		tagFilters: [{ name: 'From-Process', values: [target] }],
-		owners: null,
-		cursor: null,
-		recipients: null
-	}, (element: GQLNodeResponseType) => {
-		if (getTagValue(element.node.tags, 'Action') === 'Transfer') {
-			console.log(`Transfer sent by ${getTagValue(element.node.tags, 'From-Process')}`);
-			console.log(`Target: ${getTagValue(element.node.tags, 'Target')}`);
-			console.log(`Recipient: ${getTagValue(element.node.tags, 'Recipient')}`);
-			console.log(`Quantity: ${Number(getTagValue(element.node.tags, 'Quantity'))}\n`);
-		}
-	});
+	// console.log('Running outgoing fetch...');
+	// await fetchData({
+	// 	gateway: GATEWAYS.goldsky,
+	// 	ids: null,
+	// 	tagFilters: [{ name: 'From-Process', values: [target] }],
+	// 	owners: null,
+	// 	cursor: null,
+	// 	recipients: null
+	// }, (element: GQLNodeResponseType) => {
+	// 	if (getTagValue(element.node.tags, 'Action') === 'Transfer') {
+	// 		console.log(`Transfer sent by ${getTagValue(element.node.tags, 'From-Process')}`);
+	// 		console.log(`Target: ${getTagValue(element.node.tags, 'Target')}`);
+	// 		console.log(`Recipient: ${getTagValue(element.node.tags, 'Recipient')}`);
+	// 		console.log(`Quantity: ${Number(getTagValue(element.node.tags, 'Quantity'))}\n`);
+	// 	}
+	// });
 
-	console.log('Running incoming fetch...');
-	await fetchData({
-		gateway: GATEWAYS.goldsky,
-		ids: null,
-		tagFilters: null,
-		owners: null,
-		cursor: null,
-		recipients: [target]
-	}, (element: GQLNodeResponseType) => {
-		if (getTagValue(element.node.tags, 'Action') === 'Transfer') {
-			console.log(`Transfer sent by ${element.node.owner.address} to ${element.node.recipient}`);
-			console.log(`Target: ${getTagValue(element.node.tags, 'Target')}`);
-			console.log(`Recipient: ${getTagValue(element.node.tags, 'Recipient')}`);
-			console.log(`Quantity: ${Number(getTagValue(element.node.tags, 'Quantity'))}\n`);
-		}
-	});
+	// console.log('Running incoming fetch...');
+	// await fetchData({
+	// 	gateway: GATEWAYS.goldsky,
+	// 	ids: null,
+	// 	tagFilters: null,
+	// 	owners: null,
+	// 	cursor: null,
+	// 	recipients: [target]
+	// }, (element: GQLNodeResponseType) => {
+	// 	if (getTagValue(element.node.tags, 'Action') === 'Transfer') {
+	// 		console.log(`Transfer sent by ${element.node.owner.address} to ${element.node.recipient}`);
+	// 		console.log(`Target: ${getTagValue(element.node.tags, 'Target')}`);
+	// 		console.log(`Recipient: ${getTagValue(element.node.tags, 'Recipient')}`);
+	// 		console.log(`Quantity: ${Number(getTagValue(element.node.tags, 'Quantity'))}\n`);
+	// 	}
+	// });
 
 	appendToLog('Running incoming transfers...');
 	const senderQuantities = {};
@@ -620,7 +620,8 @@ export async function getTransferData(target: string) {
 		ids: null,
 		tagFilters: [
 			{ name: 'Action', values: ['Credit-Notice'] },
-			{ name: 'From-Process', values: ['xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'] }
+			// { name: 'From-Process', values: ['xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'] }
+			{ name: 'From-Process', values: ['DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'] }
 		],
 		owners: null,
 		cursor: null,
@@ -633,7 +634,7 @@ export async function getTransferData(target: string) {
 		const date = new Date(timestamp * 1000);
 		const formattedDate = date.toLocaleString();
 
-		const logMessage = `${formattedDate}: ${sender} -> ${target}: ${quantity} (${Number(quantity) / Math.pow(10, 12)}) wAR`;
+		const logMessage = `${formattedDate}: ${sender} -> ${target}: ${quantity} (${Number(quantity) / Math.pow(10, 6)}) PIXL`;
 		appendToLog(logMessage);
 
 		if (sender) {
@@ -642,7 +643,7 @@ export async function getTransferData(target: string) {
 	});
 
 	for (const [sender, totalQuantity] of Object.entries(senderQuantities)) {
-		const logMessage = `Total transfers from ${sender}: ${totalQuantity} (${Number(totalQuantity) / Math.pow(10, 12)}) wAR`;
+		const logMessage = `Total transfers from ${sender}: ${totalQuantity} (${Number(totalQuantity) / Math.pow(10, 6)}) PIXL`;
 		appendToLog(logMessage);
 	}
 
@@ -826,12 +827,12 @@ async function getStreaks() {
 		const filePath = `${process.env.HOME}/Downloads/${fileName}`;
 
 		const csvWriter = createObjectCsvWriter({
-		    path: filePath,
-		    header: [
-		        { id: 'ID', title: 'ID' },
-		        { id: 'Days', title: 'Days' },
-		        { id: 'LastHeight', title: 'LastHeight' },
-		    ],
+			path: filePath,
+			header: [
+				{ id: 'ID', title: 'ID' },
+				{ id: 'Days', title: 'Days' },
+				{ id: 'LastHeight', title: 'LastHeight' },
+			],
 		});
 
 		await csvWriter.writeRecords(mappedStreaks);
@@ -841,7 +842,44 @@ async function getStreaks() {
 	}
 }
 
+function printUsage() {
+	console.log("\nUsage:");
+	console.log("  node script.js <command> [parameters]\n");
+	console.log("Commands:");
+	console.log("  handleCollectionReturn <collectionId>   Process a collection return with the given ID.");
+	console.log("  getStreaks                              Retrieve streaks data.");
+	console.log("  getTransferData <walletAddress>         Get transfer data for the given wallet address.\n");
+}
+
+const args = process.argv.slice(2);
+const command = args[0];
+
 (async function () {
-	// await handleCollectionReturn('1NOj1dFvK_ZdXrx8zYlQniXkC3eOUaO7pV8m2-2g1E0');
-	await getStreaks();
+	if (!command) {
+		console.error("No command provided.");
+		printUsage();
+		process.exit(1);
+	}
+
+	switch (command) {
+		case 'streaks': {
+			await getStreaks();
+			break;
+		}
+		case 'transfer-data': {
+			const walletAddress = args[1];
+			if (!walletAddress) {
+				console.error("Error: 'getTransferData' requires a wallet address.");
+				printUsage();
+				process.exit(1);
+			}
+			await getTransferData(walletAddress);
+			break;
+		}
+		default: {
+			console.error(`Unknown command: ${command}`);
+			printUsage();
+			process.exit(1);
+		}
+	}
 })();

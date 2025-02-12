@@ -1,10 +1,12 @@
 export type DependenciesType = {
-	wallet: any,
-	arweave?: any
+	ao: any;
+	signer?: any;
+	arweave?: any;
 }
 
 export type OrderbookCreateType = {
 	assetId: string;
+	collectionId?: string;
 }
 
 export type OrderCreateType = {

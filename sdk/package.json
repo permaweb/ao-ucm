@@ -29,7 +29,7 @@
 	},
 	"dependencies": {
 		"@permaweb/aoconnect": "^0.0.59",
-		"@permaweb/libs": "^0.0.16",
+		"@permaweb/libs": "file:../../permaweb-libs/sdk",
 		"arweave": "^1.15.5"
 	},
 	"devDependencies": {

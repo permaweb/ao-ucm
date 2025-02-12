@@ -1,4 +1,5 @@
-import { createDataItemSigner, message, results } from '@permaweb/aoconnect';
+import { results } from '@permaweb/aoconnect';
+import Permaweb from '@permaweb/libs';
 
 import { DependenciesType, OrderCancelType, OrderCreateType } from 'helpers/types';
 import { getTagValue, getTagValueForAction, globalLog } from 'helpers/utils';
@@ -13,11 +14,12 @@ export async function createOrder(
 	const validationError = getOrderCreationErrorMessage(args);
 	if (validationError) throw new Error(validationError);
 
+	const permaweb = Permaweb.init(deps);
+
 	try {
 		const MESSAGE_GROUP_ID = Date.now().toString();
 
 		const tags = [
-			{ name: 'Action', value: 'Transfer' },
 			{ name: 'Target', value: args.dominantToken },
 			{ name: 'Recipient', value: args.orderbookId },
 			{ name: 'Quantity', value: args.quantity },
@@ -35,13 +37,13 @@ export async function createOrder(
 
 		tags.push(...forwardedTags);
 
-		globalLog('Processing order...')
+		globalLog('Processing order...');
 		callback({ processing: true, success: false, message: 'Processing your order...' });
 
-		const transferId = await message({
-			process: args.creatorId,
-			signer: createDataItemSigner(deps.wallet),
-			tags: tags,
+		const transferId = await permaweb.sendMessage({
+			processId: args.creatorId,
+			action: 'Transfer',
+			tags: tags
 		});
 
 		const successMatch = ['Order-Success'];
@@ -63,10 +65,10 @@ export async function createOrder(
 			const isError = errorMatch.every(action => currentMatchActions.includes(action));
 
 			if (isSuccess) {
-				const successMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Success', 'Order created 2!');
+				const successMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Success', 'Order created!');
 				callback({ processing: false, success: true, message: successMessage });
 			} else if (isError) {
-				const errorMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Error', 'Order failed 2');
+				const errorMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Error', 'Order failed');
 				callback({ processing: false, success: false, message: errorMessage });
 			} else {
 				throw new Error('Unexpected state: Order not fully processed.');
@@ -83,12 +85,14 @@ export async function createOrder(
 }
 
 export async function cancelOrder(
+	deps: DependenciesType,
 	args: OrderCancelType,
-	wallet: any,
 	callback: (args: { processing: boolean, success: boolean, message: string }) => void
 ): Promise<string> {
 	const validationError = getOrderCancelErrorMessage(args);
 	if (validationError) throw new Error(validationError);
+
+	const permaweb = Permaweb.init(deps);
 
 	try {
 		const MESSAGE_GROUP_ID = Date.now().toString();
@@ -110,9 +114,8 @@ export async function cancelOrder(
 		globalLog('Cancelling order...')
 		callback({ processing: true, success: false, message: 'Cancelling your order...' });
 
-		const cancelOrderId = await message({
-			process: args.creatorId,
-			signer: createDataItemSigner(wallet),
+		const cancelOrderId = await permaweb.sendMessage({
+			processId: args.creatorId,
 			tags: tags,
 			data: data
 		});

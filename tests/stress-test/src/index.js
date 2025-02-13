@@ -5,10 +5,17 @@ import { connect, createDataItemSigner, message } from '@permaweb/aoconnect';
 import Permaweb from '@permaweb/libs';
 import { createOrder, createOrderbook } from '@permaweb/ucm';
 
-const SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10';
 const NUM_LISTING_INSTANCES = 1;
 const NUM_PURCHASE_INSTANCES = 0;
 const ORDERS_PER_INSTANCE = 10000;
+
+const SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10';
+const CONNECT_MODE = 'mainnet';
+const CONNECT_URL = 'http://relay.ao-hb.xyz';
+const CU_URL = 'http://cu.s451-comm3-main.xyz';
+const MU_URL = 'http://mu.s451-comm3-main.xyz';
+
+const arweave = Arweave.init();
 
 function logUpdate(message) {
 	console.log('\x1b[33m%s\x1b[0m', `\n${message}`);
@@ -117,15 +124,11 @@ async function createInstance(args, overallTotals) {
 
 		return responseData;
 	} catch (e) {
-		logError(e.message ?? 'Error creating order');
+		throw new Error(e.message ?? 'Error creating order');
 	}
 }
 
 (async function () {
-	const ao = connect();
-	const arweave = Arweave.init();
-	const baseDependencies = { ao, arweave };
-
 	const overallTotals = { spawns: 0, messages: 0 };
 
 	const controller = JSON.parse(fs.readFileSync(process.env.PATH_TO_WALLET));
@@ -144,52 +147,69 @@ async function createInstance(args, overallTotals) {
 	const listings = [];
 
 	for (let i = 0; i < NUM_LISTING_INSTANCES; i++) {
-		logUpdate('Generating seller wallet...');
-		const sellerWallet = await arweave.wallets.generate();
-		const sellerWalletAddress = await arweave.wallets.jwkToAddress(sellerWallet);
-		console.log(`Seller wallet: ${sellerWalletAddress}`);
+		// logUpdate('Generating seller wallet...');
+		// const sellerWallet = await arweave.wallets.generate();
+		// const sellerWalletAddress = await arweave.wallets.jwkToAddress(sellerWallet);
+		// console.log(`Seller wallet: ${sellerWalletAddress}`);
 
-		const dependenciesSeller = { ...baseDependencies, signer: createDataItemSigner(sellerWallet) };
+		const ao = connect({
+			MODE: CONNECT_MODE,
+			AO_URL: CONNECT_URL,
+			wallet: controller // TODO: sellerWallet
+		});
+		const dependenciesSeller = { ao, arweave, signer: createDataItemSigner(controller) };
 		const permawebSeller = Permaweb.init(dependenciesSeller);
 
 		logUpdate(`Creating listing instance ${i + 1}...`);
-		const listing = await createInstance({
-			type: 'listing',
-			permaweb: permawebSeller,
-			dependencies: dependenciesSeller
-		}, overallTotals);
-		listings.push(listing);
-		console.log(`Listing instance ${i + 1} created. Asset ID: ${listing.assetId}, Orderbook ID: ${listing.orderbookId}`);
+		try {
+			const listing = await createInstance({
+				type: 'listing',
+				permaweb: permawebSeller,
+				dependencies: dependenciesSeller
+			}, overallTotals);
+			
+			listings.push(listing);
+			console.log(`Listing instance ${i + 1} created. Asset ID: ${listing.assetId}, Orderbook ID: ${listing.orderbookId}`);
 
-		for (let j = 0; j < ORDERS_PER_INSTANCE; j++) {
-			const orderData = {
-				orderbookId: listing.orderbookId,
-				creatorId: listing.profileId,
-				quantity: '1',
-				unitPrice: '1',
-				dominantToken: assetId,
-				swapToken: SWAP_TOKEN
-			};
-
-			logUpdate(`Creating listing order ${j + 1} for instance ${i + 1}...`);
-			const orderId = await createOrder(
-				dependenciesSeller,
-				orderData,
-				createCountingCallback(0, 5, (cbArgs) => {
-					console.log(`Additional order callback for instance ${i + 1}: ${cbArgs.message}`);
-				})
-			);
-			console.log(`Additional order ${j + 1} for instance ${i + 1} ID: ${orderId}`);
+			for (let j = 0; j < ORDERS_PER_INSTANCE; j++) {
+				const orderData = {
+					orderbookId: listing.orderbookId,
+					creatorId: listing.profileId,
+					quantity: '1',
+					unitPrice: '1',
+					dominantToken: assetId,
+					swapToken: SWAP_TOKEN
+				};
+	
+				logUpdate(`Creating listing order ${j + 1} for instance ${i + 1}...`);
+				const orderId = await createOrder(
+					dependenciesSeller,
+					orderData,
+					createCountingCallback(0, 5, (cbArgs) => {
+						console.log(`Additional order callback for instance ${i + 1}: ${cbArgs.message}`);
+					})
+				);
+				console.log(`Additional order ${j + 1} for instance ${i + 1} ID: ${orderId}`);
+			}
+		}
+		catch (e) {
+			logError(e.message ?? 'Error creating listing instance');
+			process.exit(1);
 		}
 	}
 
 	for (let i = 0; i < NUM_PURCHASE_INSTANCES; i++) {
-		logUpdate('Generating buyer wallet...');
-		const buyerWallet = await arweave.wallets.generate();
-		const buyerWalletAddress = await arweave.wallets.jwkToAddress(buyerWallet);
-		console.log(`Buyer wallet: ${buyerWalletAddress}`);
+		// logUpdate('Generating buyer wallet...');
+		// const buyerWallet = await arweave.wallets.generate();
+		// const buyerWalletAddress = await arweave.wallets.jwkToAddress(buyerWallet);
+		// console.log(`Buyer wallet: ${buyerWalletAddress}`);
 
-		const dependenciesBuyer = { ...baseDependencies, signer: createDataItemSigner(buyerWallet) };
+		const ao = connect({
+			MODE: CONNECT_MODE,
+			AO_URL: CONNECT_URL,
+			wallet: controller // TODO: buyerWallet
+		});
+		const dependenciesBuyer = { ao, arweave, signer: createDataItemSigner(controller) };
 		const permawebBuyer = Permaweb.init(dependenciesBuyer);
 
 		const randomIndex = Math.floor(Math.random() * listings.length);

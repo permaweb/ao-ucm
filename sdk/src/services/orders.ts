@@ -49,36 +49,39 @@ export async function createOrder(
 		const successMatch = ['Order-Success'];
 		const errorMatch = ['Order-Error'];
 
-		try {
-			const messagesByGroupId = await getMatchingMessages(
-				[args.orderbookId],
-				MESSAGE_GROUP_ID,
-				successMatch,
-				errorMatch
-			);
+		return transferId;
 
-			const currentMatchActions = messagesByGroupId
-				.map((message: any) => getTagValue(message.Tags, 'Action'))
-				.filter((action): action is string => action !== null);
+		// TODO
+		// try {
+		// 	const messagesByGroupId = await getMatchingMessages(
+		// 		[args.orderbookId],
+		// 		MESSAGE_GROUP_ID,
+		// 		successMatch,
+		// 		errorMatch
+		// 	);
 
-			const isSuccess = successMatch.every(action => currentMatchActions.includes(action));
-			const isError = errorMatch.every(action => currentMatchActions.includes(action));
+		// 	const currentMatchActions = messagesByGroupId
+		// 		.map((message: any) => getTagValue(message.Tags, 'Action'))
+		// 		.filter((action): action is string => action !== null);
 
-			if (isSuccess) {
-				const successMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Success', 'Order created!');
-				callback({ processing: false, success: true, message: successMessage });
-			} else if (isError) {
-				const errorMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Error', 'Order failed');
-				callback({ processing: false, success: false, message: errorMessage });
-			} else {
-				throw new Error('Unexpected state: Order not fully processed.');
-			}
+		// 	const isSuccess = successMatch.every(action => currentMatchActions.includes(action));
+		// 	const isError = errorMatch.every(action => currentMatchActions.includes(action));
 
-			return getTagValueForAction(messagesByGroupId, 'OrderId', 'Order-Success', transferId);
-		}
-		catch (e: any) {
-			throw new Error(e);
-		}
+		// 	if (isSuccess) {
+		// 		const successMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Success', 'Order created!');
+		// 		callback({ processing: false, success: true, message: successMessage });
+		// 	} else if (isError) {
+		// 		const errorMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Error', 'Order failed');
+		// 		callback({ processing: false, success: false, message: errorMessage });
+		// 	} else {
+		// 		throw new Error('Unexpected state: Order not fully processed.');
+		// 	}
+
+		// 	return getTagValueForAction(messagesByGroupId, 'OrderId', 'Order-Success', transferId);
+		// }
+		// catch (e: any) {
+		// 	throw new Error(e);
+		// }
 	} catch (e: any) {
 		throw new Error(e.message ?? 'Error creating order in UCM');
 	}

@@ -109,31 +109,32 @@ export async function createOrderbook(
 	}
 }
 
-const assetOrderbookEval = (orderbookId: string) => {
-	return `
-		local json = require('json')
-		OrderbookId = '${orderbookId}'
-		Handlers.remove('Info')
-		Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
-			ao.send({
-				Target = msg.From,
-				Name = Name,
-				Ticker = Ticker,
-				Denomination = tostring(Denomination),
-				Transferable = Transferable or nil,
-				OrderbookId = OrderbookId or nil,
-				Data = json.encode({
-					Name = Name,
-					Ticker = Ticker,
-					Denomination = tostring(Denomination),
-					Transferable = Transferable or nil,
-					OrderbookId = OrderbookId or nil,
-					Balances = Balances
-				})
-			})
-		end)
-	`;
-}
+const assetOrderbookEval = (orderbookId: string) => `local json = require('json'); OrderbookId = '${orderbookId}'; Handlers.remove('Info'); Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg) ao.send({ Target = msg.From, Name = Name, Ticker = Ticker, Denomination = tostring(Denomination), Transferable = Transferable or nil, OrderbookId = OrderbookId or nil, Data = json.encode({ Name = Name, Ticker = Ticker, Denomination = tostring(Denomination), Transferable = Transferable or nil, OrderbookId = OrderbookId or nil, Balances = Balances }) }); end);`;
+// const assetOrderbookEval = (orderbookId: string) => {
+// 	return `
+// 		local json = require('json')
+// 		OrderbookId = '${orderbookId}'
+// 		Handlers.remove('Info')
+// 		Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
+// 			ao.send({
+// 				Target = msg.From,
+// 				Name = Name,
+// 				Ticker = Ticker,
+// 				Denomination = tostring(Denomination),
+// 				Transferable = Transferable or nil,
+// 				OrderbookId = OrderbookId or nil,
+// 				Data = json.encode({
+// 					Name = Name,
+// 					Ticker = Ticker,
+// 					Denomination = tostring(Denomination),
+// 					Transferable = Transferable or nil,
+// 					OrderbookId = OrderbookId or nil,
+// 					Balances = Balances
+// 				})
+// 			})
+// 		end)
+// 	`;
+// }
 
 function getOrderbookCreationErrorMessage(args: OrderbookCreateType): string | null {
 	if (typeof args !== 'object' || args === null) return 'The provided arguments are invalid or empty.';

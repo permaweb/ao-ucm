@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@permaweb/aoconnect": "^0.0.69",
+    "@permaweb/aoconnect": "file:../../../ao/connect",
     "@permaweb/libs": "file:../../../permaweb-libs/sdk",
     "@permaweb/ucm": "file:../../sdk",
     "arweave": "^1.15.5"

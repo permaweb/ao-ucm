@@ -1,17 +1,20 @@
 import fs from 'fs';
 
+import { isMainThread, Worker, parentPort } from 'worker_threads';
+
 import Arweave from 'arweave';
 import { connect, createDataItemSigner, message } from '@permaweb/aoconnect';
 import Permaweb from '@permaweb/libs';
 import { createOrder, createOrderbook } from '@permaweb/ucm';
 
-const NUM_LISTING_INSTANCES = 1;
+const NUM_LISTING_INSTANCES = 100;
 const NUM_PURCHASE_INSTANCES = 0;
-const ORDERS_PER_INSTANCE = 10000;
+const ORDERS_PER_INSTANCE = 10000000000;
 
-const SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10';
+// const SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10';
+const SWAP_TOKEN = 'xFPcnoFG6_sxcQBXDDbqXCJSFNQmgEre_9F24Y94B5I'; // Blank
 const CONNECT_MODE = 'mainnet';
-const CONNECT_URL = 'http://relay.ao-hb.xyz';
+const CONNECT_URL = 'http://192.168.1.11:10000'; // http://relay.ao-hb.xyz
 const CU_URL = 'http://cu.s451-comm3-main.xyz';
 const MU_URL = 'http://mu.s451-comm3-main.xyz';
 
@@ -37,40 +40,51 @@ async function createInstance(args, overallTotals) {
 	}
 
 	try {
-		logUpdate('Creating profile...');
-		const profileId = await args.permaweb.createProfile({
-			userName: 'My username',
-			displayName: 'My display name',
-			description: 'My description'
-		}, createCountingCallback(1, 2, (status) => {
-			console.log(`Callback: ${status}`);
-		}));
-		console.log(`Profile ID: ${profileId}`);
+		// logUpdate('Creating profile...');
+		// const profileId = await args.permaweb.createProfile({
+		// 	userName: 'My username',
+		// 	displayName: 'My display name',
+		// 	description: 'My description'
+		// }, createCountingCallback(1, 2, (status) => {
+		// 	console.log(`Callback: ${status}`);
+		// }));
+		// console.log(`Profile ID: ${profileId}`);
+		const profileId = 'uf_FqRvLqjnFMc8ZzGkF4qWKuNmUIQcYP0tPlCGORQk';
 
 		let assetId = args.assetId;
 		let orderbookId = args.orderbookId;
 		if (args.type === 'listing' && (!assetId || !orderbookId)) {
 			logUpdate('Creating atomic asset...');
-			assetId = await args.permaweb.createAtomicAsset({
-				name: 'Example Name',
-				description: 'Example Description',
-				topics: ['Topic 1', 'Topic 2', 'Topic 3'],
-				creator: profileId,
-				data: 'Atomic Asset Data',
-				contentType: 'text/plain',
-				assetType: 'Example Atomic Asset Type',
-				supply: 1000000,
-				metadata: {
-					status: 'Initial Status'
-				}
-			}, createCountingCallback(1, 1, (status) => {
+			// assetId = await args.permaweb.createAtomicAsset({
+			// 	name: 'Example Name',
+			// 	description: 'Example Description',
+			// 	topics: ['Topic 1', 'Topic 2', 'Topic 3'],
+			// 	creator: profileId,
+			// 	data: 'Atomic Asset Data',
+			// 	contentType: 'text/plain',
+			// 	assetType: 'Example Atomic Asset Type',
+			// 	supply: 1000000,
+			// 	metadata: {
+			// 		status: 'Initial Status'
+			// 	}
+			// }, createCountingCallback(1, 1, (status) => {
+			// 	console.log(`Atomic asset callback: ${status}`);
+			// }));
+
+			assetId = await args.permaweb.createProcess({}, createCountingCallback(1, 1, (status) => {
 				console.log(`Atomic asset callback: ${status}`);
 			}));
 			console.log(`Asset ID: ${assetId}`);
 
-			orderbookId = await createOrderbook(
-				args.dependencies,
-				{ assetId: assetId },
+			// orderbookId = await createOrderbook(
+			// 	args.dependencies,
+			// 	{ assetId: assetId },
+			// 	createCountingCallback(2, 6, (cbArgs) => {
+			// 		console.log(cbArgs.message);
+			// 	})
+			// );
+
+			orderbookId = await args.permaweb.createProcess({},
 				createCountingCallback(2, 6, (cbArgs) => {
 					console.log(cbArgs.message);
 				})
@@ -95,7 +109,7 @@ async function createInstance(args, overallTotals) {
 			if (args.controller) {
 				await message({
 					process: SWAP_TOKEN,
-					signer: createDataItemSigner(args.controller),
+					signer: createDataItemSigner(),
 					tags: [
 						{ name: 'Action', value: 'Transfer' },
 						{ name: 'Recipient', value: profileId },
@@ -106,9 +120,17 @@ async function createInstance(args, overallTotals) {
 		}
 
 		logUpdate(`Creating ${args.type} order on asset...`);
-		const orderId = await createOrder(
-			args.dependencies,
-			orderData,
+		// const orderId = await createOrder(
+		// 	args.dependencies,
+		// 	orderData,
+		// 	createCountingCallback(0, 5, (cbArgs) => {
+		// 		console.log(cbArgs.message);
+		// 	})
+		// );
+		const orderId = await args.permaweb.sendMessage({
+			processId: orderbookId,
+			action: 'Transfer'
+		},
 			createCountingCallback(0, 5, (cbArgs) => {
 				console.log(cbArgs.message);
 			})
@@ -128,7 +150,7 @@ async function createInstance(args, overallTotals) {
 	}
 }
 
-(async function () {
+async function runSimulation() {
 	const overallTotals = { spawns: 0, messages: 0 };
 
 	const controller = JSON.parse(fs.readFileSync(process.env.PATH_TO_WALLET));
@@ -157,7 +179,7 @@ async function createInstance(args, overallTotals) {
 			AO_URL: CONNECT_URL,
 			wallet: controller // TODO: sellerWallet
 		});
-		const dependenciesSeller = { ao, arweave, signer: createDataItemSigner(controller) };
+		const dependenciesSeller = { ao, arweave, signer: createDataItemSigner() };
 		const permawebSeller = Permaweb.init(dependenciesSeller);
 
 		logUpdate(`Creating listing instance ${i + 1}...`);
@@ -167,7 +189,7 @@ async function createInstance(args, overallTotals) {
 				permaweb: permawebSeller,
 				dependencies: dependenciesSeller
 			}, overallTotals);
-			
+
 			listings.push(listing);
 			console.log(`Listing instance ${i + 1} created. Asset ID: ${listing.assetId}, Orderbook ID: ${listing.orderbookId}`);
 
@@ -175,16 +197,25 @@ async function createInstance(args, overallTotals) {
 				const orderData = {
 					orderbookId: listing.orderbookId,
 					creatorId: listing.profileId,
-					quantity: '1',
+					quantity: j.toString(),
 					unitPrice: '1',
-					dominantToken: assetId,
+					dominantToken: listing.assetId,
 					swapToken: SWAP_TOKEN
 				};
-	
+
 				logUpdate(`Creating listing order ${j + 1} for instance ${i + 1}...`);
-				const orderId = await createOrder(
-					dependenciesSeller,
-					orderData,
+				// const orderId = await createOrder(
+				// 	dependenciesSeller,
+				// 	orderData,
+				// 	createCountingCallback(0, 5, (cbArgs) => {
+				// 		console.log(`Additional order callback for instance ${i + 1}: ${cbArgs.message}`);
+				// 	})
+				// );
+
+				const orderId = await permawebSeller.sendMessage({
+					processId: listing.orderbookId,
+					action: 'Transfer'
+				},
 					createCountingCallback(0, 5, (cbArgs) => {
 						console.log(`Additional order callback for instance ${i + 1}: ${cbArgs.message}`);
 					})
@@ -209,7 +240,7 @@ async function createInstance(args, overallTotals) {
 			AO_URL: CONNECT_URL,
 			wallet: controller // TODO: buyerWallet
 		});
-		const dependenciesBuyer = { ao, arweave, signer: createDataItemSigner(controller) };
+		const dependenciesBuyer = { ao, arweave, signer: createDataItemSigner() };
 		const permawebBuyer = Permaweb.init(dependenciesBuyer);
 
 		const randomIndex = Math.floor(Math.random() * listings.length);
@@ -228,7 +259,7 @@ async function createInstance(args, overallTotals) {
 
 		await message({
 			process: SWAP_TOKEN,
-			signer: createDataItemSigner(args.controller),
+			signer: createDataItemSigner(),
 			tags: [
 				{ name: 'Action', value: 'Transfer' },
 				{ name: 'Recipient', value: purchase.profileId },
@@ -240,7 +271,7 @@ async function createInstance(args, overallTotals) {
 			const orderData = {
 				orderbookId: purchase.orderbookId,
 				creatorId: purchase.profileId,
-				quantity: '1',
+				quantity: j.toString(),
 				dominantToken: SWAP_TOKEN,
 				swapToken: purchase.assetId
 			};
@@ -258,4 +289,31 @@ async function createInstance(args, overallTotals) {
 	}
 
 	console.log(`Overall totals: Spawns: ${overallTotals.spawns}, Messages: ${overallTotals.messages}`);
-})();
+};
+
+if (isMainThread) {
+	const numWorkers = 1;
+	const workers = [];
+	for (let i = 0; i < numWorkers; i++) {
+		const worker = new Worker(new URL(import.meta.url));
+		worker.on('message', (msg) => {
+			console.log(`Worker ${i} finished simulation with result: ${msg}`);
+		});
+		worker.on('error', (err) => {
+			console.error(`Worker ${i} encountered error: ${err}`);
+		});
+		worker.on('exit', (code) => {
+			if (code !== 0) console.error(`Worker ${i} stopped with exit code ${code}`);
+			else console.log(`Worker ${i} exited successfully.`);
+		});
+		workers.push(worker);
+	}
+} else {
+	runSimulation()
+		.then((result) => {
+			parentPort.postMessage(result);
+		})
+		.catch((err) => {
+			parentPort.postMessage(`Error: ${err.message}`);
+		});
+}

@@ -1,7 +1,11 @@
 local json = require('json')
 local bint = require('.bint')(256)
 
-UCM_PROCESS = '<UCM_PROCESS>'
+UNSET_UCM = '<UCM_PROCESS>'
+UNSET_COLLECTION = '<COLLECTION_PROCESS>'
+
+UCM = UCM or UNSET_UCM
+CollectionId = CollectionId or UNSET_COLLECTION
 
 if not ListedOrders then ListedOrders = {} end
 if not ExecutedOrders then ExecutedOrders = {} end
@@ -177,7 +181,6 @@ function utils.testSummary()
     end
 end
 
--- Read activity
 Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activity'), function(msg)
 	local decodeCheck, data = utils.decodeMessageData(msg.Data)
 
@@ -249,7 +252,6 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 	})
 end)
 
--- Read order counts by address
 Handlers.add('Get-Order-Counts-By-Address', Handlers.utils.hasMatchingTag('Action', 'Get-Order-Counts-By-Address'),
 	function(msg)
 		local salesByAddress = SalesByAddress
@@ -295,7 +297,7 @@ end)
 
 Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Executed-Orders'),
 	function(msg)
-		if msg.From ~= UCM_PROCESS then
+		if msg.From ~= UCM then
 			return
 		end
 
@@ -305,7 +307,7 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			return
 		end
 
-		table.insert(ExecutedOrders, {
+		local orderData = {
 			OrderId = data.Order.MatchId or data.Order.Id,
 			DominantToken = data.Order.DominantToken,
 			SwapToken = data.Order.SwapToken,
@@ -314,7 +316,13 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
 			Timestamp = data.Order.Timestamp
-		})
+		}
+
+		table.insert(ExecutedOrders, orderData)
+
+		if CollectionId and CollectionId ~= UNSET_COLLECTION then
+			ao.send({ Target = CollectionId, Action = 'Forward-Order', UpdateType = 'Update-Executed-Orders', Data = msg.Data })
+		end
 
 		if not SalesByAddress[data.Order.Sender] then
 			SalesByAddress[data.Order.Sender] = 0
@@ -329,7 +337,7 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 
 Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Listed-Orders'),
 	function(msg)
-		if msg.From ~= UCM_PROCESS then
+		if msg.From ~= UCM then
 			return
 		end
 
@@ -339,7 +347,7 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 			return
 		end
 
-		table.insert(ListedOrders, {
+		local orderData = {
 			OrderId = data.Order.Id,
 			DominantToken = data.Order.DominantToken,
 			SwapToken = data.Order.SwapToken,
@@ -348,12 +356,18 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
 			Timestamp = data.Order.Timestamp
-		})
+		}
+
+		table.insert(ListedOrders, orderData)
+
+		if CollectionId and CollectionId ~= UNSET_COLLECTION then
+			ao.send({ Target = CollectionId, Action = 'Forward-Order', UpdateType = 'Update-Listed-Orders', Data = msg.Data })
+		end
 	end)
 
 Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Cancelled-Orders'),
 	function(msg)
-		if msg.From ~= UCM_PROCESS then
+		if msg.From ~= UCM then
 			return
 		end
 
@@ -363,7 +377,7 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			return
 		end
 
-		table.insert(CancelledOrders, {
+		local orderData = {
 			OrderId = data.Order.Id,
 			DominantToken = data.Order.DominantToken,
 			SwapToken = data.Order.SwapToken,
@@ -372,14 +386,20 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
 			Timestamp = data.Order.Timestamp
-		})
+		}
+
+		table.insert(CancelledOrders, orderData)
+
+		if CollectionId and CollectionId ~= UNSET_COLLECTION then
+			ao.send({ Target = CollectionId, Action = 'Forward-Order', UpdateType = 'Update-Cancelled-Orders', Data = msg.Data })
+		end
 	end)
 
 Handlers.add('Get-UCM-Purchase-Amount', Handlers.utils.hasMatchingTag('Action', 'Get-UCM-Purchase-Amount'),
 	function(msg)
 		local totalBurnAmount = bint(0)
 		for _, order in ipairs(ExecutedOrders) do
-			if order.Receiver == UCM_PROCESS then
+			if order.Receiver == UCM then
 				totalBurnAmount = totalBurnAmount + bint(order.Quantity)
 			end
 		end
@@ -480,188 +500,4 @@ Handlers.add('Get-Activity-Lengths', Handlers.utils.hasMatchingTag('Action', 'Ge
 			PurchasesByAddress = countTableEntries(PurchasesByAddress)
 		})
 	})
-end)
-
-Handlers.add('Migrate-Activity-Dryrun', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Dryrun'), function(msg)
-	local orderTable = {}
-	local orderType = msg.Tags['Order-Type']
-	local stepBy = tonumber(msg.Tags['Step-By'])
-	local ordersToUse
-	if orderType == 'ListedOrders' then
-		orderTable = table.move(
-			ListedOrders,
-			tonumber(msg.Tags.StartIndex),
-			tonumber(msg.Tags.StartIndex) + stepBy,
-			1,
-			orderTable
-		)
-	elseif orderType == 'ExecutedOrders' then
-		orderTable = table.move(
-			ExecutedOrders,
-			tonumber(msg.Tags.StartIndex),
-			tonumber(msg.Tags.StartIndex) + stepBy,
-			1,
-			orderTable
-		)
-	elseif orderType == 'CancelledOrders' then
-		orderTable = table.move(
-			CancelledOrders,
-			tonumber(msg.Tags.StartIndex),
-			tonumber(msg.Tags.StartIndex) + stepBy,
-			1,
-			orderTable
-		)
-	else
-		print('Invalid Order-Type: ' .. orderType)
-		return
-	end
-end)
-
-Handlers.add('Migrate-Activity', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity'), function(msg)
-	if msg.From ~= ao.id and msg.From ~= Owner then return end
-	print('Starting migration process...')
-
-	local function sendBatch(orders, orderType, startIndex)
-		local batch = {}
-
-		for i = startIndex, math.min(startIndex + 29, #orders) do
-			table.insert(batch, {
-				OrderId = orders[i].OrderId or '',
-				DominantToken = orders[i].DominantToken or '',
-				SwapToken = orders[i].SwapToken or '',
-				Sender = orders[i].Sender or '',
-				Receiver = orders[i].Receiver or nil,
-				Quantity = orders[i].Quantity and tostring(orders[i].Quantity) or '0',
-				Price = orders[i].Price and tostring(orders[i].Price) or '0',
-				Timestamp = orders[i].Timestamp or ''
-			})
-		end
-
-		if #batch > 0 then
-			print('Sending ' .. orderType .. ' Batch: ' .. #batch .. ' orders starting at index ' .. startIndex)
-
-			local success, encoded = pcall(json.encode, batch)
-			if not success then
-				print('Failed to encode batch: ' .. tostring(encoded))
-				return
-			end
-
-			ao.send({
-				Target = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4',
-				Action = 'Migrate-Activity-Batch',
-				Tags = {
-					['Order-Type'] = orderType,
-					['Start-Index'] = tostring(startIndex)
-				},
-				Data = encoded
-			})
-		end
-	end
-
-	local orderType = msg.Tags['Order-Type']
-	if not orderType then
-		print('No Order-Type specified in message tags')
-		return
-	end
-
-	local orderTable
-	if orderType == 'ListedOrders' then
-		orderTable = ListedOrders
-	elseif orderType == 'ExecutedOrders' then
-		orderTable = ExecutedOrders
-	elseif orderType == 'CancelledOrders' then
-		orderTable = CancelledOrders
-	else
-		print('Invalid Order-Type: ' .. orderType)
-		return
-	end
-
-	print('Starting ' .. orderType .. 'Orders migration (total: ' .. #orderTable .. ')')
-	sendBatch(orderTable, orderType, tonumber(msg.Tags.StartIndex))
-	print('Migration initiation completed')
-end)
-
-Handlers.add('Migrate-Activity-Batch', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Batch'), function(msg)
-	if msg.Owner ~= Owner then
-		print('Rejected batch: unauthorized sender')
-		return
-	end
-
-	local decodeCheck, data = utils.decodeMessageData(msg.Data)
-	if not decodeCheck or not data then
-		print('Failed to decode batch data')
-		return
-	end
-
-	local orderType = msg.Tags['Order-Type']
-	local startIndex = tonumber(msg.Tags['Start-Index'])
-	if not orderType or not startIndex then
-		print('Missing required tags in batch message')
-		return
-	end
-
-	print('Processing ' .. orderType .. ' batch: ' .. #data .. ' orders at index ' .. startIndex)
-
-	-- Select the appropriate table based on order type
-	local targetTable
-	if orderType == 'ListedOrders' then
-		targetTable = ListedOrders
-	elseif orderType == 'ExecutedOrders' then
-		targetTable = ExecutedOrders
-	elseif orderType == 'CancelledOrders' then
-		targetTable = CancelledOrders
-	else
-		print('Invalid order type: ' .. orderType)
-		return
-	end
-
-	local existingOrders = {}
-	for _, order in ipairs(targetTable) do
-		if order.OrderId then
-			existingOrders[order.OrderId] = true
-		end
-	end
-
-	-- Insert only non-duplicate orders
-	local insertedCount = 0
-	for _, order in ipairs(data) do
-		if order.OrderId and not existingOrders[order.OrderId] then
-			table.insert(targetTable, order)
-			existingOrders[order.OrderId] = true
-			insertedCount = insertedCount + 1
-		end
-	end
-
-	print('Successfully processed ' .. orderType .. ' batch of ' .. #data .. ' orders')
-
-	ao.send({
-		Target = msg.From,
-		Action = 'Batch-Processed'
-	})
-end)
-
-Handlers.add('Migrate-Activity-Stats', Handlers.utils.hasMatchingTag('Action', 'Migrate-Activity-Stats'), function(msg)
-	if msg.From ~= '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4' then
-		print('Rejected stats: unauthorized sender')
-		return
-	end
-
-	local decodeCheck, stats = utils.decodeMessageData(msg.Data)
-	if not decodeCheck or not stats then
-		print('Failed to decode stats data')
-		return
-	end
-
-	print('Processing address statistics...')
-
-	-- Update the tables
-	if stats.SalesByAddress then
-		SalesByAddress = stats.SalesByAddress
-	end
-
-	if stats.PurchasesByAddress then
-		PurchasesByAddress = stats.PurchasesByAddress
-	end
-
-	print('Successfully processed address statistics')
 end)

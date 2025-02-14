@@ -5,7 +5,7 @@ import { globalLog } from 'helpers/utils';
 
 const UCM_OWNER = 'YYSFAsZBLYAMmPijTam-D1jZbCO0vcWLRimdmMnKHyo';
 const UCM_ORDERBOOK_PROCESS = 'NqGfqIQzHQ-8_6mnBme_hdgqSVCMsBDBw1xTe5zky6s'; // Orderbook src
-const UCM_ACTIVITY_PROCESS = 'bD_aszjdemv1qd_GibjO8q2n273VKjApSVGXR1sQ_RU'; // Activity src
+const UCM_ACTIVITY_PROCESS = 'NUIES_ZMKH8RhKQnF6GQxzX2i7OVY4XBiD36VauQs6s'; // Activity src
 
 export async function createOrderbook(
 	deps: DependenciesType,
@@ -38,7 +38,7 @@ export async function createOrderbook(
 		const activityUcmEval = await permaweb.sendMessage({
 			processId: activityId,
 			action: 'Eval',
-			data: `UCM_ORDERBOOK_PROCESS = '${orderbookId}'`,
+			data: `UCM = '${orderbookId}'`,
 			useRawData: true
 		});
 		globalLog(`Activity UCM Eval: ${activityUcmEval}`);
@@ -53,22 +53,28 @@ export async function createOrderbook(
 		});
 		globalLog(`UCM Activity Eval: ${ucmActivityEval}`);
 		
-		// TODO
 		if (args.collectionId) {
-			globalLog('Setting orderbook in collection activity...')
+			globalLog('Setting orderbook / activity in collection activity...');
 			callback({ processing: true, success: false, message: 'Setting orderbook in collection activity...' });
+			const activityCollectionEval = await permaweb.sendMessage({
+				processId: activityId,
+				action: 'Eval',
+				data: `CollectionId = '${args.collectionId}'`,
+				useRawData: true
+			});
 			const collectionActivityEval = await permaweb.sendMessage({
 				processId: args.collectionId,
 				action: 'Update-Collection-Activity',
 				tags: [
-					{ name: 'OrderbookId', value: orderbookId },
+					{ name: 'ActivityId', value: activityId },
 					{ name: 'UpdateType', value: 'Add' },
 				]
 			});
+			globalLog(`Activity Collection Eval: ${activityCollectionEval}`);
 			globalLog(`Collection Activity Eval: ${collectionActivityEval}`);
 		}
 
-		globalLog('Giving orderbook ownership to UCM...')
+		globalLog('Giving orderbook ownership to UCM...');
 		callback({ processing: true, success: false, message: 'Giving orderbook ownership to UCM...' });
 		const orderbookOwnerEval = await permaweb.sendMessage({
 			processId: orderbookId,
@@ -78,7 +84,7 @@ export async function createOrderbook(
 		});
 		globalLog(`Orderbook Owner Eval: ${orderbookOwnerEval}`);
 		
-		globalLog('Giving activity ownership to UCM...')
+		globalLog('Giving activity ownership to UCM...');
 		callback({ processing: true, success: false, message: 'Giving activity ownership to UCM...' });
 		const activityOwnerEval = await permaweb.sendMessage({
 			processId: activityId,
@@ -88,7 +94,7 @@ export async function createOrderbook(
 		});
 		globalLog(`Activity Owner Eval: ${activityOwnerEval}`);
 
-		globalLog('Adding orderbook to asset...')
+		globalLog('Adding orderbook to asset...');
 		callback({ processing: true, success: false, message: 'Adding orderbook to asset...' });
 		const assetEval = await permaweb.sendMessage({
 			processId: args.assetId,
@@ -112,23 +118,38 @@ export async function createOrderbook(
 const assetOrderbookEval = (orderbookId: string) => {
 	return `
 		local json = require('json')
-		OrderbookId = '${orderbookId}'
+
+		if Metadata then
+			Metadata.OrderbookId = '${orderbookId}'
+		else
+			Metadata = {}
+			Metadata.OrderbookId = '${orderbookId}'
+		end
+
 		Handlers.remove('Info')
 		Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
-			ao.send({
-				Target = msg.From,
-				Name = Name,
-				Ticker = Ticker,
-				Denomination = tostring(Denomination),
-				Transferable = Transferable or nil,
-				OrderbookId = OrderbookId or nil,
+			local name = Token and Token.Name or Name
+			local ticker = Token and Token.Ticker or Ticker
+			local denomination = Token and Token.Denomination or Denomination
+			local transferable = Token and Token.Transferable or Transferable
+			local orderbookId = Token and Token.OrderbookId or OrderbookId
+			local creator = Token and Token.Creator or Creator
+
+			msg.reply({
+				Name = name,
+				Ticker = ticker,
+				Denomination = tostring(denomination),
+				Transferable = transferable or nil,
 				Data = json.encode({
-					Name = Name,
-					Ticker = Ticker,
-					Denomination = tostring(Denomination),
-					Transferable = Transferable or nil,
-					OrderbookId = OrderbookId or nil,
-					Balances = Balances
+					Name = name,
+					Ticker = ticker,
+					Denomination = tostring(denomination),
+					Transferable = transferable,
+					Creator = creator,
+					Balances = Balances,
+					Metadata = Metadata,
+					DateCreated = tostring(DateCreated),
+					LastUpdate = tostring(LastUpdate)
 				})
 			})
 		end)

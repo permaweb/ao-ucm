@@ -2,7 +2,6 @@ local json = require('json')
 local bint = require('.bint')(256)
 
 CollectionId = CollectionId or ao.env.Process.Tags.CollectionId
-OrderbookIds = OrderbookIds or {}
 
 if not ListedOrders then ListedOrders = {} end
 if not ExecutedOrders then ExecutedOrders = {} end
@@ -11,14 +10,6 @@ if not SalesByAddress then SalesByAddress = {} end
 if not PurchasesByAddress then PurchasesByAddress = {} end
 
 local utils = {}
-
-function utils.isOrderbookAllowed(orderbookId)
-	for _, allowedOrderbook in OrderbookIds do
-		if allowedOrderbook == orderbookId then return true end
-	end
-
-	return false
-end
 
 function utils.checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
@@ -304,7 +295,7 @@ end)
 
 Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Executed-Orders'),
 	function(msg)
-		if not utils.isOrderbookAllowed(msg.From) then
+		if msg.From ~= CollectionId then
 			return
 		end
 
@@ -338,7 +329,7 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 
 Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Listed-Orders'),
 	function(msg)
-		if not utils.isOrderbookAllowed(msg.From) then
+		if msg.From ~= CollectionId then
 			return
 		end
 
@@ -362,7 +353,7 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 
 Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Cancelled-Orders'),
 	function(msg)
-		if not utils.isOrderbookAllowed(msg.From) then
+		if msg.From ~= CollectionId then
 			return
 		end
 
@@ -473,42 +464,4 @@ Handlers.add('Get-Activity-Lengths', Handlers.utils.hasMatchingTag('Action', 'Ge
 			PurchasesByAddress = countTableEntries(PurchasesByAddress)
 		})
 	})
-end)
-
-Handlers.add('Update-OrderbookIds', function(msg)
-	if msg.From ~= CollectionId and msg.From ~= Owner and msg.From ~= ao.id then return end
-
-	local decodeCheck, data = utils.decodeMessageData(msg.Data)
-
-	if not decodeCheck or not data or not data.OrderbookIds or not data.UpdateType then
-		return
-	end
-
-	if data.UpdateType == 'Add' then
-		for _, id in ipairs(data.OrderbookIds) do
-			local exists = false
-			for _, existingId in ipairs(OrderbookIds) do
-				if existingId == id then
-					exists = true
-					break
-				end
-			end
-			if not exists then
-				table.insert(OrderbookIds, id)
-			end
-		end
-	end
-
-	if data.UpdateType == 'Remove' then
-		for _, id in ipairs(data.OrderbookIds) do
-			for i, existingId in ipairs(OrderbookIds) do
-				if existingId == id then
-					table.remove(OrderbookIds, i)
-					break
-				end
-			end
-		end
-	end
-
-	print('Updated orderbooks:', table.concat(OrderbookIds, ', '))
 end)

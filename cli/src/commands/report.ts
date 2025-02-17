@@ -30,7 +30,7 @@ const command: CommandInterface = {
 		const match = intervalArg.match(regex);
 
 		if (!match) {
-			console.error(`Invalid interval format. Use something like '2-days', '1-week', or '1-year'.`);
+			console.error(`Invalid interval format. Use something like '2-days', '1-week', or '1-month'.`);
 			return;
 		}
 
@@ -165,7 +165,7 @@ export default command;
 async function exportWeeklyReportData(report: Report, intervals: number): Promise<void> {
 	const reportsDir = './reports';
 	if (!fs.existsSync(reportsDir)) {
-		fs.mkdirSync(reportsDir, { recursive: true });
+	  fs.mkdirSync(reportsDir, { recursive: true });
 	}
 	
 	const reportEndDate = new Date(report.date);
@@ -177,7 +177,7 @@ async function exportWeeklyReportData(report: Report, intervals: number): Promis
 	
 	const timestamp = Date.now();
 	const jsonPath = `${reportsDir}/volume-report-${dateRangeStr}-${timestamp}.json`;
-	const chartPath = `${reportsDir}/volume-report-chart-${dateRangeStr}-${timestamp}.png`;
+	const updatedChartPath = `${reportsDir}/volume-report-chart-${dateRangeStr}-${timestamp}.png`;
 	
 	fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf-8');
 	console.log(clc.blackBright(`Report data exported to ${jsonPath}`));
@@ -186,43 +186,73 @@ async function exportWeeklyReportData(report: Report, intervals: number): Promis
 	const labels = latestData.map(record => `Day ${record.day}`);
 	const volumes = latestData.map(record => parseFloat(record.volume));
 	const usdValues = latestData.map(record => record.usd);
-
+	
 	const qc = new QuickChart();
 	qc.setConfig({
-		type: 'line',
-		data: {
-			labels: labels,
-			datasets: [
-				{
-					label: 'Wrapped AR Swapped',
-					data: volumes,
-					borderColor: '#006DFF',
-					fill: false,
-				},
-				{
-					label: 'USD Volume',
-					data: usdValues,
-					borderColor: '#71C9A4',
-					fill: false,
-				},
-			],
+	  type: 'line',
+	  data: {
+		labels: labels,
+		datasets: [
+		  {
+			label: 'Wrapped AR Swapped',
+			data: volumes,
+			borderColor: '#006DFF',
+			fontColor: '#000000',
+			fill: false
+		  },
+		  {
+			label: 'USD Volume',
+			data: usdValues,
+			borderColor: '#71C9A4',
+			fontColor: '#000000',
+			fill: false
+		  },
+		],
+	  },
+	  options: {
+		title: {
+		  display: true,
+		  text: `UCM Volume (${formatDate(reportStartDate)} to ${formatDate(reportEndDate)})`,
+		  fontColor: '#000000'
 		},
-		options: {
-			title: {
-				display: true,
-				text: `Volume Report (${dateRangeStr})`,
-			},
+		legend: {
+		  labels: {
+			boxWidth: 11.5
+		  }
 		},
+		layout: {
+		  padding: {
+			top: 20,
+			right: 20,
+			bottom: 25,
+			left: 20,
+		  }
+		}
+	  },
 	})
-		.setWidth(800)
-		.setHeight(400)
-		.setBackgroundColor('#FFFFFF');
-
+	  .setWidth(800)
+	  .setHeight(400)
+	  .setBackgroundColor('#FFFFFF');
+	
 	try {
-		const chartBuffer = await qc.toBinary();
-		fs.writeFileSync(chartPath, chartBuffer);
-		console.log(clc.blackBright(`Chart exported to ${chartPath}`));
+	  const chartBuffer = await qc.toBinary();
+	  
+	  const sharp = require('sharp');
+	  const image = sharp(chartBuffer);
+	  const { width, height } = await image.metadata();
+	  
+	  const svgMask = Buffer.from(`
+		<svg width="${width}" height="${height}">
+		  <rect x="0" y="0" width="${width}" height="${height}" rx="7.5" ry="7.5"/>
+		</svg>
+	  `);
+	  
+	  await image
+		.composite([{ input: svgMask, blend: 'dest-in' }])
+		.toFile(updatedChartPath);
+	  
+	  console.log(clc.blackBright(`Chart exported to ${updatedChartPath}`));
 	} catch (error) {
-		console.error('Error generating chart:', error);
+	  console.error('Error generating chart:', error);
 	}
-}
+  }

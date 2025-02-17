@@ -9,30 +9,60 @@ import { CLI_ARGS, DAILY_HEIGHT_INTERVAL, ENDPOINTS } from '../helpers/config';
 import { ArgumentsInterface, CommandInterface } from '../helpers/types';
 import { CliSpinner, formatCount, getTagValue, log } from '../helpers/utils';
 
-interface WeeklyDataRecord {
+interface DataRecord {
 	day: number;
 	volume: string;
 	usd: number;
 }
 
-interface WeeklyReport {
+interface Report {
 	date: string;
-	weeklyData: WeeklyDataRecord[];
+	weeklyData: DataRecord[];
 }
 
 const command: CommandInterface = {
 	name: CLI_ARGS.commands.report,
-	description: `Run a weekly report on UCM activity`,
+	description: `Run a volume report for a specified amount of time`,
 	execute: async (args: ArgumentsInterface): Promise<void> => {
-		const permaweb = Permaweb.init({ ao: connect({ MODE: 'legacy' }) });
+		const intervalArg = args.commandValues[0] || '1-week';
+		
+		const regex = /^(\d+)\s*-?\s*(day|week|month|year)s?$/i;
+		const match = intervalArg.match(regex);
+
+		if (!match) {
+			console.error(`Invalid interval format. Use something like '2-days', '1-week', or '1-year'.`);
+			return;
+		}
+
 		console.log(clc.blackBright('UCM Volume Report'));
+
+		const count = parseInt(match[1], 10);
+		const unit = match[2].toLowerCase();
+
+		const unitMapping: { [key: string]: number } = {
+			day: 1,
+			week: 7,
+			month: 30,
+			year: 365,
+		};
+
+		const permaweb = Permaweb.init({ ao: connect({ MODE: 'legacy' }) });
 
 		try {
 			const arweaveResponse = await fetch(ENDPOINTS.arweave);
 			const currentHeight = (await arweaveResponse.json()).height;
 
-			const intervals = 2;
-			console.log(`Building report for the last ${intervals} days...\n`);
+			console.log(clc.blackBright(`Current Height: ${formatCount(currentHeight.toString())}\n`));
+
+			const days = count * unitMapping[unit];
+			console.log(`Generating report for the last ${clc.yellow(`${days} day(s)`)}...`);
+	
+			const now = new Date();
+			const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+			const endDate = now;
+	
+			const formatDate = (date: Date) => date.toISOString().slice(0, 10);
+			console.log(`Report period: ${clc.cyan(formatDate(startDate))} to ${clc.cyan(formatDate(endDate))}`);
 
 			const baseTags = [
 				{ name: 'Action', values: ['Credit-Notice'] },
@@ -47,7 +77,7 @@ const command: CommandInterface = {
 			const orderData = await permaweb.getGQLData({
 				tags: [...baseTags],
 				recipients: ['hqdL4AZaFZ0huQHbAsYxdTwG6vpibK7ALWKNzmWaD4Q'],
-				minBlock: currentHeight - intervals * DAILY_HEIGHT_INTERVAL,
+				minBlock: currentHeight - days * DAILY_HEIGHT_INTERVAL,
 				maxBlock: currentHeight
 			});
 
@@ -59,13 +89,14 @@ const command: CommandInterface = {
 			const arweavePrice = (await arweavePriceResponse.json()).arweave.usd;
 
 			console.log(clc.blackBright('Getting GQL Data...\n'));
-			const weeklyData: WeeklyDataRecord[] = [];
-			for (let i = 0; i < intervals; i++) {
+
+			const weeklyData: DataRecord[] = [];
+			for (let i = 0; i < days; i++) {
 				const intervalEnd = currentHeight - (i * DAILY_HEIGHT_INTERVAL);
 				const intervalStart = intervalEnd - DAILY_HEIGHT_INTERVAL;
-				
+
 				spinner.stop();
-				console.log(`Day ${i + 1}: Blocks ${intervalStart} to ${intervalEnd}`);
+				console.log(`Day ${i + 1}: ${clc.blackBright(`Blocks ${formatCount(intervalStart.toString())} to ${formatCount(intervalEnd.toString())}`)}`);
 				spinner.start();
 
 				const purchaseData = await permaweb.getAggregatedGQLData({
@@ -96,7 +127,7 @@ const command: CommandInterface = {
 				const usdValue = parseFloat(convertedAmount.toString()) * arweavePrice;
 
 				weeklyData.push({
-					day: intervals - i,
+					day: days - i,
 					volume: convertedAmount.toString(),
 					usd: usdValue
 				});
@@ -104,53 +135,53 @@ const command: CommandInterface = {
 			}
 
 			spinner.stop();
-			console.log(`\n${clc.blackBright('Weekly Report Volume Summary')}`);
-			(weeklyData.reverse()).forEach(record => {
+			let totalSwapValue = BigInt(0);
+			let totalUsdValue = Number(0);
+			console.log(`\n${clc.blackBright('Volume Summary')}`);
+			weeklyData.length > 0 ? (weeklyData.reverse()).forEach(record => {
+				totalSwapValue += BigInt(record.volume);
+				totalUsdValue += record.usd;
 				console.log(`Day ${record.day}: ${clc.green(formatCount(record.volume))} wAR, ${clc.green(formatCount(record.usd.toString()))} USD`);
-			});
+			}) : console.log('-');
+
+			console.log(`\n${clc.blackBright('Totals')}`);
+			console.log(`${clc.green(formatCount(totalSwapValue.toString()))} wAR`);
+			console.log(`${clc.green(formatCount(totalUsdValue.toString()))} USD`);
 			console.log('\n');
 
-			// If --export flag is provided, export the weekly report data and generate a chart.
-			if (true) { // args.argv.export
-				await exportWeeklyReportData({
-					date: new Date().toISOString(),
-					weeklyData
-				});
-			}
+			await exportWeeklyReportData({
+				date: new Date().toISOString(),
+				weeklyData
+			}, days);
+
 		} catch (e: any) {
 			log(e.message ?? 'Error running report', 1);
 		}
-	},
+	}
 };
 
 export default command;
 
-async function exportWeeklyReportData(report: WeeklyReport): Promise<void> {
-	// Ensure the reports directory exists
+async function exportWeeklyReportData(report: Report, intervals: number): Promise<void> {
 	const reportsDir = './reports';
 	if (!fs.existsSync(reportsDir)) {
 		fs.mkdirSync(reportsDir, { recursive: true });
 	}
-
-	// Use the report date as the end date, and assume the report covers 7 days
+	
 	const reportEndDate = new Date(report.date);
 	const reportStartDate = new Date(reportEndDate);
-	reportStartDate.setDate(reportStartDate.getDate() - 6); // 7-day report
-
-	// Helper to format dates as YYYY-MM-DD
+	reportStartDate.setDate(reportStartDate.getDate() - (intervals - 1));
+	
 	const formatDate = (date: Date) => date.toISOString().slice(0, 10);
-	const dateRangeStr = `${formatDate(reportStartDate)}--${formatDate(reportEndDate)}`;
-
-	// Generate unique file names by appending a timestamp
+	const dateRangeStr = `${formatDate(reportStartDate)}_${formatDate(reportEndDate)}`;
+	
 	const timestamp = Date.now();
-	const jsonPath = `${reportsDir}/weekly-report-${dateRangeStr}-${timestamp}.json`;
-	const chartPath = `${reportsDir}/weekly-report-chart-${dateRangeStr}-${timestamp}.png`;
-
-	// Write the report JSON to a new file
+	const jsonPath = `${reportsDir}/volume-report-${dateRangeStr}-${timestamp}.json`;
+	const chartPath = `${reportsDir}/volume-report-chart-${dateRangeStr}-${timestamp}.png`;
+	
 	fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf-8');
-	console.log(clc.blackBright(`Exported weekly report data to ${jsonPath}`));
-
-	// Prepare data for the line chart using the latest weekly data
+	console.log(clc.blackBright(`Report data exported to ${jsonPath}`));
+	
 	const latestData = report.weeklyData;
 	const labels = latestData.map(record => `Day ${record.day}`);
 	const volumes = latestData.map(record => parseFloat(record.volume));
@@ -179,7 +210,7 @@ async function exportWeeklyReportData(report: WeeklyReport): Promise<void> {
 		options: {
 			title: {
 				display: true,
-				text: `Weekly Volume Report (${dateRangeStr})`,
+				text: `Volume Report (${dateRangeStr})`,
 			},
 		},
 	})
@@ -190,8 +221,8 @@ async function exportWeeklyReportData(report: WeeklyReport): Promise<void> {
 	try {
 		const chartBuffer = await qc.toBinary();
 		fs.writeFileSync(chartPath, chartBuffer);
-		console.log(clc.blackBright(`Exported weekly chart to ${chartPath}`));
+		console.log(clc.blackBright(`Chart exported to ${chartPath}`));
 	} catch (error) {
-		console.error('Error generating weekly chart:', error);
+		console.error('Error generating chart:', error);
 	}
 }

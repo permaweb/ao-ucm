@@ -1,31 +1,23 @@
 import clc from 'cli-color';
 import fs from 'fs';
-import QuickChart from 'quickchart-js';
+import { Chart, registerables } from 'chart.js';
+import { createCanvas } from 'canvas';
 
 import { connect } from '@permaweb/aoconnect';
 import Permaweb from '@permaweb/libs';
 
-import { CLI_ARGS, DAILY_HEIGHT_INTERVAL, ENDPOINTS } from '../helpers/config';
-import { ArgumentsInterface, CommandInterface } from '../helpers/types';
-import { CliSpinner, formatCount, getTagValue, log } from '../helpers/utils';
+import { CLI_ARGS, DAILY_HEIGHT_INTERVAL, ENDPOINTS } from '../helpers/config.ts';
+import { ArgumentsInterface, CommandInterface, DataRecord, Report } from '../helpers/types.ts';
+import { CliSpinner, formatCount, getTagValue, log } from '../helpers/utils.ts';
 
-interface DataRecord {
-	day: number;
-	volume: string;
-	usd: number;
-}
-
-interface Report {
-	date: string;
-	weeklyData: DataRecord[];
-}
+Chart.register(...registerables);
 
 const command: CommandInterface = {
 	name: CLI_ARGS.commands.report,
 	description: `Run a volume report for a specified amount of time`,
 	execute: async (args: ArgumentsInterface): Promise<void> => {
 		const intervalArg = args.commandValues[0] || '1-week';
-		
+
 		const regex = /^(\d+)\s*-?\s*(day|week|month|year)s?$/i;
 		const match = intervalArg.match(regex);
 
@@ -56,11 +48,11 @@ const command: CommandInterface = {
 
 			const days = count * unitMapping[unit];
 			console.log(`Generating report for the last ${clc.yellow(`${days} day(s)`)}...`);
-	
+
 			const now = new Date();
 			const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 			const endDate = now;
-	
+
 			const formatDate = (date: Date) => date.toISOString().slice(0, 10);
 			console.log(`Report period: ${clc.cyan(formatDate(startDate))} to ${clc.cyan(formatDate(endDate))}`);
 
@@ -90,7 +82,7 @@ const command: CommandInterface = {
 
 			console.log(clc.blackBright('Getting GQL Data...\n'));
 
-			const weeklyData: DataRecord[] = [];
+			const intervalData: DataRecord[] = [];
 			for (let i = 0; i < days; i++) {
 				const intervalEnd = currentHeight - (i * DAILY_HEIGHT_INTERVAL);
 				const intervalStart = intervalEnd - DAILY_HEIGHT_INTERVAL;
@@ -126,7 +118,7 @@ const command: CommandInterface = {
 				const convertedAmount = totalSwap / BigInt(Math.pow(10, 12));
 				const usdValue = parseFloat(convertedAmount.toString()) * arweavePrice;
 
-				weeklyData.push({
+				intervalData.push({
 					day: days - i,
 					volume: convertedAmount.toString(),
 					usd: usdValue
@@ -138,7 +130,7 @@ const command: CommandInterface = {
 			let totalSwapValue = BigInt(0);
 			let totalUsdValue = Number(0);
 			console.log(`\n${clc.blackBright('Volume Summary')}`);
-			weeklyData.length > 0 ? (weeklyData.reverse()).forEach(record => {
+			intervalData.length > 0 ? (intervalData.reverse()).forEach(record => {
 				totalSwapValue += BigInt(record.volume);
 				totalUsdValue += record.usd;
 				console.log(`Day ${record.day}: ${clc.green(formatCount(record.volume))} wAR, ${clc.green(formatCount(record.usd.toString()))} USD`);
@@ -149,9 +141,9 @@ const command: CommandInterface = {
 			console.log(`${clc.green(formatCount(totalUsdValue.toString()))} USD`);
 			console.log('\n');
 
-			await exportWeeklyReportData({
+			await exportReportData({
 				date: new Date().toISOString(),
-				weeklyData
+				intervalData
 			}, days);
 
 		} catch (e: any) {
@@ -162,97 +154,115 @@ const command: CommandInterface = {
 
 export default command;
 
-async function exportWeeklyReportData(report: Report, intervals: number): Promise<void> {
+async function exportReportData(report: Report, intervals: number): Promise<void> {
 	const reportsDir = './reports';
 	if (!fs.existsSync(reportsDir)) {
-	  fs.mkdirSync(reportsDir, { recursive: true });
+		fs.mkdirSync(reportsDir, { recursive: true });
 	}
-	
+
 	const reportEndDate = new Date(report.date);
 	const reportStartDate = new Date(reportEndDate);
 	reportStartDate.setDate(reportStartDate.getDate() - (intervals - 1));
-	
+
 	const formatDate = (date: Date) => date.toISOString().slice(0, 10);
 	const dateRangeStr = `${formatDate(reportStartDate)}_${formatDate(reportEndDate)}`;
-	
+
 	const timestamp = Date.now();
 	const jsonPath = `${reportsDir}/volume-report-${dateRangeStr}-${timestamp}.json`;
 	const updatedChartPath = `${reportsDir}/volume-report-chart-${dateRangeStr}-${timestamp}.png`;
-	
-	fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf-8');
-	console.log(clc.blackBright(`Report data exported to ${jsonPath}`));
-	
-	const latestData = report.weeklyData;
+
+	const latestData = report.intervalData;
 	const labels = latestData.map(record => `Day ${record.day}`);
 	const volumes = latestData.map(record => parseFloat(record.volume));
 	const usdValues = latestData.map(record => record.usd);
-	
-	const qc = new QuickChart();
-	qc.setConfig({
-	  type: 'line',
-	  data: {
-		labels: labels,
-		datasets: [
-		  {
-			label: 'Wrapped AR Swapped',
-			data: volumes,
-			borderColor: '#006DFF',
-			fontColor: '#000000',
-			fill: false
-		  },
-		  {
-			label: 'USD Volume',
-			data: usdValues,
-			borderColor: '#71C9A4',
-			fontColor: '#000000',
-			fill: false
-		  },
-		],
-	  },
-	  options: {
-		title: {
-		  display: true,
-		  text: `UCM Volume (${formatDate(reportStartDate)} to ${formatDate(reportEndDate)})`,
-		  fontColor: '#000000'
+
+	const width = 800;
+	const height = 400;
+
+	const canvas = createCanvas(width, height);
+	const ctx = canvas.getContext('2d');
+
+	const configuration = {
+		type: 'line',
+		data: {
+			labels: labels, // Use your existing data
+			datasets: [
+				{
+					label: 'Wrapped AR Swapped',
+					data: volumes,
+					borderColor: '#006DFF',
+					backgroundColor: 'rgba(0, 109, 255, 0.2)',
+					fill: true,
+				},
+				{
+					label: 'USD Volume',
+					data: usdValues,
+					borderColor: '#71C9A4',
+					backgroundColor: 'rgba(113, 201, 164, 0.2)',
+					fill: true,
+				},
+			],
 		},
-		legend: {
-		  labels: {
-			boxWidth: 11.5
-		  }
+		options: {
+			title: {
+				display: true,
+				text: `UCM Volume (${formatDate(reportStartDate)} to ${formatDate(reportEndDate)})`,
+			},
+			legend: {
+				display: true,
+			},
+			layout: {
+				padding: {
+					top: 20,
+					right: 20,
+					bottom: 25,
+					left: 20,
+				},
+			},
 		},
-		layout: {
-		  padding: {
-			top: 20,
-			right: 20,
-			bottom: 25,
-			left: 20,
-		  }
-		}
-	  },
-	})
-	  .setWidth(800)
-	  .setHeight(400)
-	  .setBackgroundColor('#FFFFFF');
-	
+	};
+
+	new Chart(ctx as any, configuration as any);
+
+	// Export the chart as an image
+	const buffer = canvas.toBuffer('image/png');
+	fs.writeFileSync('./chart.png', buffer);
+	console.log('Chart saved as chart.png');
+
 	try {
-	  const chartBuffer = await qc.toBinary();
-	  
-	  const sharp = require('sharp');
-	  const image = sharp(chartBuffer);
-	  const { width, height } = await image.metadata();
-	  
-	  const svgMask = Buffer.from(`
-		<svg width="${width}" height="${height}">
-		  <rect x="0" y="0" width="${width}" height="${height}" rx="7.5" ry="7.5"/>
-		</svg>
-	  `);
-	  
-	  await image
-		.composite([{ input: svgMask, blend: 'dest-in' }])
-		.toFile(updatedChartPath);
-	  
-	  console.log(clc.blackBright(`Chart exported to ${updatedChartPath}`));
+		const days = report.intervalData.map(record => `Day ${record.day}`);
+		const volumes = report.intervalData.map(record => parseFloat(record.volume));
+		const usdValues = report.intervalData.map(record => record.usd);
+
+		console.log('Blue line: Volume (wAR)');
+		console.log('Green line: USD Volume\n');
+
+		const asciichart = await import('asciichart');
+
+		function interpolate(data: any) {
+			const interpolated = [];
+			for (let i = 0; i < data.length - 1; i++) {
+				interpolated.push(data[i]);
+				interpolated.push((data[i] + data[i + 1]) / 2);
+			}
+			interpolated.push(data[data.length - 1]);
+			return interpolated;
+		}
+
+		const volumesInterpolated = interpolate(volumes);
+		const usdValuesInterpolated = interpolate(usdValues);
+
+		const config = {
+			height: 10,
+			colors: [
+				asciichart.blue,
+				asciichart.green,
+			]
+		};
+
+		console.log(asciichart.plot([volumesInterpolated, usdValuesInterpolated], config));
+
 	} catch (error) {
-	  console.error('Error generating chart:', error);
+		console.error('Error generating chart:', error);
 	}
-  }
+}

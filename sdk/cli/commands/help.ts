@@ -1,8 +1,8 @@
 import clc from 'cli-color';
 import figlet from 'figlet';
 
-import { CLI_ARGS } from '../helpers/config';
-import { ArgumentsInterface, CommandInterface, OptionInterface } from '../helpers/types';
+import { CLI_ARGS } from '../helpers/config.ts';
+import { ArgumentsInterface, CommandInterface, OptionInterface } from '../helpers/types.ts';
 
 const command: CommandInterface = {
 	name: CLI_ARGS.commands.help,
@@ -12,17 +12,18 @@ const command: CommandInterface = {
 		console.log(`\nUniversal Content Marketplace CLI`);
 		console.log(`\nUsage: ${clc.green('ucm')} ${clc.green('[command]')} ${clc.green('[arguments]')}\n`);
 
+		let formattedArgs: string;
+		
 		console.log(`${clc.blackBright('Commands')}`);
 		args.commands.forEach((command) => {
-			let args: string;
 			if (command.args && command.args.length) {
-				args = '<';
+				formattedArgs = '<';
 				command.args.forEach((arg: string) => {
-					args += arg;
+					formattedArgs += arg;
 				});
-				args += '>';
+				formattedArgs += '>';
 			}
-			console.log(`${clc.green(command.name)}${args ? ` ${args}` : ''} ${clc.blackBright(`(${command.description})`)}`);
+			console.log(`${clc.green(command.name)}${formattedArgs ? ` ${formattedArgs}` : ''} ${clc.blackBright(`(${command.description})`)}`);
 			if (command.options && command.options.length) {
 				const spacer = (count: number) => ' '.repeat(count);
 				console.log(`${spacer(4)}${clc.blackBright('Arguments')}`);

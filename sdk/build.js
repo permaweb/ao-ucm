@@ -2,18 +2,19 @@ import esbuild from 'esbuild';
 import dtsPlugin from 'esbuild-plugin-d.ts';
 import path from 'path';
 
+// SDK build configurations (unchanged)
 const sharedConfig = {
 	entryPoints: ['src/index.ts'],
 	bundle: true,
 	sourcemap: true,
 	minify: true,
-	inject: [path.resolve('node_modules/process/browser.js')], // Explicitly inject the process polyfill
-  	define: {
-    	'process.env.NODE_ENV': JSON.stringify('production'),
-  	},
+	inject: [path.resolve('node_modules/process/browser.js')],
+	define: {
+		'process.env.NODE_ENV': JSON.stringify('production'),
+	},
 };
 
-const buildConfigs = [
+const sdkBuildConfigs = [
 	// Node.js (CJS)
 	{
 		...sharedConfig,
@@ -32,9 +33,23 @@ const buildConfigs = [
 	},
 ];
 
+const cliBuildConfig = {
+	entryPoints: ['cli/index.ts'],
+	bundle: true,
+	sourcemap: true,
+	minify: true,
+	outfile: 'bin/index.cjs',
+	platform: 'node',
+	format: 'cjs',
+	banner: { js: "#!/usr/bin/env node" },
+	external: ['canvas'], // Exclude canvas from bundling
+	loader: { '.node': 'file' } // Optionally configure .node loader if needed
+};
+
 async function build() {
 	try {
-		await Promise.all(buildConfigs.map(async (config, index) => {
+		const configs = [...sdkBuildConfigs, cliBuildConfig];
+		await Promise.all(configs.map(async (config, index) => {
 			console.log(`Building configuration ${index + 1}:`, config.outfile);
 			await esbuild.build(config);
 			console.log(`Finished building configuration ${index + 1}:`, config.outfile);

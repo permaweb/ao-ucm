@@ -49,7 +49,7 @@ export function log(message: any, status?: 0 | 1): void {
 }
 
 export function checkProcessEnv(processArg: string): string {
-	return processArg.indexOf('ts-node') > -1 ? '.ts' : '.js';
+	return processArg.indexOf('ts-node') || processArg.indexOf('--loader ts-node/esm') > -1 ? '.ts' : '.js';
 }
 
 export function getTagValue(list: { [key: string]: any }[], name: string): string | null {

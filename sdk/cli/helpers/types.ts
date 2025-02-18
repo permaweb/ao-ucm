@@ -22,3 +22,14 @@ export interface CommandInterface {
 	description: string;
 	execute: (args: any) => Promise<void>;
 }
+
+export interface DataRecord {
+	day: number;
+	volume: string;
+	usd: number;
+}
+
+export interface Report {
+	date: string;
+	intervalData: DataRecord[];
+}

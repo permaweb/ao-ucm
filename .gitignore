@@ -1,9 +1,10 @@
+**/node_modules
+**/dist
+**/wallets
+**/logs
+**/bin
+**/reports
 **.vscode
 **package-lock.json
-**node_modules
-**dist
-**wallets
-**logs
 **.DS_Store**
 **.npmrc
-**reports

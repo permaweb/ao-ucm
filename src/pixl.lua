@@ -5,7 +5,16 @@ UCM_PROCESS = 'hqdL4AZaFZ0huQHbAsYxdTwG6vpibK7ALWKNzmWaD4Q'
 CRON_PROCESS = 'jyYiDZyCjyiN0833p72p9NW1EuUPs9d2fTnRqIVSlNQ'
 
 TOTAL_SUPPLY = bint(26280000 * 1e6)
-HALVING_SUPPLY = TOTAL_SUPPLY * 0.9
+
+-- Current supply was captured at block 1628189 to account for the PI Fair Launch
+-- 75% of the remaining supply supply (TOTAL_SUPPLY - CURRENT_MINTED) was reallocated for PI
+-- 25% of the supply that is yet to be minted is allocated for PIXL rewards
+CURRENT_MINTED = bint(15531330588835)
+REMAINING_SUPPLY = TOTAL_SUPPLY - CURRENT_MINTED
+FAIR_LAUNCH_SUPPLY = math.floor(REMAINING_SUPPLY * 0.75)
+REWARDS_SUPPLY = math.floor(REMAINING_SUPPLY * 0.25)
+HALVING_SUPPLY = CURRENT_MINTED + REWARDS_SUPPLY
+
 ORIGIN_HEIGHT = 1232228
 DAY_INTERVAL = 720
 CYCLE_INTERVAL = DAY_INTERVAL * 365
@@ -45,9 +54,8 @@ local function getAllocation(currentHeight)
 	end
 
 	if current >= HALVING_SUPPLY then
-		if not Balances[Owner] then
-			Balances[Owner] = '0'
-		end
+		print('All rewards have been dispersed')
+		return
 	end
 
 	local blockHeight = tonumber(currentHeight) - ORIGIN_HEIGHT
@@ -78,7 +86,7 @@ local function getAllocation(currentHeight)
 		end
 	end
 
-	-- Calculate the total balance
+	-- Calculate the total multiplier sum
 	local total = 0
 	for _, v in pairs(multipliers) do
 		if v > 0 then
@@ -353,9 +361,11 @@ Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards
 			end
 
 			LastReward = msg['Block-Height']
-		end
 
-		msg.reply({ Action = 'Rewards-Dispersed' })
+			msg.reply({ Action = 'Rewards-Dispersed' })
+		else
+			msg.reply({ Data = 'No rewards to disperse' })
+		end
 	end)
 
 Handlers.add('Total-Supply', Handlers.utils.hasMatchingTag('Action', 'Total-Supply'), function(msg)

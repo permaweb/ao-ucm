@@ -116,8 +116,10 @@ export async function cancelOrder(
 
 		const cancelOrderId = await permaweb.sendMessage({
 			processId: args.creatorId,
+			action: 'Run-Action',
 			tags: tags,
-			data: data
+			data: data,
+			useRawData: true
 		});
 
 		return cancelOrderId;

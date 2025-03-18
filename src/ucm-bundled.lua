@@ -3,7 +3,8 @@ local bint = require('.bint')(256)
 
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
-ACTIVITY_PROCESS = '<ACTIVITY_PROCESS>'
+if not ACTIVITY_PROCESS then ACTIVITY_PROCESS = '<ACTIVITY_PROCESS>' end
+
 PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 
@@ -638,6 +639,16 @@ Handlers.add('Info', 'Info', function(msg)
 		})
 	})
 end)
+
+Handlers.add('Get-Orderbook-By-Pair', 'Get-Orderbook-By-Pair',
+	function(msg)
+		if not msg.Tags.DominantToken or not msg.Tags.SwapToken then return end
+		local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
+
+		if pairIndex > -1 then
+			msg.reply({ Data = json.encode({ Orderbook = Orderbook[pairIndex] }) })
+		end
+	end)
 
 Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 	if not msg.Tags['X-Dominant-Token'] or msg.From ~= msg.Tags['X-Dominant-Token'] then return end

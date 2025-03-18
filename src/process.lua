@@ -33,6 +33,20 @@ Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 		})
 	end)
 
+Handlers.add('Get-Orderbook-By-Pair', Handlers.utils.hasMatchingTag('Action', 'Get-Orderbook-By-Pair'),
+	function(msg)
+		if not msg.Tags.DominantToken or not msg.Tags.SwapToken then return end
+		local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
+
+		if pairIndex > -1 then
+			ao.send({
+				Target = msg.From,
+				Action = 'Read-Success',
+				Data = json.encode({ Orderbook = Orderbook[pairIndex] })
+			})
+		end
+	end)
+
 Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
 	if not msg.Tags['X-Dominant-Token'] or msg.From ~= msg.Tags['X-Dominant-Token'] then return end
 

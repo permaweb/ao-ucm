@@ -49,7 +49,6 @@ export async function createOrderbook(
 		const ucmActivityEval = await permaweb.sendMessage({
 			processId: orderbookId,
 			action: 'Eval',
-			// data: `if not ACTIVITY_PROCESS then ACTIVITY_PROCESS = '${activityId}' end`,
 			data: `ACTIVITY_PROCESS = '${activityId}'`,
 			useRawData: true
 		});
@@ -137,7 +136,7 @@ const assetOrderbookEval = (orderbookId: string) => {
 			local orderbookId = Token and Token.OrderbookId or OrderbookId
 			local creator = Token and Token.Creator or Creator
 
-			msg.reply({
+			local response = {
 				Name = name,
 				Ticker = ticker,
 				Denomination = tostring(denomination),
@@ -153,7 +152,14 @@ const assetOrderbookEval = (orderbookId: string) => {
 					DateCreated = tostring(DateCreated),
 					LastUpdate = tostring(LastUpdate)
 				})
-			})
+			}
+
+			if msg.reply then
+				msg.reply(response)
+			else
+				response.Target = msg.From
+				Send(response)
+			end
 		end)
 	`;
 }

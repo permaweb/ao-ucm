@@ -368,6 +368,19 @@ Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards
 		end
 	end)
 
+Handlers.add('Migrate-Streak', Handlers.utils.hasMatchingTag('Action', 'Migrate-Streak'), function(msg)
+	if not msg.Data.MigrateTo then
+		print('MigrateTo must be provided')
+		return
+	end
+
+	if Streaks[msg.From] then
+		print('Giving streak to ' .. msg.Data.MigrateTo)
+		Streaks[msg.Data.MigrateTo] = Streaks[msg.From]
+		Streaks[msg.From] = nil
+	end
+end)
+
 Handlers.add('Total-Supply', Handlers.utils.hasMatchingTag('Action', 'Total-Supply'), function(msg)
 	assert(msg.From ~= ao.id, 'Cannot call Total-Supply from the same process!')
 

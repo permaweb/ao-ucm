@@ -15,6 +15,7 @@ export type OrderCreateType = {
 	dominantToken: string;
 	swapToken: string;
 	quantity: string;
+	action: 'Transfer' | 'Run-Action';
 	unitPrice?: string;
 	denomination?: string;
 }

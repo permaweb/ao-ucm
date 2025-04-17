@@ -105,6 +105,22 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 	end
 end)
 
+Handlers.add('Migrate-Listings', Handlers.utils.hasMatchingTag('Action', 'Migrate-Listings'), function(msg)
+	if not msg.Data.MigrateTo then
+		print('MigrateTo must be provided')
+		return
+	end
+
+	for _, pair in ipairs(Orderbook) do
+		for _, existingOrder in ipairs(pair.Orders) do
+			if existingOrder.Creator == msg.From then
+				print('Changing order creator to ' .. msg.Data.MigrateTo)
+				existingOrder.Creator = msg.Data.MigrateTo
+			end
+		end
+	end
+end)
+
 Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Order'), function(msg)
 	local decodeCheck, data = utils.decodeMessageData(msg.Data)
 

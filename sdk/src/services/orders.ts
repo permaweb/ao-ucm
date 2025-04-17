@@ -21,6 +21,8 @@ export async function createOrder(
 
 		const tags = [
 			{ name: 'Target', value: args.dominantToken },
+			{ name: 'ForwardTo', value: args.dominantToken },
+			{ name: 'ForwardAction', value: 'Transfer' },
 			{ name: 'Recipient', value: args.orderbookId },
 			{ name: 'Quantity', value: args.quantity },
 		];
@@ -32,6 +34,9 @@ export async function createOrder(
 			{ name: 'X-Group-ID', value: MESSAGE_GROUP_ID },
 		];
 
+		/* Added for legacy profile support */
+		const data = { Target: args.dominantToken, Action: 'Transfer', Input: {} };
+
 		if (args.unitPrice) forwardedTags.push({ name: 'X-Price', value: args.unitPrice.toString() });
 		if (args.denomination) forwardedTags.push({ name: 'X-Transfer-Denomination', value: args.denomination.toString() });
 
@@ -39,11 +44,12 @@ export async function createOrder(
 
 		globalLog('Processing order...');
 		callback({ processing: true, success: false, message: 'Processing your order...' });
-
+		
 		const transferId = await permaweb.sendMessage({
 			processId: args.creatorId,
-			action: 'Transfer',
-			tags: tags
+			action: args.action,
+			tags: tags,
+			data: data
 		});
 
 		const successMatch = ['Order-Success'];

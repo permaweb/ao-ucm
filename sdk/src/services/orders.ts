@@ -1,24 +1,28 @@
-import { createDataItemSigner, message, results } from '@permaweb/aoconnect';
+import { results } from '@permaweb/aoconnect';
+import Permaweb from '@permaweb/libs';
 
-import { OrderCancelType, OrderCreateType } from 'helpers/types';
+import { DependenciesType, OrderCancelType, OrderCreateType } from 'helpers/types';
 import { getTagValue, getTagValueForAction, globalLog } from 'helpers/utils';
 
 const MAX_RESULT_RETRIES = 1000;
 
 export async function createOrder(
+	deps: DependenciesType,
 	args: OrderCreateType,
-	wallet: any,
 	callback: (args: { processing: boolean, success: boolean, message: string }) => void
 ): Promise<string> {
 	const validationError = getOrderCreationErrorMessage(args);
 	if (validationError) throw new Error(validationError);
 
+	const permaweb = Permaweb.init(deps);
+
 	try {
 		const MESSAGE_GROUP_ID = Date.now().toString();
 
 		const tags = [
-			{ name: 'Action', value: 'Transfer' },
 			{ name: 'Target', value: args.dominantToken },
+			{ name: 'ForwardTo', value: args.dominantToken },
+			{ name: 'ForwardAction', value: 'Transfer' },
 			{ name: 'Recipient', value: args.orderbookId },
 			{ name: 'Quantity', value: args.quantity },
 		];
@@ -30,23 +34,23 @@ export async function createOrder(
 			{ name: 'X-Group-ID', value: MESSAGE_GROUP_ID },
 		];
 
+		/* Added for legacy profile support */
+		const data = { Target: args.dominantToken, Action: 'Transfer', Input: {} };
+
 		if (args.unitPrice) forwardedTags.push({ name: 'X-Price', value: args.unitPrice.toString() });
 		if (args.denomination) forwardedTags.push({ name: 'X-Transfer-Denomination', value: args.denomination.toString() });
 
 		tags.push(...forwardedTags);
 
-		globalLog('Processing order...')
+		globalLog('Processing order...');
 		callback({ processing: true, success: false, message: 'Processing your order...' });
-
-		const transferId = await message({
-			process: args.profileId,
-			signer: createDataItemSigner(wallet),
+		
+		const transferId = await permaweb.sendMessage({
+			processId: args.creatorId,
+			action: args.action,
 			tags: tags,
+			data: data
 		});
-
-		// const baseMatchActions = ['Transfer'];
-		// const successMatch = [...baseMatchActions, 'Order-Success'];
-		// const errorMatch = [...baseMatchActions, 'Order-Error'];
 
 		const successMatch = ['Order-Success'];
 		const errorMatch = ['Order-Error'];
@@ -67,10 +71,10 @@ export async function createOrder(
 			const isError = errorMatch.every(action => currentMatchActions.includes(action));
 
 			if (isSuccess) {
-				const successMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Success', 'Order created 2!');
+				const successMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Success', 'Order created!');
 				callback({ processing: false, success: true, message: successMessage });
 			} else if (isError) {
-				const errorMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Error', 'Order failed 2');
+				const errorMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Error', 'Order failed');
 				callback({ processing: false, success: false, message: errorMessage });
 			} else {
 				throw new Error('Unexpected state: Order not fully processed.');
@@ -87,12 +91,14 @@ export async function createOrder(
 }
 
 export async function cancelOrder(
+	deps: DependenciesType,
 	args: OrderCancelType,
-	wallet: any,
 	callback: (args: { processing: boolean, success: boolean, message: string }) => void
 ): Promise<string> {
 	const validationError = getOrderCancelErrorMessage(args);
 	if (validationError) throw new Error(validationError);
+
+	const permaweb = Permaweb.init(deps);
 
 	try {
 		const MESSAGE_GROUP_ID = Date.now().toString();
@@ -114,11 +120,12 @@ export async function cancelOrder(
 		globalLog('Cancelling order...')
 		callback({ processing: true, success: false, message: 'Cancelling your order...' });
 
-		const cancelOrderId = await message({
-			process: args.profileId,
-			signer: createDataItemSigner(wallet),
+		const cancelOrderId = await permaweb.sendMessage({
+			processId: args.creatorId,
+			action: 'Run-Action',
 			tags: tags,
-			data: data
+			data: data,
+			useRawData: true
 		});
 
 		return cancelOrderId;
@@ -201,27 +208,22 @@ async function getMessagesByGroupId(processes: string[], groupId: string): Promi
 
 function getOrderCreationErrorMessage(args: OrderCreateType): string | null {
 	if (typeof args !== 'object' || args === null) return 'The provided arguments are invalid or empty.';
-
 	if (typeof args.orderbookId !== 'string' || args.orderbookId.trim() === '') return 'Orderbook ID is required';
-	if (typeof args.profileId !== 'string' || args.profileId.trim() === '') return 'Profile ID is required';
+	if (typeof args.creatorId !== 'string' || args.creatorId.trim() === '') return 'Profile ID is required';
 	if (typeof args.dominantToken !== 'string' || args.dominantToken.trim() === '') return 'Dominant token is required';
 	if (typeof args.swapToken !== 'string' || args.swapToken.trim() === '') return 'Swap token is required';
 	if (typeof args.quantity !== 'string' || args.quantity.trim() === '') return 'Quantity is required';
-
 	if ('unitPrice' in args && typeof args.unitPrice !== 'string') return 'Unit price is invalid';
 	if ('denomination' in args && typeof args.denomination !== 'string') return 'Denomination is invalid';
-
 	return null;
 }
 
 function getOrderCancelErrorMessage(args: OrderCancelType): string | null {
 	if (typeof args !== 'object' || args === null) return 'The provided arguments are invalid or empty.';
-
 	if (typeof args.orderbookId !== 'string' || args.orderbookId.trim() === '') return 'Orderbook ID is required';
 	if (typeof args.orderId !== 'string' || args.orderId.trim() === '') return 'Order ID is required';
-	if (typeof args.profileId !== 'string' || args.profileId.trim() === '') return 'Profile ID is required';
+	if (typeof args.creatorId !== 'string' || args.creatorId.trim() === '') return 'Profile ID is required';
 	if (typeof args.dominantToken !== 'string' || args.dominantToken.trim() === '') return 'Dominant token is required';
 	if (typeof args.swapToken !== 'string' || args.swapToken.trim() === '') return 'Swap token is required';
-
 	return null;
 }

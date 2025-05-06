@@ -12,7 +12,6 @@ if not ExecutedOrders then ExecutedOrders = {} end
 if not CancelledOrders then CancelledOrders = {} end
 if not SalesByAddress then SalesByAddress = {} end
 if not PurchasesByAddress then PurchasesByAddress = {} end
-if not CurrentListings then CurrentListings = {} end
 
 local utils = {}
 
@@ -321,19 +320,6 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 
 		table.insert(ExecutedOrders, orderData)
 
-		local orderId = data.Order.Id
-		if CurrentListings[orderId] then
-			local listing = CurrentListings[orderId]
-			local executedQty = bint(data.Order.Quantity)
-			local remainingQty = bint(listing.Quantity) - executedQty
-
-			if remainingQty <= bint(0) then
-				CurrentListings[orderId] = nil
-			else
-				listing.Quantity = tostring(remainingQty)
-			end
-		end
-
 		if not SalesByAddress[data.Order.Sender] then
 			SalesByAddress[data.Order.Sender] = 0
 		end
@@ -374,8 +360,6 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 
 		table.insert(ListedOrders, orderData)
 
-		CurrentListings[data.Order.Id] = orderData
-
 		if CollectionId and CollectionId ~= UNSET_COLLECTION then
 			ao.send({ Target = CollectionId, Action = 'Forward-Order', UpdateType = 'Update-Listed-Orders', Data = msg.Data })
 		end
@@ -405,11 +389,6 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 		}
 
 		table.insert(CancelledOrders, orderData)
-
-		local orderId = data.Order.Id
-		if CurrentListings[orderId] then
-			CurrentListings[orderId] = nil
-		end
 
 		if CollectionId and CollectionId ~= UNSET_COLLECTION then
 			ao.send({ Target = CollectionId, Action = 'Forward-Order', UpdateType = 'Update-Cancelled-Orders', Data = msg.Data })

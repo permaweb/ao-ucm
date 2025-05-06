@@ -8,6 +8,7 @@ if not ExecutedOrders then ExecutedOrders = {} end
 if not CancelledOrders then CancelledOrders = {} end
 if not SalesByAddress then SalesByAddress = {} end
 if not PurchasesByAddress then PurchasesByAddress = {} end
+if not CurrentListings then CurrentListings = {} end
 
 local utils = {}
 
@@ -305,7 +306,7 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			return
 		end
 
-		table.insert(ExecutedOrders, {
+		local orderData = {
 			OrderId = data.Order.MatchId or data.Order.Id,
 			DominantToken = data.Order.DominantToken,
 			SwapToken = data.Order.SwapToken,
@@ -314,7 +315,22 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
 			Timestamp = data.Order.Timestamp
-		})
+		}
+
+		table.insert(ExecutedOrders, orderData)
+
+		local orderId = data.Order.Id
+		if CurrentListings[orderId] then
+			local listing = CurrentListings[orderId]
+			local executedQty = bint(data.Order.Quantity)
+			local remainingQty = bint(listing.Quantity) - executedQty
+
+			if remainingQty <= bint(0) then
+				CurrentListings[orderId] = nil
+			else
+				listing.Quantity = tostring(remainingQty)
+			end
+		end
 
 		if not SalesByAddress[data.Order.Sender] then
 			SalesByAddress[data.Order.Sender] = 0
@@ -339,7 +355,7 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 			return
 		end
 
-		table.insert(ListedOrders, {
+		local orderData = {
 			OrderId = data.Order.Id,
 			DominantToken = data.Order.DominantToken,
 			SwapToken = data.Order.SwapToken,
@@ -348,7 +364,11 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
 			Timestamp = data.Order.Timestamp
-		})
+		}
+
+		table.insert(ListedOrders, orderData)
+
+		CurrentListings[data.Order.Id] = orderData
 	end)
 
 Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Cancelled-Orders'),
@@ -363,7 +383,7 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			return
 		end
 
-		table.insert(CancelledOrders, {
+		local orderData = {
 			OrderId = data.Order.Id,
 			DominantToken = data.Order.DominantToken,
 			SwapToken = data.Order.SwapToken,
@@ -372,7 +392,14 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
 			Timestamp = data.Order.Timestamp
-		})
+		}
+
+		table.insert(CancelledOrders, orderData)
+
+		local orderId = data.Order.Id
+		if CurrentListings[orderId] then
+			CurrentListings[orderId] = nil
+		end
 	end)
 
 Handlers.add('Get-Volume', Handlers.utils.hasMatchingTag('Action', 'Get-Volume'),

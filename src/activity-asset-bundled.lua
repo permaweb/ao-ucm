@@ -320,10 +320,6 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 
 		table.insert(ExecutedOrders, orderData)
 
-		if CollectionId and CollectionId ~= UNSET_COLLECTION then
-			ao.send({ Target = CollectionId, Action = 'Forward-Order', UpdateType = 'Update-Executed-Orders', Data = msg.Data })
-		end
-
 		if not SalesByAddress[data.Order.Sender] then
 			SalesByAddress[data.Order.Sender] = 0
 		end
@@ -333,6 +329,10 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			PurchasesByAddress[data.Order.Receiver] = 0
 		end
 		PurchasesByAddress[data.Order.Receiver] = PurchasesByAddress[data.Order.Receiver] + 1
+
+		if CollectionId and CollectionId ~= UNSET_COLLECTION then
+            ao.send({ Target = CollectionId, Action = 'Forward-Order', UpdateType = 'Update-Executed-Orders', Data = msg.Data })
+		end
 	end)
 
 Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Listed-Orders'),

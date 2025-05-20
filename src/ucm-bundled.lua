@@ -336,15 +336,10 @@ function ucm.createOrder(args)
 				}
 			})
 
+			args.syncState()
+
 			return
 		end
-
-		-- Log
-		-- print('Order type: ' .. orderType)
-		-- print('Match ID: ' .. args.orderId)
-		-- print('Swap token: ' .. args.swapToken)
-		-- print('Order recipient: ' .. args.sender)
-		-- print('Input quantity: ' .. tostring(remainingQuantity))
 
 		for _, currentOrderEntry in ipairs(currentOrders) do
 			if remainingQuantity > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
@@ -404,6 +399,9 @@ function ucm.createOrder(args)
 						TransferToken = currentToken,
 						OrderGroupId = args.orderGroupId
 					})
+
+					args.syncState()
+
 					return
 				end
 
@@ -412,13 +410,6 @@ function ucm.createOrder(args)
 
 				-- Gather all fulfillment fees for buyback
 				table.insert(BuybackCaptures, utils.calculateFeeAmount(sendAmount))
-
-				-- Log
-				-- print('Order creator: ' .. currentOrderEntry.Creator)
-				-- print('Fill amount (to buyer): ' .. tostring(fillAmount))
-				-- print('Send amount (to seller): ' .. tostring(calculatedSendAmount) .. ' (0.5% fee captured)')
-				-- print('Remaining fill quantity (purchase amount): ' .. tostring(remainingQuantity))
-				-- print('Remaining order quantity (listing): ' .. tostring(currentOrderEntry.Quantity) .. '\n')
 
 				-- Send tokens to the current order creator
 				ao.send({
@@ -494,7 +485,8 @@ function ucm.createOrder(args)
 			ucm.executeBuyback({
 				orderId = args.orderId,
 				blockheight = args.blockheight,
-				timestamp = args.timestamp
+				timestamp = args.timestamp,
+				syncState = args.syncState
 			})
 		end
 
@@ -535,6 +527,8 @@ function ucm.createOrder(args)
 					['X-Group-ID'] = args.orderGroupId or 'None'
 				}
 			})
+
+			args.syncState()
 		else
 			handleError({
 				Target = args.sender,
@@ -544,6 +538,9 @@ function ucm.createOrder(args)
 				TransferToken = currentToken,
 				OrderGroupId = args.orderGroupId
 			})
+
+			args.syncState()
+
 			return
 		end
 	else
@@ -607,12 +604,25 @@ function ucm.executeBuyback(args)
 				quantity = tostring(buybackAmount),
 				timestamp = args.timestamp,
 				blockheight = args.blockheight,
-				transferDenomination = tostring(pixlDenomination)
+				transferDenomination = tostring(pixlDenomination),
+				syncState = args.syncState
 			})
 
 			BuybackCaptures = {}
 		end
 	end
+end
+
+local function getState()
+    return {
+		Name = Name,
+		Orderbook = Orderbook,
+		ActivityProcess = ACTIVITY_PROCESS
+	}
+end
+
+local function syncState()
+    Send({ device = 'patch@1.0', orderbook = json.encode(getState()) })
 end
 
 function Trusted(msg)
@@ -631,13 +641,7 @@ Handlers.prepend('Qualify-Message', Trusted, function(msg)
 end)
 
 Handlers.add('Info', 'Info', function(msg)
-	msg.reply({
-		Data = json.encode({
-			Name = Name,
-			Orderbook = Orderbook,
-			ActivityProcess = ACTIVITY_PROCESS
-		})
-	})
+	msg.reply({ Data = json.encode(getState()) })
 end)
 
 Handlers.add('Get-Orderbook-By-Pair', 'Get-Orderbook-By-Pair',
@@ -693,7 +697,8 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 			sender = data.Sender,
 			quantity = msg.Tags.Quantity,
 			timestamp = msg.Timestamp,
-			blockheight = msg['Block-Height']
+			blockheight = msg['Block-Height'],
+			syncState = syncState
 		}
 
 		if msg.Tags['X-Price'] then
@@ -718,6 +723,7 @@ Handlers.add('Cancel-Order', 'Cancel-Order', function(msg)
 			})
 			return
 		end
+
 		-- Check if Pair and OrderTxId are valid
 		local validPair, pairError = utils.validatePairData(data.Pair)
 		local validOrderTxId = utils.checkValidAddress(data.OrderTxId)
@@ -772,8 +778,8 @@ Handlers.add('Cancel-Order', 'Cancel-Order', function(msg)
 
 				-- Remove the order from the current table
 				table.remove(Orderbook[pairIndex].Orders, orderIndex)
-
 				msg.reply({ Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order cancelled', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
+				syncState()
 
 				local cancelledDataSuccess, cancelledData = pcall(function()
 					return json.encode({

@@ -105,16 +105,18 @@ export async function cancelOrder(
 
 		const tags = [
 			{ name: 'Action', value: 'Run-Action' },
+			{ name: 'ForwardTo', value: args.orderbookId },
+			{ name: 'ForwardAction', value: 'Cancel-Order' },
 		];
 
 		const data = JSON.stringify({
 			Target: args.orderbookId,
 			Action: 'Cancel-Order',
-			Input: JSON.stringify({
+			Input: {
 				Pair: [args.dominantToken, args.swapToken],
 				OrderTxId: args.orderId,
 				['X-Group-ID']: MESSAGE_GROUP_ID
-			}),
+			}
 		});
 
 		globalLog('Cancelling order...')

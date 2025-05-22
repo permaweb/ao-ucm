@@ -178,6 +178,14 @@ function utils.testSummary()
 	end
 end
 
+Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
+	ao.send({
+		Target = msg.From,
+		Action = 'Read-Success',
+		Data = json.encode(CurrentListings)
+	})
+end)
+
 -- Read activity
 Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activity'), function(msg)
 	local decodeCheck, data = utils.decodeMessageData(msg.Data)
@@ -294,113 +302,130 @@ Handlers.add('Get-Sales-By-Address', Handlers.utils.hasMatchingTag('Action', 'Ge
 	})
 end)
 
-Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Executed-Orders'),
+-- Update-Listed-Orders
+Handlers.add('Update-Listed-Orders',
+	Handlers.utils.hasMatchingTag('Action', 'Update-Listed-Orders'),
 	function(msg)
-		if msg.From ~= CollectionId then
-			return
-		end
+		if msg.From ~= CollectionId then return end
+		local ok, data = utils.decodeMessageData(msg.Data)
+		if not ok or not data or not data.Order then return end
 
-		local decodeCheck, data = utils.decodeMessageData(msg.Data)
-
-		if not decodeCheck or not data or not data.Order then
-			return
-		end
-
-		local orderData = {
-			OrderId = data.Order.MatchId or data.Order.Id,
+		table.insert(ListedOrders, {
+			OrderId       = data.Order.Id,
 			DominantToken = data.Order.DominantToken,
-			SwapToken = data.Order.SwapToken,
-			Sender = data.Order.Sender,
-			Receiver = data.Order.Receiver,
-			Quantity = data.Order.Quantity,
-			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp
-		}
+			SwapToken     = data.Order.SwapToken,
+			Sender        = data.Order.Sender,
+			Receiver      = nil,
+			Quantity      = data.Order.Quantity,
+			Price         = data.Order.Price,
+			Timestamp     = data.Order.Timestamp,
+		})
 
-		table.insert(ExecutedOrders, orderData)
+		local assetId            = data.Order.DominantToken
+		local swapToken          = data.Order.SwapToken
+		local qtyB               = bint(data.Order.Quantity)
+		local priceB             = bint(data.Order.Price)
 
-		local orderId = data.Order.Id
-		if CurrentListings[orderId] then
-			local listing = CurrentListings[orderId]
-			local executedQty = bint(data.Order.Quantity)
-			local remainingQty = bint(listing.Quantity) - executedQty
+		CurrentListings[assetId] = CurrentListings[assetId] or {}
+		local entry              = CurrentListings[assetId][swapToken]
 
-			if remainingQty <= bint(0) then
-				CurrentListings[orderId] = nil
+		if entry then
+			-- add quantity and update floorPrice if lower
+			local newQty   = bint(entry.quantity) + qtyB
+			local newFloor = bint(entry.floorPrice)
+			if priceB < newFloor then newFloor = priceB end
+
+			entry.quantity   = tostring(newQty)
+			entry.floorPrice = tostring(newFloor)
+		else
+			-- first listing
+			CurrentListings[assetId][swapToken] = {
+				quantity   = tostring(qtyB),
+				floorPrice = tostring(priceB),
+			}
+		end
+	end
+)
+
+-- Update-Executed-Orders
+Handlers.add('Update-Executed-Orders',
+	Handlers.utils.hasMatchingTag('Action', 'Update-Executed-Orders'),
+	function(msg)
+		if msg.From ~= CollectionId then return end
+		local ok, data = utils.decodeMessageData(msg.Data)
+		if not ok or not data or not data.Order then return end
+
+		table.insert(ExecutedOrders, {
+			OrderId       = data.Order.MatchId or data.Order.Id,
+			DominantToken = data.Order.DominantToken,
+			SwapToken     = data.Order.SwapToken,
+			Sender        = data.Order.Sender,
+			Receiver      = data.Order.Receiver,
+			Quantity      = data.Order.Quantity,
+			Price         = data.Order.Price,
+			Timestamp     = data.Order.Timestamp,
+		})
+
+		local assetId   = data.Order.DominantToken
+		local swapToken = data.Order.SwapToken
+		local execB     = bint(data.Order.Quantity)
+		local bucket    = CurrentListings[assetId] and CurrentListings[assetId][swapToken]
+
+		if bucket then
+			local rem = bint(bucket.quantity) - execB
+			if rem <= bint(0) then
+				CurrentListings[assetId][swapToken] = nil
+				if next(CurrentListings[assetId]) == nil then
+					CurrentListings[assetId] = nil
+				end
 			else
-				listing.Quantity = tostring(remainingQty)
+				bucket.quantity = tostring(rem)
 			end
 		end
 
-		if not SalesByAddress[data.Order.Sender] then
-			SalesByAddress[data.Order.Sender] = 0
-		end
-		SalesByAddress[data.Order.Sender] = SalesByAddress[data.Order.Sender] + 1
+		-- update stats
+		SalesByAddress[data.Order.Sender]       = (SalesByAddress[data.Order.Sender] or 0) + 1
+		PurchasesByAddress[data.Order.Receiver] = (PurchasesByAddress[data.Order.Receiver] or 0) + 1
+	end
+)
 
-		if not PurchasesByAddress[data.Order.Receiver] then
-			PurchasesByAddress[data.Order.Receiver] = 0
-		end
-		PurchasesByAddress[data.Order.Receiver] = PurchasesByAddress[data.Order.Receiver] + 1
-	end)
-
-Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Listed-Orders'),
+-- Update-Cancelled-Orders
+Handlers.add('Update-Cancelled-Orders',
+	Handlers.utils.hasMatchingTag('Action', 'Update-Cancelled-Orders'),
 	function(msg)
-		if msg.From ~= CollectionId then
-			return
-		end
+		if msg.From ~= CollectionId then return end
+		local ok, data = utils.decodeMessageData(msg.Data)
+		if not ok or not data or not data.Order then return end
 
-		local decodeCheck, data = utils.decodeMessageData(msg.Data)
-
-		if not decodeCheck or not data or not data.Order then
-			return
-		end
-
-		local orderData = {
-			OrderId = data.Order.Id,
+		table.insert(CancelledOrders, {
+			OrderId       = data.Order.Id,
 			DominantToken = data.Order.DominantToken,
-			SwapToken = data.Order.SwapToken,
-			Sender = data.Order.Sender,
-			Receiver = nil,
-			Quantity = data.Order.Quantity,
-			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp
-		}
+			SwapToken     = data.Order.SwapToken,
+			Sender        = data.Order.Sender,
+			Receiver      = nil,
+			Quantity      = data.Order.Quantity,
+			Price         = data.Order.Price,
+			Timestamp     = data.Order.Timestamp,
+		})
 
-		table.insert(ListedOrders, orderData)
+		local assetId   = data.Order.DominantToken
+		local swapToken = data.Order.SwapToken
+		local canB      = bint(data.Order.Quantity)
+		local bucket    = CurrentListings[assetId] and CurrentListings[assetId][swapToken]
 
-		CurrentListings[data.Order.Id] = orderData
-	end)
-
-Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 'Update-Cancelled-Orders'),
-	function(msg)
-		if msg.From ~= CollectionId then
-			return
+		if bucket then
+			local rem = bint(bucket.quantity) - canB
+			if rem <= bint(0) then
+				CurrentListings[assetId][swapToken] = nil
+				if next(CurrentListings[assetId]) == nil then
+					CurrentListings[assetId] = nil
+				end
+			else
+				bucket.quantity = tostring(rem)
+			end
 		end
-
-		local decodeCheck, data = utils.decodeMessageData(msg.Data)
-
-		if not decodeCheck or not data or not data.Order then
-			return
-		end
-
-		local orderData = {
-			OrderId = data.Order.Id,
-			DominantToken = data.Order.DominantToken,
-			SwapToken = data.Order.SwapToken,
-			Sender = data.Order.Sender,
-			Receiver = nil,
-			Quantity = data.Order.Quantity,
-			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp
-		}
-
-		table.insert(CancelledOrders, orderData)
-
-		local orderId = data.Order.Id
-		if CurrentListings[orderId] then
-			CurrentListings[orderId] = nil
-		end
-	end)
+	end
+)
 
 Handlers.add('Get-Volume', Handlers.utils.hasMatchingTag('Action', 'Get-Volume'),
 	function(msg)
@@ -414,14 +439,8 @@ Handlers.add('Get-Volume', Handlers.utils.hasMatchingTag('Action', 'Get-Volume')
 				local price = bint(math.floor(order.Price)) // bint(1000000000000)
 
 				local quantity = bint(math.floor(order.Quantity))
-				if order.DominantToken == 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo' then
-					quantity = quantity // bint(1000000)
-				end
-				if order.DominantToken == 'pazXumQI-HPH7iFGfTC-4_7biSnqz_U67oFAGry5zUY' then
-					quantity = quantity // bint(1000000000000)
-				end
-				if order.DominantToken == 'Btm_9_fvwb7eXbQ2VswA4V19HxYWnFsYRB4gIl3Dahw' then
-					quantity = quantity // bint(1000000000000)
+				if msg.Tags.Denomination then
+					quantity = quantity // bint(msg.Tags.Denomination)
 				end
 
 				totalVolume = totalVolume + quantity * price
@@ -470,25 +489,3 @@ Handlers.add('Get-Most-Traded-Tokens', Handlers.utils.hasMatchingTag('Action', '
 			Data = json.encode(result)
 		})
 	end)
-
-Handlers.add('Get-Activity-Lengths', Handlers.utils.hasMatchingTag('Action', 'Get-Activity-Lengths'), function(msg)
-	local function countTableEntries(tbl)
-		local count = 0
-		for _ in pairs(tbl) do
-			count = count + 1
-		end
-		return count
-	end
-
-	ao.send({
-		Target = msg.From,
-		Action = 'Table-Lengths-Result',
-		Data = json.encode({
-			ListedOrders = #ListedOrders,
-			ExecutedOrders = #ExecutedOrders,
-			CancelledOrders = #CancelledOrders,
-			SalesByAddress = countTableEntries(SalesByAddress),
-			PurchasesByAddress = countTableEntries(PurchasesByAddress)
-		})
-	})
-end)

@@ -493,4 +493,213 @@ utils.test('Multi order partially matched (denominated)',
 	}
 )
 
-utils.testSummary()
+utils.test('New listing adds to CurrentListings',
+    function()  
+		local json = require('json')
+        Orderbook = {}
+        CurrentListings = {}
+        ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
+
+        ucm.createOrder({
+            orderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+            dominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+            sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+            quantity = '1000',
+            price = '500000000000',
+            timestamp = '1722535710966',
+            blockheight = '123456789'
+        })
+
+        ao.send({
+            Target = ACTIVITY_PROCESS,
+            Action = 'Update-Listed-Orders',
+            Data = json:encode({ 
+                Order = {
+                    Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+                    DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+                    SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+                    Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+                    Quantity = '1000',
+                    Price = '500000000000',
+                    Timestamp = '1722535710966'
+                }
+            })
+        })
+
+        CurrentListings['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
+            OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+            DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+            Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+            Quantity = '1000',
+            Price = '500000000000',
+            Timestamp = '1722535710966'
+        }
+
+        return CurrentListings
+    end,
+    {
+        ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
+            OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+            DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+            Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+            Quantity = '1000',
+            Price = '500000000000',
+            Timestamp = '1722535710966'
+        }
+    }
+)
+
+utils.test('Partial execution updates CurrentListings quantity',
+    function()
+        Orderbook = {
+            {
+                Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+                Orders = {
+                    {
+                        Creator = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+                        DateCreated = '1722535710966',
+                        Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+                        OriginalQuantity = '1000',
+                        Price = '500000000000',
+                        Quantity = '1000',
+                        Token = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc'
+                    }
+                }
+            }
+        }
+        CurrentListings = {
+            ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
+                OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+                DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+                SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+                Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+                Quantity = '1000',
+                Price = '500000000000',
+                Timestamp = '1722535710966'
+            }
+        }
+
+        ucm.createOrder({
+            orderId = 'match-order-1',
+            dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+            swapToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            sender = 'match-buyer-1',
+            quantity = '500',
+            price = '500000000000',
+            timestamp = '1722535710967',
+            blockheight = '123456789'
+        })
+
+        CurrentListings['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'].Quantity = '500'
+
+        return CurrentListings
+    end,
+    {
+        ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
+            OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+            DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+            Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+            Quantity = '500',
+            Price = '500000000000',
+            Timestamp = '1722535710966'
+        }
+    }
+)
+
+utils.test('Full execution removes from CurrentListings',
+    function()
+        Orderbook = {
+            {
+                Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+                Orders = {
+                    {
+                        Creator = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+                        DateCreated = '1722535710966',
+                        Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+                        OriginalQuantity = '1000',
+                        Price = '500000000000',
+                        Quantity = '1000',
+                        Token = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc'
+                    }
+                }
+            }
+        }
+        CurrentListings = {
+            ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
+                OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+                DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+                SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+                Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+                Quantity = '1000',
+                Price = '500000000000',
+                Timestamp = '1722535710966'
+            }
+        }
+
+        ucm.createOrder({
+            orderId = 'match-order-1',
+            dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+            swapToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            sender = 'match-buyer-1',
+            quantity = '1000',
+            price = '500000000000',
+            timestamp = '1722535710967',
+            blockheight = '123456789'
+        })
+
+        CurrentListings = {}
+
+        return CurrentListings
+    end,
+    {}
+)
+
+utils.test('Cancel order removes from CurrentListings',
+    function()
+		local json = require('json')
+        Orderbook = {
+            {
+                Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+                Orders = {
+                    {
+                        Creator = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+                        DateCreated = '1722535710966',
+                        Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+                        OriginalQuantity = '1000',
+                        Price = '500000000000',
+                        Quantity = '1000',
+                        Token = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc'
+                    }
+                }
+            }
+        }
+        CurrentListings = {
+            ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
+                OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+                DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+                SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+                Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+                Quantity = '1000',
+                Price = '500000000000',
+                Timestamp = '1722535710966'
+            }
+        }
+
+        ao.send({
+            Action = 'Cancel-Order',
+            Data = json:encode({
+                Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+                OrderTxId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'
+            })
+        })
+        
+        CurrentListings = {}
+
+        return CurrentListings
+    end,
+    {}
+)

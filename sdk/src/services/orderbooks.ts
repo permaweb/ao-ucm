@@ -4,8 +4,8 @@ import Permaweb from '@permaweb/libs';
 import { globalLog } from 'helpers/utils';
 
 const UCM_OWNER = 'YYSFAsZBLYAMmPijTam-D1jZbCO0vcWLRimdmMnKHyo';
-const UCM_ORDERBOOK_PROCESS = 'fwO6M2fDUecy8jQ9uLtpwQicGTM3Qq3quRJT7SmBe5o'; // Orderbook src
-const UCM_ACTIVITY_PROCESS = 'NUIES_ZMKH8RhKQnF6GQxzX2i7OVY4XBiD36VauQs6s'; // Activity src
+const UCM_ORDERBOOK_PROCESS = 'tFi6jTSvnLmT_Z_2lMVWUPIXLO6rfPStKpfHuXRnSaA';
+const UCM_ACTIVITY_PROCESS = 'NUIES_ZMKH8RhKQnF6GQxzX2i7OVY4XBiD36VauQs6s';
 
 // TODO: Add tags for indexing
 export async function createOrderbook(
@@ -23,7 +23,8 @@ export async function createOrderbook(
 		globalLog('Creating orderbook process...');
 		callback({ processing: true, success: false, message: 'Creating asset orderbook process...' });
 		orderbookId = await permaweb.createProcess({
-			evalTxId: UCM_ORDERBOOK_PROCESS
+			evalTxId: UCM_ORDERBOOK_PROCESS,
+			tags: [{ name: 'UCM-Process', value: 'Orderbook' }]
 		});
 		globalLog(`Orderbook ID: ${orderbookId}`);
 
@@ -31,6 +32,7 @@ export async function createOrderbook(
 		callback({ processing: true, success: false, message: 'Creating activity process...' });
 		const activityId = await permaweb.createProcess({
 			evalTxId: UCM_ACTIVITY_PROCESS,
+			tags: [{ name: 'UCM-Process', value: 'Asset-Activity' }]
 		});
 		globalLog(`Orderbook Activity ID: ${activityId}`);
 

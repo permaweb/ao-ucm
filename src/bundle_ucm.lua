@@ -494,6 +494,7 @@ function ucm.createOrder(args)
 		Orderbook[pairIndex].Orders = updatedOrderbook
 
 		local sumVolumePrice, sumVolume = 0, 0
+		local vwap = 0
 		if #matches > 0 then
 			for _, match in ipairs(matches) do
 				local volume = bint(match.Quantity)
@@ -502,7 +503,7 @@ function ucm.createOrder(args)
 				sumVolume = sumVolume + volume
 			end
 
-			local vwap = sumVolumePrice / sumVolume
+			vwap = sumVolumePrice / sumVolume
 			Orderbook[pairIndex].PriceData = {
 				Vwap = tostring(math.floor(vwap)),
 				Block = tostring(args.blockheight),
@@ -522,7 +523,7 @@ function ucm.createOrder(args)
 					DominantToken = currentToken,
 					SwapToken = args.swapToken,
 					Quantity = tostring(sumVolume),
-					Price = args.price and tostring(args.price) or 'None',
+					Price = tostring(math.floor(vwap)),
 					Message = 'Order created successfully!',
 					['X-Group-ID'] = args.orderGroupId or 'None'
 				}

@@ -1,6 +1,8 @@
 local json = require('json')
 local bint = require('.bint')(256)
 
+MAX_ORDERS = 1000
+
 CollectionId = CollectionId or ao.env.Process.Tags.CollectionId
 
 if not ListedOrders then ListedOrders = {} end
@@ -8,9 +10,16 @@ if not ExecutedOrders then ExecutedOrders = {} end
 if not CancelledOrders then CancelledOrders = {} end
 if not SalesByAddress then SalesByAddress = {} end
 if not PurchasesByAddress then PurchasesByAddress = {} end
+if not TotalVolume then TotalVolume = {} end
 if not CurrentListings then CurrentListings = {} end
 
 local utils = {}
+
+function utils.capOrders(orderTable)
+	if #orderTable > MAX_ORDERS then
+		table.remove(orderTable, 1)
+	end
+end
 
 function utils.checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
@@ -178,128 +187,24 @@ function utils.testSummary()
 	end
 end
 
+local function getState()
+	return {
+		ListedOrders = ListedOrders,
+		ExecutedOrders = ExecutedOrders,
+		CancelledOrders = CancelledOrders,
+		SalesByAddress = SalesByAddress,
+		PurchasesByAddress = PurchasesByAddress,
+		CurrentListings = CurrentListings,
+		TotalVolume = TotalVolume
+	}
+end
+
+local function syncState()
+	Send({ device = 'patch@1.0', activity = json.encode(getState()) })
+end
+
 Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
-	ao.send({
-		Target = msg.From,
-		Action = 'Read-Success',
-		Data = json.encode(CurrentListings)
-	})
-end)
-
--- Read activity
-Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activity'), function(msg)
-	local decodeCheck, data = utils.decodeMessageData(msg.Data)
-
-	if not data or not decodeCheck then
-		ao.send({
-			Target = msg.From,
-			Action = 'Input-Error'
-		})
-		return
-	end
-
-	local filteredListedOrders = {}
-	local filteredExecutedOrders = {}
-	local filteredCancelledOrders = {}
-
-	local function filterOrders(orders, assetIdsSet, owner, startDate, endDate)
-		local filteredOrders = {}
-		for _, order in ipairs(orders) do
-			local isAssetMatch = not assetIdsSet or assetIdsSet[order.DominantToken]
-			local isOwnerMatch = not owner or order.Sender == owner or order.Receiver == owner
-
-			local isDateMatch = true
-			if order.Timestamp and (startDate or endDate) then
-				local orderDate = bint(order.Timestamp)
-
-				if startDate then startDate = bint(startDate) end
-				if endDate then endDate = bint(endDate) end
-
-				if startDate and orderDate < startDate then
-					isDateMatch = false
-				end
-				if endDate and orderDate > endDate then
-					isDateMatch = false
-				end
-			end
-
-			if isAssetMatch and isOwnerMatch and isDateMatch then
-				table.insert(filteredOrders, order)
-			end
-		end
-		return filteredOrders
-	end
-
-	local assetIdsSet = nil
-	if data.AssetIds and #data.AssetIds > 0 then
-		assetIdsSet = {}
-		for _, assetId in ipairs(data.AssetIds) do
-			assetIdsSet[assetId] = true
-		end
-	end
-
-	local startDate = nil
-	local endDate = nil
-	if data.StartDate then startDate = data.StartDate end
-	if data.EndDate then endDate = data.EndDate end
-
-	filteredListedOrders = filterOrders(ListedOrders, assetIdsSet, data.Address, startDate, endDate)
-	filteredExecutedOrders = filterOrders(ExecutedOrders, assetIdsSet, data.Address, startDate, endDate)
-	filteredCancelledOrders = filterOrders(CancelledOrders, assetIdsSet, data.Address, startDate, endDate)
-
-	ao.send({
-		Target = msg.From,
-		Action = 'Read-Success',
-		Data = json.encode({
-			ListedOrders = filteredListedOrders,
-			ExecutedOrders = filteredExecutedOrders,
-			CancelledOrders = filteredCancelledOrders
-		})
-	})
-end)
-
--- Read order counts by address
-Handlers.add('Get-Order-Counts-By-Address', Handlers.utils.hasMatchingTag('Action', 'Get-Order-Counts-By-Address'),
-	function(msg)
-		local salesByAddress = SalesByAddress
-		local purchasesByAddress = PurchasesByAddress
-
-		if msg.Tags.Count then
-			local function getTopN(data, n)
-				local sortedData = {}
-				for k, v in pairs(data) do
-					table.insert(sortedData, { key = k, value = v })
-				end
-				table.sort(sortedData, function(a, b) return a.value > b.value end)
-				local topN = {}
-				for i = 1, n do
-					topN[sortedData[i].key] = sortedData[i].value
-				end
-				return topN
-			end
-
-			salesByAddress = getTopN(SalesByAddress, msg.Tags.Count)
-			purchasesByAddress = getTopN(PurchasesByAddress, msg.Tags.Count)
-		end
-
-		ao.send({
-			Target = msg.From,
-			Action = 'Read-Success',
-			Data = json.encode({
-				SalesByAddress = salesByAddress,
-				PurchasesByAddress = purchasesByAddress
-			})
-		})
-	end)
-
-Handlers.add('Get-Sales-By-Address', Handlers.utils.hasMatchingTag('Action', 'Get-Sales-By-Address'), function(msg)
-	ao.send({
-		Target = msg.From,
-		Action = 'Read-Success',
-		Data = json.encode({
-			SalesByAddress = SalesByAddress
-		})
-	})
+	msg.reply({ Data = json.encode(getState()) })
 end)
 
 -- Update-Listed-Orders
@@ -330,7 +235,6 @@ Handlers.add('Update-Listed-Orders',
 		local entry              = CurrentListings[assetId][swapToken]
 
 		if entry then
-			-- add quantity and update floorPrice if lower
 			local newQty   = bint(entry.quantity) + qtyB
 			local newFloor = bint(entry.floorPrice)
 			if priceB < newFloor then newFloor = priceB end
@@ -338,14 +242,16 @@ Handlers.add('Update-Listed-Orders',
 			entry.quantity   = tostring(newQty)
 			entry.floorPrice = tostring(newFloor)
 		else
-			-- first listing
 			CurrentListings[assetId][swapToken] = {
 				quantity   = tostring(qtyB),
 				floorPrice = tostring(priceB),
 			}
 		end
-	end
-)
+
+		utils.capOrders(ListedOrders)
+
+		syncState()
+	end)
 
 -- Update-Executed-Orders
 Handlers.add('Update-Executed-Orders',
@@ -383,11 +289,22 @@ Handlers.add('Update-Executed-Orders',
 			end
 		end
 
-		-- update stats
+		local swap                              = data.Order.SwapToken
+		local quantity                          = bint(data.Order.Quantity)
+		local price                             = bint(data.Order.Price)
+		local delta                             = quantity * price
+
+		local current                           = bint(TotalVolume[swap] or 0)
+
+		TotalVolume[swap]                       = tostring(current + delta)
+
 		SalesByAddress[data.Order.Sender]       = (SalesByAddress[data.Order.Sender] or 0) + 1
 		PurchasesByAddress[data.Order.Receiver] = (PurchasesByAddress[data.Order.Receiver] or 0) + 1
-	end
-)
+
+		utils.capOrders(ExecutedOrders)
+
+		syncState()
+	end)
 
 -- Update-Cancelled-Orders
 Handlers.add('Update-Cancelled-Orders',
@@ -424,68 +341,8 @@ Handlers.add('Update-Cancelled-Orders',
 				bucket.quantity = tostring(rem)
 			end
 		end
-	end
-)
 
-Handlers.add('Get-Volume', Handlers.utils.hasMatchingTag('Action', 'Get-Volume'),
-	function(msg)
-		local function validNumber(value)
-			return type(value) == 'number' or (type(value) == 'string' and tonumber(value) ~= nil)
-		end
+		utils.capOrders(CancelledOrders)
 
-		local totalVolume = bint(0)
-		for _, order in ipairs(ExecutedOrders) do
-			if order.Receiver and order.Quantity and validNumber(order.Quantity) and order.Price and validNumber(order.Price) then
-				local price = bint(math.floor(order.Price)) // bint(1000000000000)
-
-				local quantity = bint(math.floor(order.Quantity))
-				if msg.Tags.Denomination then
-					quantity = quantity // bint(msg.Tags.Denomination)
-				end
-
-				totalVolume = totalVolume + quantity * price
-			end
-		end
-
-		print('Total Volume: ' .. tostring(totalVolume))
-
-		ao.send({
-			Target = msg.From,
-			Action = 'Volume-Notice',
-			Volume = tostring(totalVolume)
-		})
-	end)
-
-Handlers.add('Get-Most-Traded-Tokens', Handlers.utils.hasMatchingTag('Action', 'Get-Most-Traded-Tokens'),
-	function(msg)
-		local tokenVolumes = {}
-
-		for _, order in ipairs(ExecutedOrders) do
-			if order.DominantToken and order.Quantity and type(order.Quantity) == 'string' then
-				local quantity = bint(math.floor(order.Quantity))
-				tokenVolumes[order.DominantToken] = (tokenVolumes[order.DominantToken] or bint(0)) + quantity
-			end
-		end
-
-		local sortedTokens = {}
-		for token, volume in pairs(tokenVolumes) do
-			table.insert(sortedTokens, { token = token, volume = volume })
-		end
-
-		table.sort(sortedTokens, function(a, b) return a.volume > b.volume end)
-
-		local topN = tonumber(msg.Tags.Count) or 10
-		local result = {}
-		for i = 1, math.min(topN, #sortedTokens) do
-			result[i] = {
-				Token = sortedTokens[i].token,
-				Volume = tostring(sortedTokens[i].volume)
-			}
-		end
-
-		ao.send({
-			Target = msg.From,
-			Action = 'Most-Traded-Tokens-Result',
-			Data = json.encode(result)
-		})
+		syncState()
 	end)

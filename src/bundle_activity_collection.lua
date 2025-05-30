@@ -346,3 +346,10 @@ Handlers.add('Update-Cancelled-Orders',
 
 		syncState()
 	end)
+
+Initialized = Initialized or false
+
+if not Initialized then
+	syncState()
+	Initialized = true
+end

@@ -180,7 +180,9 @@ async function getMatchingMessages(
 		throw new Error('Failed to match actions within retry limit.');
 	}
 
-	globalLog('Match found:', currentMatchActions);
+	for (const match of currentMatchActions) {
+		globalLog('Match found:', match);
+	}
 
 	return messagesByGroupId;
 }

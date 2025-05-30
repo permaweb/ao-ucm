@@ -343,3 +343,10 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 
 		syncState()
 	end)
+
+Initialized = Initialized or false
+
+if not Initialized then
+	syncState()
+	Initialized = true
+end

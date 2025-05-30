@@ -42,30 +42,8 @@ local function checkValidAmount(data)
 end
 
 local function getAllocation(currentHeight)
-	if next(Streaks) == nil then
-		return nil
-	end
-
-	local reward = 0
-	local current = 0
-
-	for _, v in pairs(Balances) do
-		current = current + v
-	end
-
-	if current >= HALVING_SUPPLY then
-		print('All rewards have been dispersed')
-		return
-	end
-
-	local blockHeight = tonumber(currentHeight) - ORIGIN_HEIGHT
-	local currentCycle = math.floor(blockHeight / CYCLE_INTERVAL) + 1
-	local divisor = 2 ^ currentCycle
-
-	reward = math.floor(math.floor(HALVING_SUPPLY / divisor) / 365)
-
-	if reward <= 0 then
-		return nil
+	if not Streaks or next(Streaks) == nil then
+		return {}
 	end
 
 	local multipliers = {}
@@ -86,25 +64,35 @@ local function getAllocation(currentHeight)
 		end
 	end
 
-	-- Calculate the total multiplier sum
-	local total = 0
-	for _, v in pairs(multipliers) do
-		if v > 0 then
-			total = total + v
-		end
+	local totalW = 0
+	for _, m in pairs(multipliers) do totalW = totalW + m end
+
+	local currentSupply = bint(0)
+	for _, v in pairs(Balances) do
+		currentSupply = currentSupply + bint(v)
+	end
+	if currentSupply >= TOTAL_SUPPLY then
+		print('Total supply reached—no more rewards')
+		return
 	end
 
-	-- Initialize allocation table
+	-- Compute halving based daily reward
+	local blockHeight = tonumber(currentHeight) - ORIGIN_HEIGHT
+	local cycle       = math.floor(blockHeight / CYCLE_INTERVAL) + 1
+	local divisor     = 2 ^ cycle
+	local dailyMint   = math.floor(math.floor(REWARDS_SUPPLY / divisor) / 365)
+
+	if dailyMint <= 0 then
+		return
+	end
+
+	local unminted   = TOTAL_SUPPLY - currentSupply
+	local reward     = (bint(dailyMint) <= unminted) and bint(dailyMint) or unminted
+
 	local allocation = {}
-
-	-- Calculate the allocation for each balance
-	for address, multiplier in pairs(multipliers) do
-		if multiplier >= 1 then
-			local pct = (multiplier / total) * 100
-			local amount = math.floor(reward * (pct / 100) + 0.5) -- Round to the nearest integer
-
-			allocation[address] = (allocation[address] or 0) + amount
-		end
+	for addr, m in pairs(multipliers) do
+		local share = math.floor((reward * (m / totalW)) + 0.5)
+		allocation[addr] = share
 	end
 
 	return allocation
@@ -260,10 +248,6 @@ Handlers.add('Balances', 'Balances',
 -- Update streaks table by buyer (Data - { Buyer })
 Handlers.add('Calculate-Streak', Handlers.utils.hasMatchingTag('Action', 'Calculate-Streak'),
 	function(msg)
-		if msg.From ~= UCM_PROCESS then
-			return
-		end
-
 		local data = {
 			Buyer = msg.Tags.Buyer
 		}
@@ -329,10 +313,7 @@ Handlers.add('Read-Current-Rewards', Handlers.utils.hasMatchingTag('Action', 'Re
 
 		-- Initialize allocation table
 		local allocation = getAllocation(msg['Block-Height'])
-
-		if allocation and allocation[data.Recipient] then
-			msg.reply({ Data = allocation[data.Recipient] })
-		end
+		msg.reply({ Data = allocation and allocation[data.Recipient] or '0' })
 	end)
 
 -- Trigger rewards dispersement
@@ -352,20 +333,18 @@ Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards
 		local allocation = getAllocation(msg['Block-Height'])
 
 		if allocation then
-			-- Update balances
-			for k, v in pairs(allocation) do
-				if not Balances[k] then
-					Balances[k] = '0'
-				end
-				Balances[k] = tostring(bint(Balances[k] + bint(v)))
-			end
+			print(allocation)
 
-			LastReward = msg['Block-Height']
+			-- for k, v in pairs(allocation) do
+			-- 	Balances[k] = tostring(bint(Balances[k] or '0') + bint(v))
+			-- end
 
 			msg.reply({ Action = 'Rewards-Dispersed' })
 		else
 			msg.reply({ Data = 'No rewards to disperse' })
 		end
+
+		LastReward = msg['Block-Height']
 	end)
 
 Handlers.add('Migrate-Streak', Handlers.utils.hasMatchingTag('Action', 'Migrate-Streak'), function(msg)

@@ -1,4 +1,3 @@
-import { results } from '@permaweb/aoconnect';
 import Permaweb from '@permaweb/libs';
 
 import { DependenciesType, OrderCancelType, OrderCreateType } from 'helpers/types';
@@ -60,7 +59,8 @@ export async function createOrder(
 				[args.orderbookId],
 				MESSAGE_GROUP_ID,
 				successMatch,
-				errorMatch
+				errorMatch,
+				deps
 			);
 
 			const currentMatchActions = messagesByGroupId
@@ -141,8 +141,9 @@ async function getMatchingMessages(
 	groupId: string,
 	successMatch: string[],
 	errorMatch: string[],
+	deps: DependenciesType,
 	maxAttempts: number = MAX_RESULT_RETRIES,
-	delayMs: number = 1000
+	delayMs: number = 1000,
 ): Promise<string[]> {
 	let currentMatchActions: string[] = [];
 	let attempts = 0;
@@ -162,7 +163,7 @@ async function getMatchingMessages(
 
 	do {
 		attempts++;
-		messagesByGroupId = await getMessagesByGroupId(processes, groupId);
+		messagesByGroupId = await getMessagesByGroupId(processes, groupId, deps);
 
 		currentMatchActions = messagesByGroupId
 			.map((message: any) => getTagValue(message.Tags, 'Action'))
@@ -179,15 +180,17 @@ async function getMatchingMessages(
 		throw new Error('Failed to match actions within retry limit.');
 	}
 
-	globalLog('Match found:', currentMatchActions);
+	for (const match of currentMatchActions) {
+		globalLog('Match found:', match);
+	}
 
 	return messagesByGroupId;
 }
 
-async function getMessagesByGroupId(processes: string[], groupId: string): Promise<any[]> {
+async function getMessagesByGroupId(processes: string[], groupId: string, deps: DependenciesType): Promise<any[]> {
 	const resultsByGroupId = [];
 	for (const process of processes) {
-		const messageResults = await results({
+		const messageResults = await deps.ao.results({
 			process: process,
 			sort: 'DESC',
 			limit: 100,

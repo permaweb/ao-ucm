@@ -3,11 +3,9 @@ import { DependenciesType, OrderbookCreateType } from 'helpers/types';
 import Permaweb from '@permaweb/libs';
 import { globalLog } from 'helpers/utils';
 
-const UCM_OWNER = 'YYSFAsZBLYAMmPijTam-D1jZbCO0vcWLRimdmMnKHyo';
-const UCM_ORDERBOOK_PROCESS = 'fwO6M2fDUecy8jQ9uLtpwQicGTM3Qq3quRJT7SmBe5o'; // Orderbook src
-const UCM_ACTIVITY_PROCESS = 'NUIES_ZMKH8RhKQnF6GQxzX2i7OVY4XBiD36VauQs6s'; // Activity src
+const UCM_ORDERBOOK_PROCESS = 'M9bKMPzl5tN10_NldmFEoZi8lnlzJ47ccU5w321sltM';
+const UCM_ACTIVITY_PROCESS = 'Bb6p68vUQPbZOif8YqE2d4lf9_F7w2mXceVxzOuhOhM';
 
-// TODO: Add tags for indexing
 export async function createOrderbook(
 	deps: DependenciesType,
 	args: OrderbookCreateType,
@@ -23,7 +21,8 @@ export async function createOrderbook(
 		globalLog('Creating orderbook process...');
 		callback({ processing: true, success: false, message: 'Creating asset orderbook process...' });
 		orderbookId = await permaweb.createProcess({
-			evalTxId: UCM_ORDERBOOK_PROCESS
+			evalTxId: UCM_ORDERBOOK_PROCESS,
+			tags: [{ name: 'UCM-Process', value: 'Orderbook' }]
 		});
 		globalLog(`Orderbook ID: ${orderbookId}`);
 
@@ -31,6 +30,7 @@ export async function createOrderbook(
 		callback({ processing: true, success: false, message: 'Creating activity process...' });
 		const activityId = await permaweb.createProcess({
 			evalTxId: UCM_ACTIVITY_PROCESS,
+			tags: [{ name: 'UCM-Process', value: 'Asset-Activity' }]
 		});
 		globalLog(`Orderbook Activity ID: ${activityId}`);
 
@@ -75,26 +75,6 @@ export async function createOrderbook(
 			globalLog(`Collection Activity Eval: ${collectionActivityEval}`);
 		}
 
-		globalLog('Giving orderbook ownership to UCM...');
-		callback({ processing: true, success: false, message: 'Giving orderbook ownership to UCM...' });
-		const orderbookOwnerEval = await permaweb.sendMessage({
-			processId: orderbookId,
-			action: 'Eval',
-			data: `Owner = '${UCM_OWNER}'`,
-			useRawData: true
-		});
-		globalLog(`Orderbook Owner Eval: ${orderbookOwnerEval}`);
-		
-		globalLog('Giving activity ownership to UCM...');
-		callback({ processing: true, success: false, message: 'Giving activity ownership to UCM...' });
-		const activityOwnerEval = await permaweb.sendMessage({
-			processId: activityId,
-			action: 'Eval',
-			data: `Owner = '${UCM_OWNER}'`,
-			useRawData: true
-		});
-		globalLog(`Activity Owner Eval: ${activityOwnerEval}`);
-
 		globalLog('Adding orderbook to asset...');
 		callback({ processing: true, success: false, message: 'Adding orderbook to asset...' });
 		const assetEval = await permaweb.sendMessage({
@@ -135,6 +115,8 @@ const assetOrderbookEval = (orderbookId: string) => {
 			local transferable = Token and Token.Transferable or Transferable
 			local orderbookId = Token and Token.OrderbookId or OrderbookId
 			local creator = Token and Token.Creator or Creator
+			local balances = Token and Token.Balances or Balances
+			local totalSupply = Token and Token.TotalSupply or TotalSupply
 
 			local response = {
 				Name = name,
@@ -145,10 +127,13 @@ const assetOrderbookEval = (orderbookId: string) => {
 					Name = name,
 					Ticker = ticker,
 					Denomination = tostring(denomination),
+					Balances = balances,
+					TotalSupply = TotalSupply,
 					Transferable = transferable,
 					Creator = creator,
-					Balances = Balances,
 					Metadata = Metadata,
+					AuthUsers = AuthUsers or {},
+        			IndexRecipients = IndexRecipients or {},
 					DateCreated = tostring(DateCreated),
 					LastUpdate = tostring(LastUpdate)
 				})

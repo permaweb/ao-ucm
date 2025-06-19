@@ -21,7 +21,7 @@ export async function createOrder(
 		const tags = [
 			{ name: 'Target', value: args.dominantToken },
 			{ name: 'ForwardTo', value: args.dominantToken },
-			{ name: 'ForwardAction', value: 'Transfer' },
+			{ name: 'ForwardAction', value: args.action === 'ArNS-Transfer' ? 'ArNS-Transfer' : 'Transfer' },
 			{ name: 'Recipient', value: args.orderbookId },
 			{ name: 'Quantity', value: args.quantity },
 		];
@@ -34,10 +34,34 @@ export async function createOrder(
 		];
 
 		/* Added for legacy profile support */
-		const data = { Target: args.dominantToken, Action: 'Transfer', Input: {} };
+		const data = { Target: args.dominantToken, Action: args.action, Input: {} };
 
 		if (args.unitPrice) forwardedTags.push({ name: 'X-Price', value: args.unitPrice.toString() });
 		if (args.denomination) forwardedTags.push({ name: 'X-Transfer-Denomination', value: args.denomination.toString() });
+
+		// Add ArNS specific tags if this is an ArNS transfer
+		if (args.action === 'ArNS-Transfer' && args.arns) {
+			forwardedTags.push(
+				{ name: 'X-ArNS-Name', value: args.arns.name },
+				{ name: 'X-ArNS-Type', value: args.arns.type }
+			);
+			
+			if (args.arns.type === 'lease' && args.arns.years) {
+				forwardedTags.push({ name: 'X-ArNS-Years', value: args.arns.years.toString() });
+			}
+			
+			if (args.arns.undernameLimit !== undefined) {
+				forwardedTags.push({ name: 'X-ArNS-Undername-Limit', value: args.arns.undernameLimit.toString() });
+			}
+
+			// Update data for ArNS transfer
+			data.Input = {
+				name: args.arns.name,
+				type: args.arns.type,
+				years: args.arns.years,
+				undernameLimit: args.arns.undernameLimit
+			};
+		}
 
 		tags.push(...forwardedTags);
 
@@ -220,6 +244,20 @@ function getOrderCreationErrorMessage(args: OrderCreateType): string | null {
 	if (typeof args.quantity !== 'string' || args.quantity.trim() === '') return 'Quantity is required';
 	if ('unitPrice' in args && typeof args.unitPrice !== 'string') return 'Unit price is invalid';
 	if ('denomination' in args && typeof args.denomination !== 'string') return 'Denomination is invalid';
+	
+	// ArNS validation
+	if (args.action === 'ArNS-Transfer') {
+		if (!args.arns) return 'ArNS details are required for ArNS-Transfer action';
+		if (typeof args.arns.name !== 'string' || args.arns.name.trim() === '') return 'ArNS name is required';
+		if (args.arns.type !== 'lease' && args.arns.type !== 'permabuy') return 'Invalid ArNS type';
+		if (args.arns.type === 'lease' && (!args.arns.years || args.arns.years < 1 || args.arns.years > 5)) {
+			return 'Lease years must be between 1 and 5';
+		}
+		if (args.arns.undernameLimit !== undefined && (args.arns.undernameLimit < 0 || args.arns.undernameLimit > 10000)) {
+			return 'Undername limit must be between 0 and 10000';
+		}
+	}
+	
 	return null;
 }
 

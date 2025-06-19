@@ -9,15 +9,23 @@ export type OrderbookCreateType = {
 	collectionId?: string;
 }
 
+export type ArNSDetailsType = {
+	name: string;
+	type: 'lease' | 'permabuy';
+	years?: number;
+	undernameLimit?: number;
+}
+
 export type OrderCreateType = {
 	orderbookId: string;
 	creatorId: string;
 	dominantToken: string;
 	swapToken: string;
 	quantity: string;
-	action: 'Transfer' | 'Run-Action';
+	action: 'Transfer' | 'Run-Action' | 'ArNS-Transfer';
 	unitPrice?: string;
 	denomination?: string;
+	arns?: ArNSDetailsType;
 }
 
 export type OrderCancelType = {

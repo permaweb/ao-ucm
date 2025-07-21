@@ -6,7 +6,6 @@ local utils = require('utils')
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
 ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
-PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 
 -- Orderbook {
@@ -23,7 +22,6 @@ DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 -- } []
 
 if not Orderbook then Orderbook = {} end
-if not BuybackCaptures then BuybackCaptures = {} end
 
 local ucm = {}
 
@@ -244,9 +242,6 @@ function ucm.createOrder(args)
 				local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
 				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
-				-- Gather all fulfillment fees for buyback
-				table.insert(BuybackCaptures, utils.calculateFeeAmount(sendAmount))
-
 				-- Log
 				-- print('Order creator: ' .. currentOrderEntry.Creator)
 				-- print('Fill amount (to buyer): ' .. tostring(fillAmount))
@@ -303,15 +298,6 @@ function ucm.createOrder(args)
 					Data = matchedDataSuccess and matchedData or ''
 				})
 
-				-- Calculate streaks
-				ao.send({
-					Target = PIXL_PROCESS,
-					Action = 'Calculate-Streak',
-					Tags = {
-						Buyer = args.sender
-					}
-				})
-
 				-- If there are remaining shares in the current order, keep it in the order book
 				if bint(currentOrderEntry.Quantity) > bint(0) then
 					table.insert(updatedOrderbook, currentOrderEntry)
@@ -321,15 +307,6 @@ function ucm.createOrder(args)
 					table.insert(updatedOrderbook, currentOrderEntry)
 				end
 			end
-		end
-
-		-- Execute PIXL buyback
-		if orderType == 'Market' and #BuybackCaptures > 0 and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
-			ucm.executeBuyback({
-				orderId = args.orderId,
-				blockheight = args.blockheight,
-				timestamp = args.timestamp
-			})
 		end
 
 		-- Update the order book with remaining and new orders
@@ -389,63 +366,6 @@ function ucm.createOrder(args)
 			TransferToken = currentToken,
 			OrderGroupId = args.orderGroupId
 		})
-	end
-end
-
-function ucm.executeBuyback(args)
-	local pixlDenomination = 1000000
-	local pixlPairIndex = ucm.getPairIndex({ DEFAULT_SWAP_TOKEN, PIXL_PROCESS })
-
-	if pixlPairIndex > -1 then
-		local pixlOrderbook = Orderbook[pixlPairIndex].Orders
-
-		if pixlOrderbook and #pixlOrderbook > 0 then
-			table.sort(pixlOrderbook, function(a, b)
-				local priceA = bint(a.Price)
-				local priceB = bint(b.Price)
-				if priceA == priceB then
-					local quantityA = bint(a.Quantity)
-					local quantityB = bint(b.Quantity)
-					return quantityA < quantityB
-				end
-				return priceA < priceB
-			end)
-
-			local buybackAmount = bint(0)
-
-			for _, quantity in ipairs(BuybackCaptures) do
-				buybackAmount = buybackAmount + bint(quantity)
-			end
-
-			local minQuantity = bint(pixlOrderbook[1].Price)
-			local maxQuantity = bint(0)
-
-			for _, order in ipairs(pixlOrderbook) do
-				maxQuantity = maxQuantity + ((bint(order.Quantity) // bint(pixlDenomination)) *
-					bint(order.Price))
-			end
-
-			if buybackAmount < minQuantity then
-				return
-			end
-
-			if buybackAmount > maxQuantity then
-				buybackAmount = maxQuantity
-			end
-
-			ucm.createOrder({
-				orderId = args.orderId,
-				dominantToken = DEFAULT_SWAP_TOKEN,
-				swapToken = PIXL_PROCESS,
-				sender = ao.id,
-				quantity = tostring(buybackAmount),
-				timestamp = args.timestamp,
-				blockheight = args.blockheight,
-				transferDenomination = tostring(pixlDenomination)
-			})
-
-			BuybackCaptures = {}
-		end
 	end
 end
 

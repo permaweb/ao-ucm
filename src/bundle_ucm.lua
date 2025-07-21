@@ -5,7 +5,6 @@ if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Market
 
 if not ACTIVITY_PROCESS then ACTIVITY_PROCESS = '<ACTIVITY_PROCESS>' end
 
-PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 
 -- Orderbook {
@@ -22,7 +21,6 @@ DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 -- } []
 
 if not Orderbook then Orderbook = {} end
-if not BuybackCaptures then BuybackCaptures = {} end
 
 local utils = {}
 local ucm = {}
@@ -408,9 +406,6 @@ function ucm.createOrder(args)
 				local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
 				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
-				-- Gather all fulfillment fees for buyback
-				table.insert(BuybackCaptures, utils.calculateFeeAmount(sendAmount))
-
 				-- Send tokens to the current order creator
 				ao.send({
 					Target = currentToken,
@@ -460,15 +455,6 @@ function ucm.createOrder(args)
 					Data = matchedDataSuccess and matchedData or ''
 				})
 
-				-- Calculate streaks
-				ao.send({
-					Target = PIXL_PROCESS,
-					Action = 'Calculate-Streak',
-					Tags = {
-						Buyer = args.sender
-					}
-				})
-
 				-- If there are remaining shares in the current order, keep it in the order book
 				if bint(currentOrderEntry.Quantity) > bint(0) then
 					table.insert(updatedOrderbook, currentOrderEntry)
@@ -478,16 +464,6 @@ function ucm.createOrder(args)
 					table.insert(updatedOrderbook, currentOrderEntry)
 				end
 			end
-		end
-
-		-- Execute PIXL buyback
-		if orderType == 'Market' and #BuybackCaptures > 0 and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
-			ucm.executeBuyback({
-				orderId = args.orderId,
-				blockheight = args.blockheight,
-				timestamp = args.timestamp,
-				syncState = args.syncState
-			})
 		end
 
 		-- Update the order book with remaining and new orders
@@ -553,64 +529,6 @@ function ucm.createOrder(args)
 			TransferToken = currentToken,
 			OrderGroupId = args.orderGroupId
 		})
-	end
-end
-
-function ucm.executeBuyback(args)
-	local pixlDenomination = 1000000
-	local pixlPairIndex = ucm.getPairIndex({ DEFAULT_SWAP_TOKEN, PIXL_PROCESS })
-
-	if pixlPairIndex > -1 then
-		local pixlOrderbook = Orderbook[pixlPairIndex].Orders
-
-		if pixlOrderbook and #pixlOrderbook > 0 then
-			table.sort(pixlOrderbook, function(a, b)
-				local priceA = bint(a.Price)
-				local priceB = bint(b.Price)
-				if priceA == priceB then
-					local quantityA = bint(a.Quantity)
-					local quantityB = bint(b.Quantity)
-					return quantityA < quantityB
-				end
-				return priceA < priceB
-			end)
-
-			local buybackAmount = bint(0)
-
-			for _, quantity in ipairs(BuybackCaptures) do
-				buybackAmount = buybackAmount + bint(quantity)
-			end
-
-			local minQuantity = bint(pixlOrderbook[1].Price)
-			local maxQuantity = bint(0)
-
-			for _, order in ipairs(pixlOrderbook) do
-				maxQuantity = maxQuantity + ((bint(order.Quantity) // bint(pixlDenomination)) *
-					bint(order.Price))
-			end
-
-			if buybackAmount < minQuantity then
-				return
-			end
-
-			if buybackAmount > maxQuantity then
-				buybackAmount = maxQuantity
-			end
-
-			ucm.createOrder({
-				orderId = args.orderId,
-				dominantToken = DEFAULT_SWAP_TOKEN,
-				swapToken = PIXL_PROCESS,
-				sender = ao.id,
-				quantity = tostring(buybackAmount),
-				timestamp = args.timestamp,
-				blockheight = args.blockheight,
-				transferDenomination = tostring(pixlDenomination),
-				syncState = args.syncState
-			})
-
-			BuybackCaptures = {}
-		end
 	end
 end
 
@@ -859,23 +777,6 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 					Orderbook[pairIndex]
 			})
 		})
-	end
-end)
-
-Handlers.add('Order-Success', Handlers.utils.hasMatchingTag('Action', 'Order-Success'), function(msg)
-	if msg.From == ao.id and
-		msg.Tags.DominantToken and msg.Tags.DominantToken == DEFAULT_SWAP_TOKEN and
-		msg.Tags.SwapToken and msg.Tags.SwapToken == PIXL_PROCESS then
-		if msg.Tags.Quantity and tonumber(msg.Tags.Quantity) > 0 then
-			ao.send({
-				Target = PIXL_PROCESS,
-				Action = 'Transfer',
-				Tags = {
-					Recipient = string.rep('0', 43),
-					Quantity = msg.Tags.Quantity
-				}
-			})
-		end
 	end
 end)
 

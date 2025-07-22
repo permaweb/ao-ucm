@@ -115,3 +115,76 @@ To run the test suite:
    ```bash
    lua tests.lua
    ```
+
+## Development
+
+### SDK Development
+
+The SDK provides TypeScript interfaces for interacting with the marketplace:
+
+```bash
+cd sdk
+npm install
+npm run build
+```
+
+### Toolkit Development
+
+The toolkit provides development utilities:
+
+```bash
+cd toolkit
+npm install
+npm run build
+```
+
+## Project Structure
+
+This project consists of several components organized into different directories:
+
+### Core Process Files (`src/`)
+
+#### Main Process Files
+- **`process.lua`** - Main entry point for the ARnS Marketplace process. Handles message routing, validation, and core marketplace functionality including order creation, credit notices, and basic process operations.
+
+- **`ucm.lua`** - Universal Content Marketplace core logic. Contains the main marketplace functions including order book management, pair indexing, order creation, and error handling. This is the heart of the marketplace functionality.
+
+- **`activity.lua`** - Activity tracking and reporting system. Manages order history, executed orders, cancelled orders, and provides activity queries with filtering capabilities by address, date range, and asset IDs.
+
+- **`utils.lua`** - Utility functions used throughout the project. Includes address validation, amount validation, JSON message decoding, pair data validation, fee calculations, and table printing utilities.
+
+#### Bundle Files (Combined Modules)
+- **`bundle_ucm.lua`** - Self-contained bundle of the Universal Content Marketplace with all dependencies included. This is a standalone version that can be deployed independently.
+
+- **`bundle_activity_collection.lua`** - Bundled activity collection system for tracking and managing marketplace activity data.
+
+- **`bundle_activity_asset.lua`** - Bundled asset-specific activity tracking system for monitoring individual asset trading activity.
+
+### SDK (`sdk/`)
+
+The SDK provides TypeScript/JavaScript interfaces for interacting with the ARnS Marketplace:
+
+- **`package.json`** - SDK package configuration with dependencies for Arweave and Permaweb libraries
+- **`build.js`** - Build script for compiling the SDK
+- **`tsconfig.json`** - TypeScript configuration for the SDK
+- **`src/`** - Source code for the SDK including services and helpers
+- **`bin/`** - Binary executables for the SDK
+
+### Toolkit (`toolkit/`)
+
+Development and testing tools for the marketplace:
+
+- **`package.json`** - Toolkit package configuration with AO Connect dependencies
+- **`tsconfig.json`** - TypeScript configuration for the toolkit
+- **`src/index.ts`** - Main toolkit implementation for development and testing utilities
+
+### Testing (`tests/`)
+
+- **`tests.lua`** - Comprehensive test suite for the marketplace functionality
+- **`node/`** - Node.js based tests for the SDK and toolkit components
+
+### Configuration Files
+
+- **`.editorconfig`** - Editor configuration for consistent coding style
+- **`.gitignore`** - Git ignore rules for the project
+- **`spec.md`** - Detailed specification document for the ARnS Marketplace protocol

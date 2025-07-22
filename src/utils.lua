@@ -3,6 +3,9 @@ local bint = require('.bint')(256)
 
 local utils = {}
 
+-- ARIO token process ID - replace with actual ARIO token process ID
+ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+
 function utils.checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
 		return false
@@ -13,6 +16,24 @@ end
 
 function utils.checkValidAmount(data)
 	return bint(data) > bint(0)
+end
+
+function utils.isArioToken(tokenAddress)
+	return tokenAddress == ARIO_TOKEN_PROCESS_ID
+end
+
+function utils.validateArioSwapToken(tokenAddress)
+	-- Allow ARIO tokens in both dominant and swap positions
+	-- This enables both selling for ARIO and buying with ARIO
+	return true, nil
+end
+
+function utils.validateArioInTrade(dominantToken, swapToken)
+	-- At least one of the tokens in the trade must be ARIO
+	if dominantToken == ARIO_TOKEN_PROCESS_ID or swapToken == ARIO_TOKEN_PROCESS_ID then
+		return true, nil
+	end
+	return false, 'At least one token in the trade must be ARIO'
 end
 
 function utils.decodeMessageData(data)

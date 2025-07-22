@@ -5,7 +5,10 @@ if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Market
 
 if not ACTIVITY_PROCESS then ACTIVITY_PROCESS = '<ACTIVITY_PROCESS>' end
 
-DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+DEFAULT_SWAP_TOKEN = 'ARIO_TOKEN_PROCESS_ID' -- Replace with actual ARIO token process ID
+
+-- ARIO token process ID - replace with actual ARIO token process ID
+ARIO_TOKEN_PROCESS_ID = 'ARIO_TOKEN_PROCESS_ID'
 
 -- Orderbook {
 -- 	Pair [TokenId, TokenId],
@@ -35,6 +38,24 @@ end
 
 function utils.checkValidAmount(data)
 	return bint(data) > bint(0)
+end
+
+function utils.isArioToken(tokenAddress)
+	return tokenAddress == ARIO_TOKEN_PROCESS_ID
+end
+
+function utils.validateArioSwapToken(tokenAddress)
+	-- Allow ARIO tokens in both dominant and swap positions
+	-- This enables both selling for ARIO and buying with ARIO
+	return true, nil
+end
+
+function utils.validateArioInTrade(dominantToken, swapToken)
+	-- At least one of the tokens in the trade must be ARIO
+	if dominantToken == ARIO_TOKEN_PROCESS_ID or swapToken == ARIO_TOKEN_PROCESS_ID then
+		return true, nil
+	end
+	return false, 'At least one token in the trade must be ARIO'
 end
 
 function utils.decodeMessageData(data)
@@ -227,6 +248,20 @@ function ucm.createOrder(args)
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = pairError or 'Error validating pair',
+			Quantity = args.quantity,
+			TransferToken = nil,
+			OrderGroupId = args.orderGroupId
+		})
+		return
+	end
+
+	-- Validate that at least one token in the trade is ARIO
+	local isArioValid, arioError = utils.validateArioInTrade(args.dominantToken, args.swapToken)
+	if not isArioValid then
+		handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = arioError or 'Invalid trade - ARIO must be involved',
 			Quantity = args.quantity,
 			TransferToken = nil,
 			OrderGroupId = args.orderGroupId
@@ -608,6 +643,16 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 
 	-- If Order-Action then create the order
 	if (Handlers.utils.hasMatchingTag('Action', 'X-Order-Action') and msg.Tags['X-Order-Action'] == 'Create-Order') then
+		-- Validate that at least one token in the trade is ARIO
+		local isArioValid, arioError = utils.validateArioInTrade(msg.From, msg.Tags['X-Swap-Token'])
+		if not isArioValid then
+			msg.reply({ 
+				Action = 'Validation-Error', 
+				Tags = { Status = 'Error', Message = arioError or 'At least one token in the trade must be ARIO' } 
+			})
+			return
+		end
+
 		local orderArgs = {
 			orderId = msg.Id,
 			orderGroupId = msg.Tags['X-Group-ID'] or 'None',

@@ -6,7 +6,7 @@ local utils = require('utils')
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
 ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
-DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+DEFAULT_SWAP_TOKEN = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8' -- Replace with actual ARIO token process ID
 
 -- Orderbook {
 -- 	Pair [TokenId, TokenId],
@@ -61,6 +61,20 @@ function ucm.createOrder(args)
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = pairError or 'Error validating pair',
+			Quantity = args.quantity,
+			TransferToken = nil,
+			OrderGroupId = args.orderGroupId
+		})
+		return
+	end
+
+	-- Validate that at least one token in the trade is ARIO
+	local isArioValid, arioError = utils.validateArioInTrade(args.dominantToken, args.swapToken)
+	if not isArioValid then
+		handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = arioError or 'Invalid trade - ARIO must be involved',
 			Quantity = args.quantity,
 			TransferToken = nil,
 			OrderGroupId = args.orderGroupId

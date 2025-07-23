@@ -102,7 +102,8 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			sender = data.Sender,
 			quantity = msg.Tags.Quantity,
 			timestamp = msg.Timestamp,
-			blockheight = msg['Block-Height']
+			blockheight = msg['Block-Height'],
+			orderType = msg.Tags['X-Order-Type'] or 'buy-now'
 		}
 
 		if msg.Tags['X-Price'] then

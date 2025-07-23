@@ -505,7 +505,7 @@ utils.test('New listing adds to CurrentListings',
 
         ucm.createOrder({
             orderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-            dominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
             swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
             sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
             quantity = '1000',
@@ -520,7 +520,7 @@ utils.test('New listing adds to CurrentListings',
             Data = json:encode({ 
                 Order = {
                     Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-                    DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+                    DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
                     SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
                     Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
                     Quantity = '1000',
@@ -532,7 +532,7 @@ utils.test('New listing adds to CurrentListings',
 
         CurrentListings['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
             OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-            DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
             SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
             Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
             Quantity = '1000',
@@ -545,7 +545,7 @@ utils.test('New listing adds to CurrentListings',
     {
         ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
             OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-            DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
             SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
             Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
             Quantity = '1000',
@@ -555,7 +555,6 @@ utils.test('New listing adds to CurrentListings',
     }
 )
 
--- FIXME
 utils.test('Partial execution updates CurrentListings quantity',
     function()
         Orderbook = {
@@ -577,7 +576,7 @@ utils.test('Partial execution updates CurrentListings quantity',
         CurrentListings = {
             ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
                 OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-                DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+                DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
                 SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
                 Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
                 Quantity = '1000',
@@ -589,7 +588,7 @@ utils.test('Partial execution updates CurrentListings quantity',
         ucm.createOrder({
             orderId = 'match-order-1',
             dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-            swapToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
             sender = 'match-buyer-1',
             quantity = '500',
             price = '500000000000',
@@ -604,7 +603,7 @@ utils.test('Partial execution updates CurrentListings quantity',
     {
         ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
             OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-            DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
             SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
             Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
             Quantity = '500',
@@ -614,12 +613,11 @@ utils.test('Partial execution updates CurrentListings quantity',
     }
 )
 
--- FIXME
 utils.test('Full execution removes from CurrentListings',
     function()
         Orderbook = {
             {
-                Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+                Pair = { 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
                 Orders = {
                     {
                         Creator = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
@@ -628,7 +626,7 @@ utils.test('Full execution removes from CurrentListings',
                         OriginalQuantity = '1000',
                         Price = '500000000000',
                         Quantity = '1000',
-                        Token = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc'
+                        Token = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
                     }
                 }
             }
@@ -636,7 +634,7 @@ utils.test('Full execution removes from CurrentListings',
         CurrentListings = {
             ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
                 OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-                DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+                DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
                 SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
                 Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
                 Quantity = '1000',
@@ -648,7 +646,7 @@ utils.test('Full execution removes from CurrentListings',
         ucm.createOrder({
             orderId = 'match-order-1',
             dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-            swapToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+            swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
             sender = 'match-buyer-1',
             quantity = '1000',
             price = '500000000000',
@@ -663,13 +661,12 @@ utils.test('Full execution removes from CurrentListings',
     {}
 )
 
--- FIXME
 utils.test('Cancel order removes from CurrentListings',
     function()
 		local json = require('json')
         Orderbook = {
             {
-                Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+                Pair = { 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
                 Orders = {
                     {
                         Creator = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
@@ -678,7 +675,7 @@ utils.test('Cancel order removes from CurrentListings',
                         OriginalQuantity = '1000',
                         Price = '500000000000',
                         Quantity = '1000',
-                        Token = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc'
+                        Token = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
                     }
                 }
             }
@@ -686,7 +683,7 @@ utils.test('Cancel order removes from CurrentListings',
         CurrentListings = {
             ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
                 OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-                DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+                DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
                 SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
                 Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
                 Quantity = '1000',
@@ -698,7 +695,7 @@ utils.test('Cancel order removes from CurrentListings',
         ao.send({
             Action = 'Cancel-Order',
             Data = json:encode({
-                Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+                Pair = { 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
                 OrderTxId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'
             })
         })

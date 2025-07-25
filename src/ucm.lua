@@ -282,6 +282,12 @@ local function handleAntOrder(args, validPair, pairIndex)
 
 	-- Attempt to match with existing orders for immediate trade
 	for i, currentOrderEntry in ipairs(currentOrders) do
+		-- Check if order has expired
+		if currentOrderEntry.ExpirationTime and bint(currentOrderEntry.ExpirationTime) < bint(args.timestamp) then
+			-- Skip expired orders
+			goto continue
+		end
+		
 		-- Check if we can still fill and the order has remaining quantity
 		if bint(args.quantity) > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 			-- For ANT tokens, only allow complete trades - no partial amounts
@@ -322,6 +328,8 @@ local function handleAntOrder(args, validPair, pairIndex)
 			end
 			-- If quantities don't match exactly, skip this order and continue searching
 		end
+		
+		::continue::
 	end
 
 	-- Remove the matched order from the orderbook

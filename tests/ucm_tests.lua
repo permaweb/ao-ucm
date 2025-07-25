@@ -392,4 +392,362 @@ utils.test('should reject partial ANT purchase when selling ARIO',
 	}
 )
 
+-- Token Address Validation Tests
+utils.test('should reject orders with invalid token addresses',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'invalid-token-address-order',
+			dominantToken = 'invalid-token-address-123', -- Invalid token address
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			sender = 'test-seller',
+			quantity = 1000,
+			price = '500000000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{}
+)
+
+utils.test('should reject orders with same token addresses',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'same-token-order',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- Same as dominantToken
+			sender = 'test-seller',
+			quantity = 1000,
+			price = '500000000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{}
+)
+
+utils.test('should reject orders with malformed token addresses',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'malformed-token-order',
+			dominantToken = 'too-short', -- Too short for valid address
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			sender = 'test-seller',
+			quantity = 1000,
+			price = '500000000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{}
+)
+
+-- Fee Calculation Tests
+utils.test('should apply correct fees to successful ANT trades',
+	function()
+		Orderbook = {
+			{
+				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+				Orders = {
+					{
+						Id = 'existing-ant-order',
+						Quantity = '1',
+						Price = '1000000000000', -- 1000 ARIO per ANT
+						Creator = 'ant-seller',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- ANT sell order
+					}
+				}
+			}
+		}
+		
+		ucm.createOrder({
+			orderId = 'ario-buy-ant-with-fees',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
+			sender = 'ario-buyer',
+			quantity = 1,
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{
+		{
+			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+			Orders = {}, -- ANT order should be matched and removed
+			PriceData = {
+				MatchLogs = {
+					{
+						Id = 'existing-ant-order',
+						Quantity = '1',
+						Price = '1000000000000'
+					}
+				},
+				Vwap = '1000000000000',
+				Block = '123456789',
+				DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+			}
+		}
+	}
+)
+
+utils.test('should handle fee calculation with very small amounts',
+	function()
+		Orderbook = {
+			{
+				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+				Orders = {
+					{
+						Id = 'existing-ant-order-small',
+						Quantity = '1',
+						Price = '1000', -- Very small price
+						Creator = 'ant-seller',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- ANT sell order
+					}
+				}
+			}
+		}
+		
+		ucm.createOrder({
+			orderId = 'ario-buy-ant-small-amount',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
+			sender = 'ario-buyer',
+			quantity = 1,
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{
+		{
+			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+			Orders = {}, -- ANT order should be matched and removed
+			PriceData = {
+				MatchLogs = {
+					{
+						Id = 'existing-ant-order-small',
+						Quantity = '1',
+						Price = '1000'
+					}
+				},
+				Vwap = '1000',
+				Block = '123456789',
+				DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+			}
+		}
+	}
+)
+
+-- Order Expiration Tests
+utils.test('should handle order expiration correctly',
+	function()
+		Orderbook = {
+			{
+				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+				Orders = {
+					{
+						Id = 'expired-ant-order',
+						Quantity = '1',
+						Price = '500000000000',
+						Creator = 'ant-seller',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						DateCreated = '1722535710966',
+						ExpirationTime = '1722535710965' -- Expired (past timestamp)
+					}
+				}
+			}
+		}
+		
+		ucm.createOrder({
+			orderId = 'ario-buy-expired-ant',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
+			sender = 'ario-buyer',
+			quantity = 1,
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{
+		{
+			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+			Orders = {
+				{
+					Id = 'expired-ant-order',
+					Quantity = '1',
+					Price = '500000000000',
+					Creator = 'ant-seller',
+					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+					DateCreated = '1722535710966',
+					ExpirationTime = '1722535710965' -- Expired order should remain (not matched)
+				}
+			}
+		}
+	}
+)
+
+-- Concurrent Order Tests
+utils.test('should handle multiple orders for same pair correctly',
+	function()
+		Orderbook = {
+			{
+				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+				Orders = {
+					{
+						Id = 'ant-order-1',
+						Quantity = '1',
+						Price = '500000000000',
+						Creator = 'ant-seller-1',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+					},
+					{
+						Id = 'ant-order-2',
+						Quantity = '1',
+						Price = '600000000000',
+						Creator = 'ant-seller-2',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+					}
+				}
+			}
+		}
+		
+		ucm.createOrder({
+			orderId = 'ario-buy-ant-multiple-orders',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
+			sender = 'ario-buyer',
+			quantity = 1,
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{
+		{
+			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+			Orders = {
+				{
+					Id = 'ant-order-2',
+					Quantity = '1',
+					Price = '600000000000',
+					Creator = 'ant-seller-2',
+					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- Higher price order should remain
+				}
+			},
+			PriceData = {
+				MatchLogs = {
+					{
+						Id = 'ant-order-1',
+						Quantity = '1',
+						Price = '500000000000'
+					}
+				},
+				Vwap = '500000000000',
+				Block = '123456789',
+				DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+			}
+		}
+	}
+)
+
+utils.test('should maintain order priority correctly',
+	function()
+		Orderbook = {
+			{
+				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+				Orders = {
+					{
+						Id = 'ant-order-older',
+						Quantity = '1',
+						Price = '500000000000',
+						Creator = 'ant-seller-older',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						DateCreated = '1722535710960' -- Older order
+					},
+					{
+						Id = 'ant-order-newer',
+						Quantity = '1',
+						Price = '500000000000', -- Same price
+						Creator = 'ant-seller-newer',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						DateCreated = '1722535710965' -- Newer order
+					}
+				}
+			}
+		}
+		
+		ucm.createOrder({
+			orderId = 'ario-buy-ant-priority',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
+			sender = 'ario-buyer',
+			quantity = 1,
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{
+		{
+			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+			Orders = {
+				{
+					Id = 'ant-order-newer',
+					Quantity = '1',
+					Price = '500000000000',
+					Creator = 'ant-seller-newer',
+					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+					DateCreated = '1722535710965' -- Newer order should remain
+				}
+			},
+			PriceData = {
+				MatchLogs = {
+					{
+						Id = 'ant-order-older',
+						Quantity = '1',
+						Price = '500000000000'
+					}
+				},
+				Vwap = '500000000000',
+				Block = '123456789',
+				DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+			}
+		}
+	}
+)
+
 utils.testSummary() 

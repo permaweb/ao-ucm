@@ -240,6 +240,10 @@ utils.test('createOrder - ANT token with different ANT address',
 					Token = 'different-ant-token-address' -- Different ANT token should remain unchanged
 				}
 			}
+		},
+		{
+			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+			Orders = {}
 		}
 	}
 )
@@ -310,17 +314,7 @@ utils.test('createOrder - missing price for ARIO order',
 	{
 		{
 			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
-			Orders = {
-				{
-					Id = 'no-price-ario-order',
-					Quantity = '1000',
-					OriginalQuantity = '1000',
-					Creator = 'test-seller',
-					Token = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
-					DateCreated = '1722535710966',
-					Price = '0'
-				}
-			}
+			Orders = {}
 		}
 	}
 )

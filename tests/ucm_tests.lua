@@ -15,7 +15,7 @@ ao = {
 }
 
 -- Test complete createOrder function scenarios
-utils.test('createOrder - ARIO token order (buy now)',
+utils.test('should execute immediate trade when selling ARIO to buy ANT with matching ANT order',
 	function()
 		Orderbook = {
 			{
@@ -67,7 +67,7 @@ utils.test('createOrder - ARIO token order (buy now)',
 	}
 )
 
-utils.test('createOrder - ANT token order (add to orderbook)',
+utils.test('should add ANT sell order to orderbook when selling ANT to buy ARIO',
 	function()
 		Orderbook = {}
 		
@@ -104,7 +104,7 @@ utils.test('createOrder - ANT token order (add to orderbook)',
 	}
 )
 
-utils.test('createOrder - invalid orderType',
+utils.test('should reject order with invalid orderType',
 	function()
 		Orderbook = {}
 		
@@ -126,7 +126,7 @@ utils.test('createOrder - invalid orderType',
 	{}
 )
 
-utils.test('createOrder - missing ARIO token',
+utils.test('should reject order without ARIO token in trade',
 	function()
 		Orderbook = {}
 		
@@ -148,7 +148,7 @@ utils.test('createOrder - missing ARIO token',
 	{}
 )
 
-utils.test('createOrder - ANT token with no matching orders',
+utils.test('should fail when selling ARIO to buy ANT but no matching ANT orders exist',
 	function()
 		Orderbook = {
 			{
@@ -195,9 +195,8 @@ utils.test('createOrder - ANT token with no matching orders',
 	}
 )
 
-
 -- FIXME
-utils.test('createOrder - ANT token with different ANT address',
+utils.test('should fail when selling ARIO to buy specific ANT but only different ANT orders exist',
 	function()
 		Orderbook = {
 			{
@@ -211,6 +210,10 @@ utils.test('createOrder - ANT token with different ANT address',
 						Token = 'different-ant-token-address' -- Different ANT token address
 					}
 				}
+			},
+			{
+				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+				Orders = {}
 			}
 		}
 		
@@ -249,7 +252,7 @@ utils.test('createOrder - ANT token with different ANT address',
 )
 
 -- Test edge cases
-utils.test('createOrder - zero quantity',
+utils.test('should reject order with zero quantity',
 	function()
 		Orderbook = {}
 		
@@ -271,7 +274,7 @@ utils.test('createOrder - zero quantity',
 	{}
 )
 
-utils.test('createOrder - negative quantity',
+utils.test('should reject order with negative quantity',
 	function()
 		Orderbook = {}
 		
@@ -293,7 +296,7 @@ utils.test('createOrder - negative quantity',
 	{}
 )
 
-utils.test('createOrder - missing price for ARIO order',
+utils.test('should handle missing price for ARIO order by using default price',
 	function()
 		Orderbook = {}
 		
@@ -315,6 +318,76 @@ utils.test('createOrder - missing price for ARIO order',
 		{
 			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
 			Orders = {}
+		}
+	}
+)
+
+-- TDD Test Cases
+utils.test('should reject ANT sell order with quantity greater than 1',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'ant-sell-order-too-many',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (selling ANT)
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'ant-seller',
+			quantity = 2, -- More than 1 ANT - should be rejected
+			price = '500000000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{}
+)
+
+utils.test('should reject partial ANT purchase when selling ARIO',
+	function()
+		Orderbook = {
+			{
+				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+				Orders = {
+					{
+						Id = 'existing-ant-order',
+						Quantity = '2', -- ANT sell order with 2 tokens
+						Price = '500000000000',
+						Creator = 'ant-seller',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- ANT sell order
+					}
+				}
+			}
+		}
+		
+		ucm.createOrder({
+			orderId = 'ario-buy-partial-ant',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
+			sender = 'ario-buyer',
+			quantity = 1, -- Wanting to buy 1 ANT when 2 are available - partial purchase should be rejected
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{
+		{
+			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+			Orders = {
+				{
+					Id = 'existing-ant-order',
+					Quantity = '2', -- ANT sell order should remain unchanged
+					Price = '500000000000',
+					Creator = 'ant-seller',
+					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+				}
+			}
 		}
 	}
 )

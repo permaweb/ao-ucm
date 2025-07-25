@@ -141,6 +141,37 @@ end
 
 -- Helper function to handle ARIO token orders: we are buying ANT token, so we need to add to orderbook
 local function handleArioOrder(args, validPair, pairIndex)
+	-- Validate ANT token quantity must be exactly 1 when selling ANT
+	if not utils.isArioToken(args.dominantToken) and args.quantity ~= 1 then
+		handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'ANT tokens can only be sold in quantities of exactly 1',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return
+	end
+
+	-- Check if this ANT token is already being sold (prevent duplicate ANT sell orders)
+	if not utils.isArioToken(args.dominantToken) then
+		local currentOrders = Orderbook[pairIndex].Orders
+		for _, existingOrder in ipairs(currentOrders) do
+			if existingOrder.Token == args.dominantToken then
+				handleError({
+					Target = args.sender,
+					Action = 'Validation-Error',
+					Message = 'This ANT token is already being sold - cannot create duplicate sell order',
+					Quantity = args.quantity,
+					TransferToken = validPair[1],
+					OrderGroupId = args.orderGroupId
+				})
+				return
+			end
+		end
+	end
+
 	-- Add the new order to the orderbook (buy now functionality)
 	table.insert(Orderbook[pairIndex].Orders, {
 		Id = args.orderId,

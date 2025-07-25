@@ -750,4 +750,115 @@ utils.test('should maintain order priority correctly',
 	}
 )
 
+-- Duplicate ANT Sell Order Tests
+utils.test('should reject duplicate ANT sell order for same ANT token',
+	function()
+		Orderbook = {
+			{
+				Pair = {'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'},
+				Orders = {
+					{
+						Id = 'existing-ant-order',
+						Quantity = '1',
+						Price = '500000000000',
+						Creator = 'ant-seller-1',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- ANT already being sold
+					}
+				}
+			}
+		}
+		
+		ucm.createOrder({
+			orderId = 'duplicate-ant-order',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- Same ANT token
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'ant-seller-2',
+			quantity = 1,
+			price = '600000000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{
+		{
+			Pair = {'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'},
+			Orders = {
+				{
+					Id = 'existing-ant-order',
+					Quantity = '1',
+					Price = '500000000000',
+					Creator = 'ant-seller-1',
+					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- Original order should remain unchanged
+				}
+			}
+		}
+	}
+)
+
+utils.test('should allow different ANT tokens to be sold simultaneously',
+	function()
+		Orderbook = {
+			{
+				Pair = {'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'},
+				Orders = {
+					{
+						Id = 'ant-order-1',
+						Quantity = '1',
+						Price = '500000000000',
+						Creator = 'ant-seller-1',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- First ANT token
+					}
+				}
+			}
+		}
+		
+		ucm.createOrder({
+			orderId = 'ant-order-2',
+			dominantToken = 'Xd1zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dGdS', -- Different ANT token
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'ant-seller-2',
+			quantity = 1,
+			price = '600000000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{
+		{
+			Pair = {'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'},
+			Orders = {
+				{
+					Id = 'ant-order-1',
+					Quantity = '1',
+					Price = '500000000000',
+					Creator = 'ant-seller-1',
+					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- First ANT token
+				}
+			}
+		},
+		{
+			Pair = {'Xd1zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dGdS', 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'},
+			Orders = {
+				{
+					Id = 'ant-order-2',
+					Quantity = '1',
+					OriginalQuantity = '1',
+					Creator = 'ant-seller-2',
+					Token = 'Xd1zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dGdS',
+					DateCreated = '1722535710966',
+					Price = '600000000000'
+				}
+			}
+		}
+	}
+)
+
 utils.testSummary() 

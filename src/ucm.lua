@@ -97,6 +97,19 @@ local function validateOrderParams(args)
 		return nil
 	end
 
+	-- Validate ANT token quantity must be exactly 1 when selling ANT
+	if not utils.isArioToken(args.dominantToken) and args.quantity ~= 1 then
+		handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'ANT tokens can only be sold in quantities of exactly 1',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return nil
+	end
+
 	-- Validate orderType is supported
 	if not args.orderType or args.orderType ~= "buy-now" then
 		handleError({
@@ -126,7 +139,7 @@ local function ensurePairExists(validPair)
 	return pairIndex
 end
 
--- Helper function to handle ARIO token orders
+-- Helper function to handle ARIO token orders: we are buying ANT token, so we need to add to orderbook
 local function handleArioOrder(args, validPair, pairIndex)
 	-- Add the new order to the orderbook (buy now functionality)
 	table.insert(Orderbook[pairIndex].Orders, {
@@ -261,7 +274,7 @@ local function updateVwapData(pairIndex, matches, args, currentToken)
 	return sumVolume
 end
 
--- Helper function to handle ANT token orders
+-- Helper function to handle ANT token orders: we are buying ANT token, so we need to match with an existing ANT sell order or fail
 local function handleAntOrder(args, validPair, pairIndex)
 	local currentOrders = Orderbook[pairIndex].Orders
 	local matches = {}
@@ -363,11 +376,11 @@ function ucm.createOrder(args)
 
 	if pairIndex > -1 then
 		-- Check if the desired token is ARIO (add to orderbook) or ANT (immediate trade only)
-		local isSellingArio = utils.isArioToken(args.dominantToken) -- If dominantToken is ARIO, we're selling ARIO
+		local isBuyingAnt = utils.isArioToken(args.dominantToken) -- If dominantToken is ARIO, we're buying ANT
 		local isSellingAnt = utils.isArioToken(args.dominantToken) == false -- If dominantToken is not ARIO, we're selling ANT
 
 		-- Handle ANT token orders - check for immediate trades only, don't add to orderbook
-		if isSellingArio then
+		if isBuyingAnt then
 			handleAntOrder(args, validPair, pairIndex)
 			return
 		end

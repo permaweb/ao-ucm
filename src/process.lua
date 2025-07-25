@@ -105,22 +105,6 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 	end
 end)
 
-Handlers.add('Migrate-Listings', Handlers.utils.hasMatchingTag('Action', 'Migrate-Listings'), function(msg)
-	if not msg.Data.MigrateTo then
-		print('MigrateTo must be provided')
-		return
-	end
-
-	for _, pair in ipairs(Orderbook) do
-		for _, existingOrder in ipairs(pair.Orders) do
-			if existingOrder.Creator == msg.From then
-				print('Changing order creator to ' .. msg.Data.MigrateTo)
-				existingOrder.Creator = msg.Data.MigrateTo
-			end
-		end
-	end
-end)
-
 Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Order'), function(msg)
 	local decodeCheck, data = utils.decodeMessageData(msg.Data)
 
@@ -272,23 +256,6 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 					Orderbook[pairIndex]
 			})
 		})
-	end
-end)
-
-Handlers.add('Order-Success', Handlers.utils.hasMatchingTag('Action', 'Order-Success'), function(msg)
-	if msg.From == ao.id and
-		msg.Tags.DominantToken and msg.Tags.DominantToken == DEFAULT_SWAP_TOKEN and
-		msg.Tags.SwapToken and msg.Tags.SwapToken == PIXL_PROCESS then
-		if msg.Tags.Quantity and tonumber(msg.Tags.Quantity) > 0 then
-			ao.send({
-				Target = PIXL_PROCESS,
-				Action = 'Transfer',
-				Tags = {
-					Recipient = string.rep('0', 43),
-					Quantity = msg.Tags.Quantity
-				}
-			})
-		end
 	end
 end)
 

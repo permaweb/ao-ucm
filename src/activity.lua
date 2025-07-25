@@ -237,9 +237,6 @@ Handlers.add('Get-Volume', Handlers.utils.hasMatchingTag('Action', 'Get-Volume')
 				local price = bint(math.floor(order.Price)) // bint(1000000000000)
 
 				local quantity = bint(math.floor(order.Quantity))
-				if order.DominantToken == 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo' then
-					quantity = quantity // bint(1000000)
-				end
 				if order.DominantToken == 'pazXumQI-HPH7iFGfTC-4_7biSnqz_U67oFAGry5zUY' then
 					quantity = quantity // bint(1000000000000)
 				end

@@ -7,7 +7,6 @@ import { readFileSync } from 'fs';
 export const AO = {
 	ucm: 'hqdL4AZaFZ0huQHbAsYxdTwG6vpibK7ALWKNzmWaD4Q',
 	ucmActivity: '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4',
-	pixl: 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo',
 	profileRegistry: 'SNy4m-DrqxWl01YqGM4sxI8qCni-58re8uuJLvZPypY',
 };
 
@@ -575,84 +574,6 @@ async function fetchData(fetchParams: GQLArgsType, processElementCallback: (elem
 	return null;
 }
 
-export async function getTransferData(target: string) {
-	appendToLog(`Target: ${target}`);
-
-	// console.log('Running outgoing fetch...');
-	// await fetchData({
-	// 	gateway: GATEWAYS.goldsky,
-	// 	ids: null,
-	// 	tagFilters: [{ name: 'From-Process', values: [target] }],
-	// 	owners: null,
-	// 	cursor: null,
-	// 	recipients: null
-	// }, (element: GQLNodeResponseType) => {
-	// 	if (getTagValue(element.node.tags, 'Action') === 'Transfer') {
-	// 		console.log(`Transfer sent by ${getTagValue(element.node.tags, 'From-Process')}`);
-	// 		console.log(`Target: ${getTagValue(element.node.tags, 'Target')}`);
-	// 		console.log(`Recipient: ${getTagValue(element.node.tags, 'Recipient')}`);
-	// 		console.log(`Quantity: ${Number(getTagValue(element.node.tags, 'Quantity'))}\n`);
-	// 	}
-	// });
-
-	// console.log('Running incoming fetch...');
-	// await fetchData({
-	// 	gateway: GATEWAYS.goldsky,
-	// 	ids: null,
-	// 	tagFilters: null,
-	// 	owners: null,
-	// 	cursor: null,
-	// 	recipients: [target]
-	// }, (element: GQLNodeResponseType) => {
-	// 	if (getTagValue(element.node.tags, 'Action') === 'Transfer') {
-	// 		console.log(`Transfer sent by ${element.node.owner.address} to ${element.node.recipient}`);
-	// 		console.log(`Target: ${getTagValue(element.node.tags, 'Target')}`);
-	// 		console.log(`Recipient: ${getTagValue(element.node.tags, 'Recipient')}`);
-	// 		console.log(`Quantity: ${Number(getTagValue(element.node.tags, 'Quantity'))}\n`);
-	// 	}
-	// });
-
-	appendToLog('Running incoming transfers...');
-	const senderQuantities = {};
-
-	await fetchData({
-		gateway: GATEWAYS.goldsky,
-		ids: null,
-		tagFilters: [
-			{ name: 'Action', values: ['Credit-Notice'] },
-			// { name: 'From-Process', values: ['xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'] }
-			{ name: 'From-Process', values: ['DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'] }
-		],
-		owners: null,
-		cursor: null,
-		recipients: [target],
-		minBlock: 1480164
-	}, (element: GQLNodeResponseType) => {
-		const sender = getTagValue(element.node.tags, 'Sender');
-		const quantity = Number(getTagValue(element.node.tags, 'Quantity'));
-		const timestamp = element.node.block.timestamp;
-		const date = new Date(timestamp * 1000);
-		const formattedDate = date.toLocaleString();
-
-		const logMessage = `${formattedDate}: ${sender} -> ${target}: ${quantity} (${Number(quantity) / Math.pow(10, 6)}) PIXL`;
-		appendToLog(logMessage);
-
-		if (sender) {
-			senderQuantities[sender] = (senderQuantities[sender] || 0) + quantity;
-		}
-	});
-
-	for (const [sender, totalQuantity] of Object.entries(senderQuantities)) {
-		const logMessage = `Total transfers from ${sender}: ${totalQuantity} (${Number(totalQuantity) / Math.pow(10, 6)}) PIXL`;
-		appendToLog(logMessage);
-	}
-
-	const filePath = `${process.env.HOME}/Downloads/${target}.txt`;
-
-	fs.writeFileSync(filePath, logData);
-	console.log(`\nLogs written successfully to ${filePath}`);
-}
-
 export async function getUCMActivity() {
 	const AssetIds = null;
 	const Address = 'HiWY083YQJZx8ybNxOOHm61Na7R-WtPkZCtEQNoF1P8';
@@ -807,41 +728,6 @@ export async function handleCollectionReturn(collectionId: string) {
 	}
 }
 
-async function getStreaks() {
-	try {
-		const streaks = await readHandler({
-			processId: AO.pixl,
-			action: 'Get-Streaks',
-		});
-
-		const mappedStreaks = Object.entries(streaks.Streaks).map(([id, details]) => ({
-			ID: id,
-			Days: (details as any).days,
-			LastHeight: (details as any).lastHeight,
-		}));
-
-		const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
-		let fileName = `Streaks-${timestamp}`;
-		fileName += '.csv';
-
-		const filePath = `${process.env.HOME}/Downloads/${fileName}`;
-
-		const csvWriter = createObjectCsvWriter({
-			path: filePath,
-			header: [
-				{ id: 'ID', title: 'ID' },
-				{ id: 'Days', title: 'Days' },
-				{ id: 'LastHeight', title: 'LastHeight' },
-			],
-		});
-
-		await csvWriter.writeRecords(mappedStreaks);
-		console.log(`Logs written successfully to ${filePath}`);
-	} catch (e: any) {
-		console.error(e);
-	}
-}
-
 function printUsage() {
 	console.log("\nUsage:");
 	console.log("  node script.js <command> [parameters]\n");
@@ -862,18 +748,8 @@ const command = args[0];
 	}
 
 	switch (command) {
-		case 'streaks': {
-			await getStreaks();
-			break;
-		}
-		case 'transfer-data': {
-			const walletAddress = args[1];
-			if (!walletAddress) {
-				console.error("Error: 'getTransferData' requires a wallet address.");
-				printUsage();
-				process.exit(1);
-			}
-			await getTransferData(walletAddress);
+		case 'getUCMActivity': {
+			await getUCMActivity();
 			break;
 		}
 		default: {

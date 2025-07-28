@@ -147,14 +147,14 @@ This project consists of several components organized into different directories
 #### Main Process Files
 - **`process.lua`** - Main entry point for the ARnS Marketplace process. Handles message routing, validation, and core marketplace functionality including order creation, credit notices, and basic process operations.
 
-- **`ucm.lua`** - Universal Content Marketplace core logic. Contains the main marketplace functions including order book management, pair indexing, order creation, and error handling. This is the heart of the marketplace functionality.
+- **`ucm.lua`** - ANT Marketplace core logic. Contains the main marketplace functions including order book management, pair indexing, order creation, and error handling. This is the heart of the marketplace functionality.
 
 - **`activity.lua`** - Activity tracking and reporting system. Manages order history, executed orders, cancelled orders, and provides activity queries with filtering capabilities by address, date range, and asset IDs.
 
 - **`utils.lua`** - Utility functions used throughout the project. Includes address validation, amount validation, JSON message decoding, pair data validation, fee calculations, and table printing utilities.
 
 #### Bundle Files (Combined Modules)
-- **`bundle_ucm.lua`** - Self-contained bundle of the Universal Content Marketplace with all dependencies included. This is a standalone version that can be deployed independently.
+- **`bundle_ucm.lua`** - Self-contained bundle of the ANT Marketplace with all dependencies included. This is a standalone version that can be deployed independently.
 
 - **`bundle_activity_collection.lua`** - Bundled activity collection system for tracking and managing marketplace activity data.
 

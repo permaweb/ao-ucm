@@ -861,4 +861,48 @@ utils.test('should allow different ANT tokens to be sold simultaneously',
 	}
 )
 
+utils.test('Should reject order with quantity 0 while selling ANT',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'ant-sell-order-too-many',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (selling ANT)
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'ant-seller',
+			quantity = 0, 
+			price = '500000000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{}
+)
+
+utils.test('Should reject order with quantity 0 while buying ANT',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'ant-sell-order-too-many',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
+			sender = 'ant-seller',
+			quantity = 0, 
+			price = '500000000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group'
+		})
+		
+		return Orderbook
+	end,
+	{}
+)
+
 utils.testSummary() 

@@ -3,12 +3,11 @@ local bint = require('.bint')(256)
 
 if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
 
-if not ACTIVITY_PROCESS then ACTIVITY_PROCESS = '<ACTIVITY_PROCESS>' end
-
-DEFAULT_SWAP_TOKEN = 'ARIO_TOKEN_PROCESS_ID' -- Replace with actual ARIO token process ID
+ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
+DEFAULT_SWAP_TOKEN = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8' -- Replace with actual ARIO token process ID
 
 -- ARIO token process ID - replace with actual ARIO token process ID
-ARIO_TOKEN_PROCESS_ID = 'ARIO_TOKEN_PROCESS_ID'
+ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 
 -- Orderbook {
 -- 	Pair [TokenId, TokenId],
@@ -19,7 +18,8 @@ ARIO_TOKEN_PROCESS_ID = 'ARIO_TOKEN_PROCESS_ID'
 -- 		OriginalQuantity,
 -- 		Token,
 -- 		DateCreated,
--- 		Price?
+-- 		Price
+-- 		ExpirationTime
 -- 	} []
 -- } []
 
@@ -240,7 +240,8 @@ function ucm.getPairIndex(pair)
 	return pairIndex
 end
 
-function ucm.createOrder(args)
+-- Helper function to validate order parameters
+local function validateOrderParams(args)
 	local validPair, pairError = utils.validatePairData({ args.dominantToken, args.swapToken })
 
 	if not validPair then
@@ -252,10 +253,10 @@ function ucm.createOrder(args)
 			TransferToken = nil,
 			OrderGroupId = args.orderGroupId
 		})
-		return
+		return nil
 	end
 
-	-- Validate that at least one token in the trade is ARIO
+	-- Ensure ARIO token is involved in the trade (marketplace requirement)
 	local isArioValid, arioError = utils.validateArioInTrade(args.dominantToken, args.swapToken)
 	if not isArioValid then
 		handleError({
@@ -266,302 +267,374 @@ function ucm.createOrder(args)
 			TransferToken = nil,
 			OrderGroupId = args.orderGroupId
 		})
-		return
+		return nil
 	end
 
-	local currentToken = validPair[1]
-	local pairIndex = ucm.getPairIndex(validPair)
-
-	if pairIndex == -1 then
-		table.insert(Orderbook, { Pair = validPair, Orders = {} })
-		pairIndex = ucm.getPairIndex(validPair)
-	end
-
+	-- Validate quantity is positive integer
 	if not utils.checkValidAmount(args.quantity) then
 		handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
 			Message = 'Quantity must be an integer greater than zero',
 			Quantity = args.quantity,
-			TransferToken = currentToken,
+			TransferToken = validPair[1],
 			OrderGroupId = args.orderGroupId
 		})
-		return
+		return nil
 	end
 
-	if args.price and not utils.checkValidAmount(args.price) then
+	-- Validate ANT token quantity must be exactly 1 when selling ANT
+	if not utils.isArioToken(args.dominantToken) and args.quantity ~= 1 then
 		handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
-			Message = 'Price must be an integer greater than zero',
+			Message = 'ANT tokens can only be sold in quantities of exactly 1',
 			Quantity = args.quantity,
-			TransferToken = currentToken,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return nil
+	end
+
+	-- Validate orderType is supported
+	if not args.orderType or args.orderType ~= "buy-now" then
+		handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'Order type must be "buy-now"',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return nil
+	end
+
+	return validPair
+end
+
+-- Helper function to ensure trading pair exists in orderbook
+local function ensurePairExists(validPair)
+	local pairIndex = ucm.getPairIndex(validPair)
+
+	-- Create new pair entry if it doesn't exist
+	if pairIndex == -1 then
+		table.insert(Orderbook, { Pair = validPair, Orders = {} })
+		pairIndex = ucm.getPairIndex(validPair)
+	end
+
+	return pairIndex
+end
+
+-- Helper function to handle ARIO token orders: we are buying ANT token, so we need to add to orderbook
+local function handleArioOrder(args, validPair, pairIndex)
+	-- Validate ANT token quantity must be exactly 1 when selling ANT
+	if not utils.isArioToken(args.dominantToken) and args.quantity ~= 1 then
+		handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'ANT tokens can only be sold in quantities of exactly 1',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
 			OrderGroupId = args.orderGroupId
 		})
 		return
 	end
 
-	if pairIndex > -1 then
-		local orderType
-
-		if args.price then
-			orderType = 'Limit'
-		else
-			orderType = 'Market'
-		end
-
-		local remainingQuantity = bint(args.quantity)
+	-- Check if this ANT token is already being sold (prevent duplicate ANT sell orders)
+	if not utils.isArioToken(args.dominantToken) then
 		local currentOrders = Orderbook[pairIndex].Orders
-		local updatedOrderbook = {}
-		local matches = {}
-
-		-- Sort order entries based on price
-		table.sort(currentOrders, function(a, b)
-			return bint(a.Price) < bint(b.Price)
-		end)
-
-		-- If the incoming order is a limit order, add it to the order book
-		if orderType == 'Limit' then
-			table.insert(currentOrders, {
-				Id = args.orderId,
-				Quantity = tostring(args.quantity),
-				OriginalQuantity = tostring(args.quantity),
-				Creator = args.sender,
-				Token = currentToken,
-				DateCreated = args.timestamp,
-				Price = tostring(args.price),
-			})
-
-			local limitDataSuccess, limitData = pcall(function()
-				return json.encode({
-					Order = {
-						Id = args.orderId,
-						DominantToken = validPair[1],
-						SwapToken = validPair[2],
-						Sender = args.sender,
-						Receiver = nil,
-						Quantity = tostring(args.quantity),
-						Price = tostring(args.price),
-						Timestamp = args.timestamp
-					}
+		for _, existingOrder in ipairs(currentOrders) do
+			if existingOrder.Token == args.dominantToken then
+				handleError({
+					Target = args.sender,
+					Action = 'Validation-Error',
+					Message = 'This ANT token is already being sold - cannot create duplicate sell order',
+					Quantity = args.quantity,
+					TransferToken = validPair[1],
+					OrderGroupId = args.orderGroupId
 				})
-			end)
+				return
+			end
+		end
+	end
 
-			ao.send({
-				Target = ACTIVITY_PROCESS,
-				Action = 'Update-Listed-Orders',
-				Data = limitDataSuccess and limitData or ''
-			})
+	-- Add the new order to the orderbook (buy now functionality)
+	table.insert(Orderbook[pairIndex].Orders, {
+		Id = args.orderId,
+		Quantity = tostring(args.quantity),
+		OriginalQuantity = tostring(args.quantity),
+		Creator = args.sender,
+		Token = validPair[1],
+		DateCreated = args.timestamp,
+		Price = args.price and tostring(args.price) or '0',
+	})
 
-			ao.send({
-				Target = args.sender,
-				Action = 'Order-Success',
-				Tags = {
-					Status = 'Success',
-					OrderId = args.orderId,
-					Handler = 'Create-Order',
-					DominantToken = currentToken,
-					SwapToken = args.swapToken,
-					Quantity = tostring(args.quantity),
-					Price = tostring(args.price),
-					Message = 'Order created successfully!',
-					['X-Group-ID'] = args.orderGroupId
-				}
-			})
+	-- Send order data to activity tracking process
+	local limitDataSuccess, limitData = pcall(function()
+		return json.encode({
+			Order = {
+				Id = args.orderId,
+				DominantToken = validPair[1],
+				SwapToken = validPair[2],
+				Sender = args.sender,
+				Receiver = nil,
+				Quantity = tostring(args.quantity),
+				Price = args.price and tostring(args.price) or '0',
+				Timestamp = args.timestamp
+			}
+		})
+	end)
 
-			args.syncState()
+	ao.send({
+		Target = ACTIVITY_PROCESS,
+		Action = 'Update-Listed-Orders',
+		Data = limitDataSuccess and limitData or ''
+	})
 
-			return
+	-- Notify sender of successful order creation
+	ao.send({
+		Target = args.sender,
+		Action = 'Order-Success',
+		Tags = {
+			Status = 'Success',
+			OrderId = args.orderId,
+			Handler = 'Create-Order',
+			DominantToken = validPair[1],
+			SwapToken = args.swapToken,
+			Quantity = tostring(args.quantity),
+			Price = args.price and tostring(args.price) or '0',
+			Message = 'ARIO order added to orderbook for buy now!',
+			['X-Group-ID'] = args.orderGroupId
+		}
+	})
+end
+
+-- Helper function to execute token transfers
+local function executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
+	-- Transfer tokens to the seller (order creator)
+	ao.send({
+		Target = validPair[1],
+		Action = 'Transfer',
+		Tags = {
+			Recipient = currentOrderEntry.Creator,
+			Quantity = tostring(calculatedSendAmount)
+		}
+	})
+
+	-- Transfer swap tokens to the buyer (order sender)
+	ao.send({
+		Target = args.swapToken,
+		Action = 'Transfer',
+		Tags = {
+			Recipient = args.sender,
+			Quantity = tostring(calculatedFillAmount)
+		}
+	})
+end
+
+-- Helper function to record match and send activity data
+local function recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
+	-- Record the successful match
+	local match = {
+		Id = currentOrderEntry.Id,
+		Quantity = calculatedFillAmount,
+		Price = tostring(currentOrderEntry.Price)
+	}
+
+	-- Send match data to activity tracking
+	local matchedDataSuccess, matchedData = pcall(function()
+		return json.encode({
+			Order = {
+				Id = currentOrderEntry.Id,
+				MatchId = args.orderId,
+				DominantToken = validPair[2],
+				SwapToken = validPair[1],
+				Sender = currentOrderEntry.Creator,
+				Receiver = args.sender,
+				Quantity = calculatedFillAmount,
+				Price = tostring(currentOrderEntry.Price),
+				Timestamp = args.timestamp
+			}
+		})
+	end)
+
+	ao.send({
+		Target = ACTIVITY_PROCESS,
+		Action = 'Update-Executed-Orders',
+		Data = matchedDataSuccess and matchedData or ''
+	})
+
+	return match
+end
+
+-- Helper function to update VWAP data
+local function updateVwapData(pairIndex, matches, args, currentToken)
+	local sumVolumePrice, sumVolume = 0, 0
+	if #matches > 0 then
+		for _, match in ipairs(matches) do
+			local volume = bint(match.Quantity)
+			local price = bint(match.Price)
+			sumVolumePrice = sumVolumePrice + (volume * price)
+			sumVolume = sumVolume + volume
 		end
 
-		for _, currentOrderEntry in ipairs(currentOrders) do
-			if remainingQuantity > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
-				local fillAmount, sendAmount
+		-- Calculate and store VWAP
+		local vwap = sumVolumePrice / sumVolume
+		Orderbook[pairIndex].PriceData = {
+			Vwap = tostring(math.floor(vwap)),
+			Block = tostring(args.blockheight),
+			DominantToken = currentToken,
+			MatchLogs = matches
+		}
+	end
 
-				local transferDenomination = args.transferDenomination and bint(args.transferDenomination) > bint(1)
+	return sumVolume
+end
 
-				-- Calculate how many shares can be bought with the remaining quantity
-				if transferDenomination then
-					fillAmount = remainingQuantity // bint(currentOrderEntry.Price)
-				else
-					fillAmount = math.floor(remainingQuantity / bint(currentOrderEntry.Price))
-				end
+-- Helper function to handle ANT token orders: we are buying ANT token, so we need to match with an existing ANT sell order or fail
+local function handleAntOrder(args, validPair, pairIndex)
+	local currentOrders = Orderbook[pairIndex].Orders
+	local matches = {}
+	local matchedOrderIndex = nil
 
-				-- Calculate the total cost for the fill amount
+	-- Attempt to match with existing orders for immediate trade
+	for i, currentOrderEntry in ipairs(currentOrders) do
+		-- Check if order has expired
+		if currentOrderEntry.ExpirationTime and bint(currentOrderEntry.ExpirationTime) < bint(args.timestamp) then
+			-- Skip expired orders
+			goto continue
+		end
+		
+		-- Check if we can still fill and the order has remaining quantity
+		if bint(args.quantity) > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
+			-- For ANT tokens, only allow complete trades - no partial amounts
+			local fillAmount, sendAmount
+
+			-- Check if the order quantity matches exactly what we want to buy
+			if bint(currentOrderEntry.Quantity) == bint(args.quantity) then
+				fillAmount = bint(args.quantity)
 				sendAmount = fillAmount * bint(currentOrderEntry.Price)
 
-				-- Adjust the fill amount to not exceed the order's available quantity
-				local quantityCheck = bint(currentOrderEntry.Quantity)
-				if transferDenomination then
-					quantityCheck = quantityCheck // bint(args.transferDenomination)
-				end
-
-				if sendAmount > (quantityCheck * bint(currentOrderEntry.Price)) then
-					sendAmount = bint(currentOrderEntry.Quantity) * bint(currentOrderEntry.Price)
-					if transferDenomination then
-						sendAmount = sendAmount // bint(args.transferDenomination)
-					end
-				end
-
-				-- Handle tokens with a denominated value
-				if transferDenomination then
-					if fillAmount > bint(0) then fillAmount = fillAmount * bint(args.transferDenomination) end
-				end
-
-				-- Ensure the fill amount does not exceed the available quantity in the order
-				if fillAmount > bint(currentOrderEntry.Quantity) then
-					fillAmount = bint(currentOrderEntry.Quantity)
-				end
-
-				-- Subtract the used quantity from the buyer's remaining quantity
-				if transferDenomination then
-					remainingQuantity = remainingQuantity -
-						(fillAmount // bint(args.transferDenomination) * bint(currentOrderEntry.Price))
-				else
-					remainingQuantity = remainingQuantity - fillAmount * bint(currentOrderEntry.Price)
-				end
-
-				currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
-
+				-- Validate we have a valid fill amount
 				if fillAmount <= bint(0) then
 					handleError({
 						Target = args.sender,
 						Action = 'Order-Error',
 						Message = 'No amount to fill',
 						Quantity = args.quantity,
-						TransferToken = currentToken,
+						TransferToken = validPair[1],
 						OrderGroupId = args.orderGroupId
 					})
-
-					args.syncState()
-
 					return
 				end
 
+				-- Apply fees and calculate final amounts
 				local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
 				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
-				-- Send tokens to the current order creator
-				ao.send({
-					Target = currentToken,
-					Action = 'Transfer',
-					Tags = {
-						Recipient = currentOrderEntry.Creator,
-						Quantity = tostring(calculatedSendAmount)
-					}
-				})
-
-				-- Send swap tokens to the input order creator
-				ao.send({
-					Target = args.swapToken,
-					Action = 'Transfer',
-					Tags = {
-						Recipient = args.sender,
-						Quantity = tostring(calculatedFillAmount)
-					}
-				})
+				-- Execute token transfers
+				executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
 
 				-- Record the match
-				table.insert(matches, {
-					Id = currentOrderEntry.Id,
-					Quantity = calculatedFillAmount,
-					Price = tostring(currentOrderEntry.Price)
-				})
+				local match = recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
+				table.insert(matches, match)
 
-				local matchedDataSuccess, matchedData = pcall(function()
-					return json.encode({
-						Order = {
-							Id = currentOrderEntry.Id,
-							MatchId = args.orderId,
-							DominantToken = validPair[2],
-							SwapToken = validPair[1],
-							Sender = currentOrderEntry.Creator,
-							Receiver = args.sender,
-							Quantity = calculatedFillAmount,
-							Price = tostring(currentOrderEntry.Price),
-							Timestamp = args.timestamp
-						}
-					})
-				end)
-
-				ao.send({
-					Target = ACTIVITY_PROCESS,
-					Action = 'Update-Executed-Orders',
-					Data = matchedDataSuccess and matchedData or ''
-				})
-
-				-- If there are remaining shares in the current order, keep it in the order book
-				if bint(currentOrderEntry.Quantity) > bint(0) then
-					table.insert(updatedOrderbook, currentOrderEntry)
-				end
-			else
-				if bint(currentOrderEntry.Quantity) > bint(0) then
-					table.insert(updatedOrderbook, currentOrderEntry)
-				end
+				-- Mark the order index for removal
+				matchedOrderIndex = i
+				break -- Only match with one order, no partial matching
 			end
+			-- If quantities don't match exactly, skip this order and continue searching
 		end
+		
+		::continue::
+	end
 
-		-- Update the order book with remaining and new orders
-		Orderbook[pairIndex].Orders = updatedOrderbook
+	-- Remove the matched order from the orderbook
+	if matchedOrderIndex then
+		table.remove(Orderbook[pairIndex].Orders, matchedOrderIndex)
+	end
 
-		local sumVolumePrice, sumVolume = 0, 0
-		local vwap = 0
-		if #matches > 0 then
-			for _, match in ipairs(matches) do
-				local volume = bint(match.Quantity)
-				local price = bint(match.Price)
-				sumVolumePrice = sumVolumePrice + (volume * price)
-				sumVolume = sumVolume + volume
-			end
+	-- Update VWAP and get total volume
+	local sumVolume = updateVwapData(pairIndex, matches, args, validPair[1])
 
-			vwap = sumVolumePrice / sumVolume
-			Orderbook[pairIndex].PriceData = {
-				Vwap = tostring(math.floor(vwap)),
-				Block = tostring(args.blockheight),
-				DominantToken = currentToken,
-				MatchLogs = matches
+	-- Send success response if any matches occurred
+	if sumVolume > 0 then
+		ao.send({
+			Target = args.sender,
+			Action = 'Order-Success',
+			Tags = {
+				OrderId = args.orderId,
+				Status = 'Success',
+				Handler = 'Create-Order',
+				DominantToken = validPair[1],
+				SwapToken = args.swapToken,
+				Quantity = tostring(sumVolume),
+				Price = args.price and tostring(args.price) or 'None',
+				Message = 'ANT order executed immediately!',
+				['X-Group-ID'] = args.orderGroupId or 'None'
 			}
-		end
+		})
+	else
+		-- No matches found for ANT token - return error
+		handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = 'No matching orders found for immediate ANT trade - exact quantity match required',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return
+	end
+end
 
-		if sumVolume > 0 then
-			ao.send({
-				Target = args.sender,
-				Action = 'Order-Success',
-				Tags = {
-					OrderId = args.orderId,
-					Status = 'Success',
-					Handler = 'Create-Order',
-					DominantToken = currentToken,
-					SwapToken = args.swapToken,
-					Quantity = tostring(sumVolume),
-					Price = tostring(math.floor(vwap)),
-					Message = 'Order created successfully!',
-					['X-Group-ID'] = args.orderGroupId or 'None'
-				}
-			})
+function ucm.createOrder(args)
+	-- Validate order parameters
+	-- TODO: Order type is added, but not used yet - add it's usage with a new order type
+	local validPair = validateOrderParams(args)
+	if not validPair then
+		return
+	end
 
-			args.syncState()
-		else
-			handleError({
-				Target = args.sender,
-				Action = 'Order-Error',
-				Message = 'No amount to fill',
-				Quantity = args.quantity,
-				TransferToken = currentToken,
-				OrderGroupId = args.orderGroupId
-			})
+	-- Ensure trading pair exists in orderbook
+	local pairIndex = ensurePairExists(validPair)
 
-			args.syncState()
+	if pairIndex > -1 then
+		-- Check if the desired token is ARIO (add to orderbook) or ANT (immediate trade only)
+		local isBuyingAnt = utils.isArioToken(args.dominantToken) -- If dominantToken is ARIO, we're buying ANT
+		local isSellingAnt = utils.isArioToken(args.dominantToken) == false -- If dominantToken is not ARIO, we're selling ANT
 
+		-- Handle ANT token orders - check for immediate trades only, don't add to orderbook
+		if isBuyingAnt then
+			handleAntOrder(args, validPair, pairIndex)
 			return
 		end
+
+		-- Handle ARIO token orders - add to orderbook for buy now
+		if isSellingAnt then
+			handleArioOrder(args, validPair, pairIndex)
+			return
+		end
+
+		-- Placeholder for future order type handling
+		handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = 'Order type not implemented yet',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return
+
 	else
+		-- Pair not found in orderbook (shouldn't happen after creation)
 		handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'Pair not found',
 			Quantity = args.quantity,
-			TransferToken = currentToken,
+			TransferToken = validPair[1],
 			OrderGroupId = args.orderGroupId
 		})
 	end
@@ -662,7 +735,8 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 			quantity = msg.Tags.Quantity,
 			timestamp = msg.Timestamp,
 			blockheight = msg['Block-Height'],
-			syncState = syncState
+			syncState = syncState,
+			orderType = msg.Tags['X-Order-Type'] or 'buy-now'
 		}
 
 		if msg.Tags['X-Price'] then

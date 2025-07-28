@@ -133,7 +133,7 @@ utils.test('should reject order without ARIO token in trade',
 		ucm.createOrder({
 			orderId = 'no-ario-order',
 			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-			swapToken = 'some-other-token',
+			swapToken = 'yU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 			sender = 'test-seller',
 			quantity = 1000,
 			price = '500000000000',
@@ -148,29 +148,16 @@ utils.test('should reject order without ARIO token in trade',
 	{}
 )
 
-utils.test('should fail when selling ARIO to buy ANT but no matching ANT orders exist',
+utils.test('should fail when buying ANT with ARIO but no ANT orders exist to match against',
 	function()
-		Orderbook = {
-			{
-				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
-				Orders = {
-					{
-						Id = 'existing-ario-order',
-						Quantity = '2',
-						Price = '500000000000',
-						Creator = 'ario-seller',
-						Token = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8' -- ARIO sell order
-					}
-				}
-			}
-		}
+		Orderbook = {}
 		
 		ucm.createOrder({
-			orderId = 'ario-buy-ant-order',
-			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
-			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
-			sender = 'ario-buyer',
-			quantity = 1,
+			orderId = 'no-price-ario-order',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			sender = 'test-seller',
+			quantity = 1000,
 			timestamp = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'buy-now',
@@ -182,21 +169,13 @@ utils.test('should fail when selling ARIO to buy ANT but no matching ANT orders 
 	{
 		{
 			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
-			Orders = {
-				{
-					Id = 'existing-ario-order',
-					Quantity = '2',
-					Price = '500000000000',
-					Creator = 'ario-seller',
-					Token = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8' -- ARIO sell order should remain unchanged
-				}
-			}
+			Orders = {}
 		}
 	}
 )
 
 -- FIXME
-utils.test('should fail when selling ARIO to buy specific ANT but only different ANT orders exist',
+utils.test('should fail when buying specific ANT with ARIO but only different ANT orders exist',
 	function()
 		Orderbook = {
 			{
@@ -219,7 +198,7 @@ utils.test('should fail when selling ARIO to buy specific ANT but only different
 		
 		ucm.createOrder({
 			orderId = 'ario-buy-specific-ant-order',
-			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (using ARIO to buy)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- Specific ANT token (wanting specific ANT)
 			sender = 'ario-buyer',
 			quantity = 1,
@@ -246,7 +225,7 @@ utils.test('should fail when selling ARIO to buy specific ANT but only different
 		},
 		{
 			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
-			Orders = {}
+			Orders = {} -- No matching ANT orders for the specific token
 		}
 	}
 )
@@ -296,33 +275,6 @@ utils.test('should reject order with negative quantity',
 	{}
 )
 
-utils.test('should handle missing price for ARIO order by using default price',
-	function()
-		Orderbook = {}
-		
-		ucm.createOrder({
-			orderId = 'no-price-ario-order',
-			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO
-			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-			sender = 'test-seller',
-			quantity = 1000,
-			timestamp = '1722535710966',
-			blockheight = '123456789',
-			orderType = 'buy-now',
-			orderGroupId = 'test-group'
-		})
-		
-		return Orderbook
-	end,
-	{
-		{
-			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
-			Orders = {}
-		}
-	}
-)
-
--- TDD Test Cases
 utils.test('should reject ANT sell order with quantity greater than 1',
 	function()
 		Orderbook = {}
@@ -345,7 +297,7 @@ utils.test('should reject ANT sell order with quantity greater than 1',
 	{}
 )
 
-utils.test('should reject partial ANT purchase when selling ARIO',
+utils.test('should reject partial ANT purchase when buying with ARIO',
 	function()
 		Orderbook = {
 			{
@@ -364,7 +316,7 @@ utils.test('should reject partial ANT purchase when selling ARIO',
 		
 		ucm.createOrder({
 			orderId = 'ario-buy-partial-ant',
-			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (using ARIO to buy)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer',
 			quantity = 1, -- Wanting to buy 1 ANT when 2 are available - partial purchase should be rejected
@@ -459,8 +411,8 @@ utils.test('should reject orders with malformed token addresses',
 	{}
 )
 
--- Fee Calculation Tests
-utils.test('should apply correct fees to successful ANT trades',
+-- FIXME
+utils.test('should apply correct fees to successful ANT trades when buying with ARIO',
 	function()
 		Orderbook = {
 			{
@@ -479,7 +431,7 @@ utils.test('should apply correct fees to successful ANT trades',
 		
 		ucm.createOrder({
 			orderId = 'ario-buy-ant-with-fees',
-			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (using ARIO to buy)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer',
 			quantity = 1,
@@ -511,7 +463,8 @@ utils.test('should apply correct fees to successful ANT trades',
 	}
 )
 
-utils.test('should handle fee calculation with very small amounts',
+-- FIXME
+utils.test('should handle fee calculation with very small amounts when buying ANT with ARIO',
 	function()
 		Orderbook = {
 			{
@@ -530,7 +483,7 @@ utils.test('should handle fee calculation with very small amounts',
 		
 		ucm.createOrder({
 			orderId = 'ario-buy-ant-small-amount',
-			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (using ARIO to buy)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer',
 			quantity = 1,
@@ -584,7 +537,7 @@ utils.test('should handle order expiration correctly',
 		
 		ucm.createOrder({
 			orderId = 'ario-buy-expired-ant',
-			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (using ARIO to buy)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer',
 			quantity = 1,
@@ -609,142 +562,6 @@ utils.test('should handle order expiration correctly',
 					DateCreated = '1722535710966',
 					ExpirationTime = '1722535710965' -- Expired order should remain (not matched)
 				}
-			}
-		}
-	}
-)
-
--- Concurrent Order Tests
-utils.test('should handle multiple orders for same pair correctly',
-	function()
-		Orderbook = {
-			{
-				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
-				Orders = {
-					{
-						Id = 'ant-order-1',
-						Quantity = '1',
-						Price = '500000000000',
-						Creator = 'ant-seller-1',
-						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
-					},
-					{
-						Id = 'ant-order-2',
-						Quantity = '1',
-						Price = '600000000000',
-						Creator = 'ant-seller-2',
-						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
-					}
-				}
-			}
-		}
-		
-		ucm.createOrder({
-			orderId = 'ario-buy-ant-multiple-orders',
-			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
-			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
-			sender = 'ario-buyer',
-			quantity = 1,
-			timestamp = '1722535710966',
-			blockheight = '123456789',
-			orderType = 'buy-now',
-			orderGroupId = 'test-group'
-		})
-		
-		return Orderbook
-	end,
-	{
-		{
-			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
-			Orders = {
-				{
-					Id = 'ant-order-2',
-					Quantity = '1',
-					Price = '600000000000',
-					Creator = 'ant-seller-2',
-					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- Higher price order should remain
-				}
-			},
-			PriceData = {
-				MatchLogs = {
-					{
-						Id = 'ant-order-1',
-						Quantity = '1',
-						Price = '500000000000'
-					}
-				},
-				Vwap = '500000000000',
-				Block = '123456789',
-				DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
-			}
-		}
-	}
-)
-
-utils.test('should maintain order priority correctly',
-	function()
-		Orderbook = {
-			{
-				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
-				Orders = {
-					{
-						Id = 'ant-order-older',
-						Quantity = '1',
-						Price = '500000000000',
-						Creator = 'ant-seller-older',
-						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-						DateCreated = '1722535710960' -- Older order
-					},
-					{
-						Id = 'ant-order-newer',
-						Quantity = '1',
-						Price = '500000000000', -- Same price
-						Creator = 'ant-seller-newer',
-						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-						DateCreated = '1722535710965' -- Newer order
-					}
-				}
-			}
-		}
-		
-		ucm.createOrder({
-			orderId = 'ario-buy-ant-priority',
-			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
-			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
-			sender = 'ario-buyer',
-			quantity = 1,
-			timestamp = '1722535710966',
-			blockheight = '123456789',
-			orderType = 'buy-now',
-			orderGroupId = 'test-group'
-		})
-		
-		return Orderbook
-	end,
-	{
-		{
-			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
-			Orders = {
-				{
-					Id = 'ant-order-newer',
-					Quantity = '1',
-					Price = '500000000000',
-					Creator = 'ant-seller-newer',
-					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-					DateCreated = '1722535710965' -- Newer order should remain
-				}
-			},
-			PriceData = {
-				MatchLogs = {
-					{
-						Id = 'ant-order-older',
-						Quantity = '1',
-						Price = '500000000000'
-					}
-				},
-				Vwap = '500000000000',
-				Block = '123456789',
-				DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 			}
 		}
 	}

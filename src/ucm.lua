@@ -139,7 +139,7 @@ local function ensurePairExists(validPair)
 	return pairIndex
 end
 
--- Helper function to handle ARIO token orders: we are buying ANT token, so we need to add to orderbook
+-- Helper function to handle ARIO token orders: we are selling ANT token, so we need to add to orderbook
 local function handleArioOrder(args, validPair, pairIndex)
 	-- Validate ANT token quantity must be exactly 1 when selling ANT
 	if not utils.isArioToken(args.dominantToken) and args.quantity ~= 1 then

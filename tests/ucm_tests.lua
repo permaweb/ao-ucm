@@ -990,4 +990,76 @@ utils.test('should reject order with invalid expiration time',
 	}
 )
 
+utils.test('should reject order with no price specified',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'no-price-order',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO
+			sender = 'test-seller',
+			quantity = 1,
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group',
+			expirationTime = '1722535720966'
+			-- price is missing
+		})
+		
+		return Orderbook
+	end,
+	{
+	}
+)
+
+utils.test('should reject order with negative price',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'negative-price-order',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO
+			sender = 'test-seller',
+			quantity = 1,
+			price = '-500000000000', -- Negative price
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group',
+			expirationTime = '1722535720966'
+		})
+		
+		return Orderbook
+	end,
+	{
+	}
+)
+
+utils.test('should reject order with zero price',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'zero-price-order',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO
+			sender = 'test-seller',
+			quantity = 1,
+			price = '0', -- Zero price
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'buy-now',
+			orderGroupId = 'test-group',
+			expirationTime = '1722535720966'
+		})
+		
+		return Orderbook
+	end,
+	{
+	}
+)
+
 utils.testSummary() 

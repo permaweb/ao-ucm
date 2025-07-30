@@ -346,6 +346,18 @@ local function validateOrderParams(args)
 			})
 			return nil
 		end
+
+		if not args.price then
+			handleError({
+				Target = args.sender,
+				Action = 'Validation-Error',
+				Message = 'Price is required when selling ANT tokens',
+				Quantity = args.quantity,
+				TransferToken = validPair[1],
+				OrderGroupId = args.orderGroupId
+			})
+			return nil
+		end
 		
 		-- Validate expiration time is valid
 		local isValidExpiration, expirationError = utils.checkValidExpirationTime(args.expirationTime, args.timestamp)
@@ -360,6 +372,20 @@ local function validateOrderParams(args)
 			})
 			return nil
 		end
+
+		local isValidPrice, priceError = utils.checkValidAmount(args.price)
+		if not isValidPrice then
+			handleError({
+				Target = args.sender,
+				Action = 'Validation-Error',
+				Message = priceError,
+				Quantity = args.quantity,
+				TransferToken = validPair[1],
+				OrderGroupId = args.orderGroupId
+			})
+			return nil
+		end
+	
 	end
 
 	return validPair

@@ -320,11 +320,11 @@ local function validateOrderParams(args)
 	end
 
 	-- Validate orderType is supported
-	if not args.orderType or args.orderType ~= "buy-now" then
+	if not args.orderType or args.orderType ~= "fixed" then
 		handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
-			Message = 'Order type must be "buy-now"',
+			Message = 'Order type must be "fixed"',
 			Quantity = args.quantity,
 			TransferToken = validPair[1],
 			OrderGroupId = args.orderGroupId
@@ -445,7 +445,7 @@ local function handleArioOrder(args, validPair, pairIndex)
 		Creator = args.sender,
 		Token = validPair[1],
 		DateCreated = args.timestamp,
-		Price = args.price and tostring(args.price) or '0',
+		Price = args.price and tostring(args.price),
 		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
 	})
 
@@ -459,7 +459,7 @@ local function handleArioOrder(args, validPair, pairIndex)
 				Sender = args.sender,
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
-				Price = args.price and tostring(args.price) or '0',
+				Price = args.price and tostring(args.price),
 				Timestamp = args.timestamp
 			}
 		})
@@ -482,7 +482,7 @@ local function handleArioOrder(args, validPair, pairIndex)
 			DominantToken = validPair[1],
 			SwapToken = args.swapToken,
 			Quantity = tostring(args.quantity),
-			Price = args.price and tostring(args.price) or '0',
+			Price = args.price and tostring(args.price),
 			Message = 'ARIO order added to orderbook for buy now!',
 			['X-Group-ID'] = args.orderGroupId
 		}
@@ -816,7 +816,7 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 			timestamp = msg.Timestamp,
 			blockheight = msg['Block-Height'],
 			syncState = syncState,
-			orderType = msg.Tags['X-Order-Type'] or 'buy-now'
+			orderType = msg.Tags['X-Order-Type'] or 'fixed'
 		}
 
 		if msg.Tags['X-Price'] then

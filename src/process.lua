@@ -103,7 +103,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			quantity = msg.Tags.Quantity,
 			timestamp = msg.Timestamp,
 			blockheight = msg['Block-Height'],
-			orderType = msg.Tags['X-Order-Type'] or 'buy-now',
+			orderType = msg.Tags['X-Order-Type'] or 'fixed',
 			expirationTime = msg.Tags['X-Expiration-Time']
 		}
 

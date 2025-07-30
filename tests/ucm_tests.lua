@@ -43,7 +43,7 @@ utils.test('should execute immediate trade when selling ARIO to buy ANT with mat
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -82,7 +82,7 @@ utils.test('should add ANT sell order to orderbook when selling ANT to buy ARIO'
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '1722535720966' -- Valid expiration time
 		})
@@ -143,7 +143,7 @@ utils.test('should reject order without ARIO token in trade',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -164,7 +164,7 @@ utils.test('should fail when buying ANT with ARIO but no ANT orders exist to mat
 			quantity = 1000,
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -208,7 +208,7 @@ utils.test('should fail when buying specific ANT with ARIO but only different AN
 			quantity = 1,
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -248,7 +248,7 @@ utils.test('should reject order with zero quantity',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -270,7 +270,7 @@ utils.test('should reject order with negative quantity',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -292,7 +292,7 @@ utils.test('should reject ANT sell order with quantity greater than 1',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -326,7 +326,7 @@ utils.test('should reject partial ANT purchase when buying with ARIO',
 			quantity = 1, -- Wanting to buy 1 ANT when 2 are available - partial purchase should be rejected
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -362,7 +362,7 @@ utils.test('should reject orders with invalid token addresses',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -384,7 +384,7 @@ utils.test('should reject orders with same token addresses',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -406,7 +406,7 @@ utils.test('should reject orders with malformed token addresses',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -441,7 +441,7 @@ utils.test('should apply correct fees to successful ANT trades when buying with 
 			quantity = 1,
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -493,7 +493,7 @@ utils.test('should handle fee calculation with very small amounts when buying AN
 			quantity = 1,
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -547,7 +547,7 @@ utils.test('should handle order expiration correctly',
 			quantity = 1,
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -598,7 +598,7 @@ utils.test('should reject duplicate ANT sell order for same ANT token',
 			price = '600000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -646,7 +646,7 @@ utils.test('should allow different ANT tokens to be sold simultaneously',
 			price = '600000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '1753860134000'
 		})
@@ -697,7 +697,7 @@ utils.test('Should reject order with quantity 0 while selling ANT',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -719,7 +719,7 @@ utils.test('Should reject order with quantity 0 while buying ANT',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 		})
 		
@@ -742,7 +742,7 @@ utils.test('should reject order without expiration time',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group'
 			-- missing expirationTime
 		})
@@ -766,7 +766,7 @@ utils.test('should reject order with expiration time equal to timestamp',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '1722535710966' -- Same as timestamp
 		})
@@ -790,7 +790,7 @@ utils.test('should reject order with expiration time less than timestamp',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '1' -- Earlier than timestamp
 		})
@@ -814,7 +814,7 @@ utils.test('should reject order with invalid expiration time',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = 'invalid-timestamp'
 		})
@@ -838,7 +838,7 @@ utils.test('should accept order with valid expiration time greater than timestam
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '1722535720966' -- 10 seconds later
 		})
@@ -891,7 +891,7 @@ utils.test('should execute immediate trade with valid expiration time when selli
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '1722535720966' -- Valid expiration time
 		})
@@ -931,7 +931,7 @@ utils.test('should reject order with zero expiration time',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '0'
 		})
@@ -955,7 +955,7 @@ utils.test('should reject order with negative expiration time',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '-1722535710966'
 		})
@@ -979,7 +979,7 @@ utils.test('should reject order with invalid expiration time',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = 'invalid-timestamp'
 		})
@@ -1002,7 +1002,7 @@ utils.test('should reject order with no price specified',
 			quantity = 1,
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '1722535720966'
 			-- price is missing
@@ -1027,7 +1027,7 @@ utils.test('should reject order with negative price',
 			price = '-500000000000', -- Negative price
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '1722535720966'
 		})
@@ -1051,7 +1051,7 @@ utils.test('should reject order with zero price',
 			price = '0', -- Zero price
 			timestamp = '1722535710966',
 			blockheight = '123456789',
-			orderType = 'buy-now',
+			orderType = 'fixed',
 			orderGroupId = 'test-group',
 			expirationTime = '1722535720966'
 		})

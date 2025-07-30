@@ -23,8 +23,12 @@ ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 
 if not Orderbook then Orderbook = {} end
 
+local fixed_auction = {}
 local utils = {}
 local ucm = {}
+
+-- utils.lua
+--------------------------------
 
 function utils.checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
@@ -143,6 +147,73 @@ function utils.printTable(t, indent)
 	print(jsonStr)
 end
 
+function utils.checkTables(t1, t2)
+	if t1 == t2 then return true end
+	if type(t1) ~= 'table' or type(t2) ~= 'table' then return false end
+	for k, v in pairs(t1) do
+		if not utils.checkTables(v, t2[k]) then return false end
+	end
+	for k in pairs(t2) do
+		if t1[k] == nil then return false end
+	end
+	return true
+end
+
+local testResults = {
+    total = 0,
+    passed = 0,
+    failed = 0,
+}
+
+function utils.test(description, fn, expected)
+    local colors = {
+        red = '\27[31m',
+        green = '\27[32m',
+        blue = '\27[34m',
+        reset = '\27[0m',
+    }
+
+    testResults.total = testResults.total + 1
+    local testIndex = testResults.total
+
+    print('\n' .. colors.blue .. 'Running test ' .. testIndex .. '... ' .. description .. colors.reset)
+    local status, result = pcall(fn)
+    if not status then
+        testResults.failed = testResults.failed + 1
+        print(colors.red .. 'Failed - ' .. description .. ' - ' .. result .. colors.reset .. '\n')
+    else
+        if utils.checkTables(result, expected) then
+            testResults.passed = testResults.passed + 1
+            print(colors.green .. 'Passed - ' .. description .. colors.reset)
+        else
+            testResults.failed = testResults.failed + 1
+            print(colors.red .. 'Failed - ' .. description .. colors.reset .. '\n')
+            print(colors.red .. 'Expected' .. colors.reset)
+            utils.printTable(expected)
+            print('\n' .. colors.red .. 'Got' .. colors.reset)
+            utils.printTable(result)
+        end
+    end
+end
+
+function utils.testSummary()
+    local colors = {
+        red = '\27[31m',
+        green = '\27[32m',
+        reset = '\27[0m',
+    }
+
+    print('\nTest Summary')
+    print('Total tests (' .. testResults.total .. ')')
+    print('Result: ' .. testResults.passed .. '/' .. testResults.total .. ' tests passed')
+    if testResults.passed == testResults.total then
+        print(colors.green .. 'All tests passed!' .. colors.reset)
+    else
+        print(colors.green .. 'Tests passed: ' .. testResults.passed .. '/' .. testResults.total .. colors.reset)
+        print(colors.red .. 'Tests failed: ' .. testResults.failed .. '/' .. testResults.total .. colors.reset .. '\n')
+    end
+end
+
 function utils.checkValidExpirationTime(expirationTime, timestamp)
 	-- Check if expiration time is a valid positive integer
 	expirationTime = tonumber(expirationTime)
@@ -166,74 +237,8 @@ function utils.checkValidExpirationTime(expirationTime, timestamp)
 	return true, nil
 end
 
-function utils.checkTables(t1, t2)
-	if t1 == t2 then return true end
-	if type(t1) ~= 'table' or type(t2) ~= 'table' then return false end
-	for k, v in pairs(t1) do
-		if not utils.checkTables(v, t2[k]) then return false end
-	end
-	for k in pairs(t2) do
-		if t1[k] == nil then return false end
-	end
-	return true
-end
 
-local testResults = {
-	total = 0,
-	passed = 0,
-	failed = 0,
-}
-
-function utils.test(description, fn, expected)
-	local colors = {
-		red = '\27[31m',
-		green = '\27[32m',
-		blue = '\27[34m',
-		reset = '\27[0m',
-	}
-
-	testResults.total = testResults.total + 1
-	local testIndex = testResults.total
-
-	print('\n' .. colors.blue .. 'Running test ' .. testIndex .. '... ' .. description .. colors.reset)
-	local status, result = pcall(fn)
-	if not status then
-		testResults.failed = testResults.failed + 1
-		print(colors.red .. 'Failed - ' .. description .. ' - ' .. result .. colors.reset .. '\n')
-	else
-		if utils.checkTables(result, expected) then
-			testResults.passed = testResults.passed + 1
-			print(colors.green .. 'Passed - ' .. description .. colors.reset)
-		else
-			testResults.failed = testResults.failed + 1
-			print(colors.red .. 'Failed - ' .. description .. colors.reset .. '\n')
-			print(colors.red .. 'Expected' .. colors.reset)
-			utils.printTable(expected)
-			print('\n' .. colors.red .. 'Got' .. colors.reset)
-			utils.printTable(result)
-		end
-	end
-end
-
-function utils.testSummary()
-	local colors = {
-		red = '\27[31m',
-		green = '\27[32m',
-		reset = '\27[0m',
-	}
-
-	print('\nTest Summary')
-	print('Total tests (' .. testResults.total .. ')')
-	print('Result: ' .. testResults.passed .. '/' .. testResults.total .. ' tests passed')
-	if testResults.passed == testResults.total then
-		print(colors.green .. 'All tests passed!' .. colors.reset)
-	else
-		print(colors.green .. 'Tests passed: ' .. testResults.passed .. '/' .. testResults.total .. colors.reset)
-		print(colors.red .. 'Tests failed: ' .. testResults.failed .. '/' .. testResults.total .. colors.reset .. '\n')
-	end
-end
-
-local function handleError(args) -- Target, TransferToken, Quantity
+function utils.handleError(args) -- Target, TransferToken, Quantity
 	-- If there is a valid quantity then return the funds
 	if args.TransferToken and args.Quantity and utils.checkValidAmount(args.Quantity) then
 		ao.send({
@@ -248,168 +253,98 @@ local function handleError(args) -- Target, TransferToken, Quantity
 	ao.send({ Target = args.Target, Action = args.Action, Tags = { Status = 'Error', Message = args.Message, ['X-Group-ID'] = args.OrderGroupId } })
 end
 
-function ucm.getPairIndex(pair)
-	local pairIndex = -1
+-- Helper function to execute token transfers
+function utils.executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
+	-- Transfer tokens to the seller (order creator)
+	ao.send({
+		Target = validPair[1],
+		Action = 'Transfer',
+		Tags = {
+			Recipient = currentOrderEntry.Creator,
+			Quantity = tostring(calculatedSendAmount)
+		}
+	})
 
-	for i, existingOrders in ipairs(Orderbook) do
-		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) or
-			(existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1]) then
-			pairIndex = i
-		end
-	end
-
-	return pairIndex
+	-- Transfer swap tokens to the buyer (order sender)
+	ao.send({
+		Target = args.swapToken,
+		Action = 'Transfer',
+		Tags = {
+			Recipient = args.sender,
+			Quantity = tostring(calculatedFillAmount)
+		}
+	})
 end
 
--- Helper function to validate order parameters
-local function validateOrderParams(args)
-	local validPair, pairError = utils.validatePairData({ args.dominantToken, args.swapToken })
+-- Helper function to record match and send activity data
+function utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
+	-- Record the successful match
+	local match = {
+		Id = currentOrderEntry.Id,
+		Quantity = calculatedFillAmount,
+		Price = tostring(currentOrderEntry.Price)
+	}
 
-	if not validPair then
-		handleError({
-			Target = args.sender,
-			Action = 'Order-Error',
-			Message = pairError or 'Error validating pair',
-			Quantity = args.quantity,
-			TransferToken = nil,
-			OrderGroupId = args.orderGroupId
+	-- Send match data to activity tracking
+	local matchedDataSuccess, matchedData = pcall(function()
+		return json.encode({
+			Order = {
+				Id = currentOrderEntry.Id,
+				MatchId = args.orderId,
+				DominantToken = validPair[2],
+				SwapToken = validPair[1],
+				Sender = currentOrderEntry.Creator,
+				Receiver = args.sender,
+				Quantity = calculatedFillAmount,
+				Price = tostring(currentOrderEntry.Price),
+				Timestamp = args.timestamp
+			}
 		})
-		return nil
-	end
+	end)
 
-	-- Ensure ARIO token is involved in the trade (marketplace requirement)
-	local isArioValid, arioError = utils.validateArioInTrade(args.dominantToken, args.swapToken)
-	if not isArioValid then
-		handleError({
-			Target = args.sender,
-			Action = 'Order-Error',
-			Message = arioError or 'Invalid trade - ARIO must be involved',
-			Quantity = args.quantity,
-			TransferToken = nil,
-			OrderGroupId = args.orderGroupId
-		})
-		return nil
-	end
+	ao.send({
+		Target = ACTIVITY_PROCESS,
+		Action = 'Update-Executed-Orders',
+		Data = matchedDataSuccess and matchedData or ''
+	})
 
-	-- Validate quantity is positive integer
-	if not utils.checkValidAmount(args.quantity) then
-		handleError({
-			Target = args.sender,
-			Action = 'Validation-Error',
-			Message = 'Quantity must be an integer greater than zero',
-			Quantity = args.quantity,
-			TransferToken = validPair[1],
-			OrderGroupId = args.orderGroupId
-		})
-		return nil
-	end
-
-	-- Validate ANT token quantity must be exactly 1 when selling ANT
-	if not utils.isArioToken(args.dominantToken) and args.quantity ~= 1 then
-		handleError({
-			Target = args.sender,
-			Action = 'Validation-Error',
-			Message = 'ANT tokens can only be sold in quantities of exactly 1',
-			Quantity = args.quantity,
-			TransferToken = validPair[1],
-			OrderGroupId = args.orderGroupId
-		})
-		return nil
-	end
-
-	-- Validate orderType is supported
-	if not args.orderType or args.orderType ~= "fixed" then
-		handleError({
-			Target = args.sender,
-			Action = 'Validation-Error',
-			Message = 'Order type must be "fixed"',
-			Quantity = args.quantity,
-			TransferToken = validPair[1],
-			OrderGroupId = args.orderGroupId
-		})
-		return nil
-	end
-
-	-- Validate expiration time only when selling ANT (not when buying ANT with ARIO)
-	if not utils.isArioToken(args.dominantToken) then
-		-- Expiration time is required when selling ANT
-		if not args.expirationTime then
-			handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = 'Expiration time is required when selling ANT tokens',
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
-			return nil
-		end
-
-		if not args.price then
-			handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = 'Price is required when selling ANT tokens',
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
-			return nil
-		end
-		
-		-- Validate expiration time is valid
-		local isValidExpiration, expirationError = utils.checkValidExpirationTime(args.expirationTime, args.timestamp)
-		if not isValidExpiration then
-			handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = expirationError,
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
-			return nil
-		end
-
-		local isValidPrice, priceError = utils.checkValidAmount(args.price)
-		if not isValidPrice then
-			handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = priceError,
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
-			return nil
-		end
-	
-	end
-
-	return validPair
+	return match
 end
 
--- Helper function to ensure trading pair exists in orderbook
-local function ensurePairExists(validPair)
-	local pairIndex = ucm.getPairIndex(validPair)
+-- fixed_auction.lua
+--------------------------------
 
-	-- Create new pair entry if it doesn't exist
-	if pairIndex == -1 then
-		table.insert(Orderbook, { Pair = validPair, Orders = {} })
-		pairIndex = ucm.getPairIndex(validPair)
+-- Helper function to update VWAP data
+local function updateVwapData(pairIndex, matches, args, currentToken)
+	local sumVolumePrice, sumVolume = 0, 0
+	if #matches > 0 then
+		for _, match in ipairs(matches) do
+			local volume = bint(match.Quantity)
+			local price = bint(match.Price)
+			sumVolumePrice = sumVolumePrice + (volume * price)
+			sumVolume = sumVolume + volume
+		end
+
+		-- Calculate and store VWAP
+		local vwap = sumVolumePrice / sumVolume
+		Orderbook[pairIndex].PriceData = {
+			Vwap = tostring(math.floor(vwap)),
+			Block = tostring(args.blockheight),
+			DominantToken = currentToken,
+			MatchLogs = matches
+		}
 	end
 
-	return pairIndex
+	return sumVolume
 end
-
--- Helper function to handle ARIO token orders: we are buying ANT token, so we need to add to orderbook
-local function handleArioOrder(args, validPair, pairIndex)
+-- Helper function to handle ARIO token orders: we are selling ANT token, so we need to add to orderbook
+function fixed_auction.handleArioOrder(args, validPair, pairIndex)
 	-- Check if this ANT token is already being sold (prevent duplicate ANT sell orders)
 	if not utils.isArioToken(args.dominantToken) then
 		local currentOrders = Orderbook[pairIndex].Orders
 		for _, existingOrder in ipairs(currentOrders) do
 			if existingOrder.Token == args.dominantToken then
-				handleError({
+				utils.handleError({
 					Target = args.sender,
 					Action = 'Validation-Error',
 					Message = 'This ANT token is already being sold - cannot create duplicate sell order',
@@ -474,90 +409,8 @@ local function handleArioOrder(args, validPair, pairIndex)
 	})
 end
 
--- Helper function to execute token transfers
-local function executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
-	-- Transfer tokens to the seller (order creator)
-	ao.send({
-		Target = validPair[1],
-		Action = 'Transfer',
-		Tags = {
-			Recipient = currentOrderEntry.Creator,
-			Quantity = tostring(calculatedSendAmount)
-		}
-	})
-
-	-- Transfer swap tokens to the buyer (order sender)
-	ao.send({
-		Target = args.swapToken,
-		Action = 'Transfer',
-		Tags = {
-			Recipient = args.sender,
-			Quantity = tostring(calculatedFillAmount)
-		}
-	})
-end
-
--- Helper function to record match and send activity data
-local function recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
-	-- Record the successful match
-	local match = {
-		Id = currentOrderEntry.Id,
-		Quantity = calculatedFillAmount,
-		Price = tostring(currentOrderEntry.Price)
-	}
-
-	-- Send match data to activity tracking
-	local matchedDataSuccess, matchedData = pcall(function()
-		return json.encode({
-			Order = {
-				Id = currentOrderEntry.Id,
-				MatchId = args.orderId,
-				DominantToken = validPair[2],
-				SwapToken = validPair[1],
-				Sender = currentOrderEntry.Creator,
-				Receiver = args.sender,
-				Quantity = calculatedFillAmount,
-				Price = tostring(currentOrderEntry.Price),
-				Timestamp = args.timestamp
-			}
-		})
-	end)
-
-	ao.send({
-		Target = ACTIVITY_PROCESS,
-		Action = 'Update-Executed-Orders',
-		Data = matchedDataSuccess and matchedData or ''
-	})
-
-	return match
-end
-
--- Helper function to update VWAP data
-local function updateVwapData(pairIndex, matches, args, currentToken)
-	local sumVolumePrice, sumVolume = 0, 0
-	if #matches > 0 then
-		for _, match in ipairs(matches) do
-			local volume = bint(match.Quantity)
-			local price = bint(match.Price)
-			sumVolumePrice = sumVolumePrice + (volume * price)
-			sumVolume = sumVolume + volume
-		end
-
-		-- Calculate and store VWAP
-		local vwap = sumVolumePrice / sumVolume
-		Orderbook[pairIndex].PriceData = {
-			Vwap = tostring(math.floor(vwap)),
-			Block = tostring(args.blockheight),
-			DominantToken = currentToken,
-			MatchLogs = matches
-		}
-	end
-
-	return sumVolume
-end
-
 -- Helper function to handle ANT token orders: we are buying ANT token, so we need to match with an existing ANT sell order or fail
-local function handleAntOrder(args, validPair, pairIndex)
+function fixed_auction.handleAntOrder(args, validPair, pairIndex)
 	local currentOrders = Orderbook[pairIndex].Orders
 	local matches = {}
 	local matchedOrderIndex = nil
@@ -582,7 +435,7 @@ local function handleAntOrder(args, validPair, pairIndex)
 
 				-- Validate we have a valid fill amount
 				if fillAmount <= bint(0) then
-					handleError({
+					utils.handleError({
 						Target = args.sender,
 						Action = 'Order-Error',
 						Message = 'No amount to fill',
@@ -598,10 +451,10 @@ local function handleAntOrder(args, validPair, pairIndex)
 				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
 				-- Execute token transfers
-				executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
+				utils.executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
 
 				-- Record the match
-				local match = recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
+				local match = utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
 				table.insert(matches, match)
 
 				-- Mark the order index for removal
@@ -641,7 +494,7 @@ local function handleAntOrder(args, validPair, pairIndex)
 		})
 	else
 		-- No matches found for ANT token - return error
-		handleError({
+		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'No matching orders found for immediate ANT trade - exact quantity match required',
@@ -651,6 +504,206 @@ local function handleAntOrder(args, validPair, pairIndex)
 		})
 		return
 	end
+end
+
+-- ucm.lua
+--------------------------------
+
+function ucm.getPairIndex(pair)
+	local pairIndex = -1
+
+	for i, existingOrders in ipairs(Orderbook) do
+		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) or
+			(existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1]) then
+			pairIndex = i
+		end
+	end
+
+	return pairIndex
+end
+
+-- Helper function to validate ANT dominant token orders (selling ANT for ARIO)
+local function validateAntDominantOrder(args, validPair)
+	-- ANT tokens can only be sold in quantities of exactly 1
+	if args.quantity ~= 1 then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'ANT tokens can only be sold in quantities of exactly 1',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+
+	-- Expiration time is required when selling ANT
+	if not args.expirationTime then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'Expiration time is required when selling ANT tokens',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+
+	-- Price is required when selling ANT
+	if not args.price then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'Price is required when selling ANT tokens',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+	
+	-- Validate expiration time is valid
+	local isValidExpiration, expirationError = utils.checkValidExpirationTime(args.expirationTime, args.timestamp)
+	if not isValidExpiration then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = expirationError,
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+
+	-- Validate price is valid
+	local isValidPrice, priceError = utils.checkValidAmount(args.price)
+	if not isValidPrice then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = priceError,
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+
+	return true
+end
+
+-- Helper function to validate ARIO dominant token orders (buying ANT with ARIO)
+local function validateArioDominantOrder(args, validPair)
+	-- Currently no specific validation rules for ARIO dominant orders
+	-- All general validations (quantity, pair, etc.) are handled in validateOrderParams
+	-- This function is a placeholder for future ARIO-specific validation rules
+	
+	return true
+end
+
+-- Helper function to validate order parameters
+local function validateOrderParams(args)
+	-- 1. Check pair data
+	local validPair, pairError = utils.validatePairData({ args.dominantToken, args.swapToken })
+	if not validPair then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = pairError or 'Error validating pair',
+			Quantity = args.quantity,
+			TransferToken = nil,
+			OrderGroupId = args.orderGroupId
+		})
+		return nil
+	end
+
+	-- 2. Validate ARIO is in trade (marketplace requirement)
+	local isArioValid, arioError = utils.validateArioInTrade(args.dominantToken, args.swapToken)
+	if not isArioValid then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = arioError or 'Invalid trade - ARIO must be involved',
+			Quantity = args.quantity,
+			TransferToken = nil,
+			OrderGroupId = args.orderGroupId
+		})
+		return nil
+	end
+
+	-- 3. Check quantity is positive integer
+	if not utils.checkValidAmount(args.quantity) then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'Quantity must be an integer greater than zero',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return nil
+	end
+
+	-- 4. Check order type is supported
+	if not args.orderType or args.orderType ~= "fixed" then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'Order type must be "fixed"',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return nil
+	end
+
+	-- 5. Check if it's ANT dominant (selling ANT) or ARIO dominant (buying ANT)
+	local isAntDominant = not utils.isArioToken(args.dominantToken)
+	
+	if isAntDominant then
+		-- ANT dominant: validate ANT-specific requirements
+		if not validateAntDominantOrder(args, validPair) then
+			utils.handleError({
+				Target = args.sender,
+				Action = 'Validation-Error',
+				Message = 'Error validating ANT dominant order',
+				Quantity = args.quantity,
+				TransferToken = validPair[1],
+				OrderGroupId = args.orderGroupId
+			})
+			return nil
+		end
+	else
+		-- ARIO dominant: validate ARIO-specific requirements
+		if not validateArioDominantOrder(args, validPair) then
+			utils.handleError({
+				Target = args.sender,
+				Action = 'Validation-Error',
+				Message = 'Error validating ARIO dominant order',
+				Quantity = args.quantity,
+				TransferToken = validPair[1],
+				OrderGroupId = args.orderGroupId
+			})
+			return nil
+		end
+	end
+
+	return validPair
+end
+
+-- Helper function to ensure trading pair exists in orderbook
+local function ensurePairExists(validPair)
+	local pairIndex = ucm.getPairIndex(validPair)
+
+	-- Create new pair entry if it doesn't exist
+	if pairIndex == -1 then
+		table.insert(Orderbook, { Pair = validPair, Orders = {} })
+		pairIndex = ucm.getPairIndex(validPair)
+	end
+
+	return pairIndex
 end
 
 function ucm.createOrder(args)
@@ -667,22 +720,22 @@ function ucm.createOrder(args)
 	if pairIndex > -1 then
 		-- Check if the desired token is ARIO (add to orderbook) or ANT (immediate trade only)
 		local isBuyingAnt = utils.isArioToken(args.dominantToken) -- If dominantToken is ARIO, we're buying ANT
-		local isBuyingArio = utils.isArioToken(args.dominantToken) == false -- If dominantToken is not ARIO, we're selling ANT
+		local isBuyingArio = not isBuyingAnt -- If dominantToken is not ARIO, we're selling ANT
 
 		-- Handle ANT token orders - check for immediate trades only, don't add to orderbook
 		if isBuyingAnt then
-			handleAntOrder(args, validPair, pairIndex)
+			fixed_auction.handleAntOrder(args, validPair, pairIndex)
 			return
 		end
 
 		-- Handle ARIO token orders - add to orderbook for buy now
 		if isBuyingArio then
-			handleArioOrder(args, validPair, pairIndex)
+			fixed_auction.handleArioOrder(args, validPair, pairIndex)
 			return
 		end
 
 		-- Placeholder for future order type handling
-		handleError({
+		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'Order type not implemented yet',
@@ -694,7 +747,7 @@ function ucm.createOrder(args)
 
 	else
 		-- Pair not found in orderbook (shouldn't happen after creation)
-		handleError({
+		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'Pair not found',
@@ -704,6 +757,8 @@ function ucm.createOrder(args)
 		})
 	end
 end
+
+--------------------------------
 
 local function getState()
     return {

@@ -153,7 +153,11 @@ Before deploying, ensure you have:
 
 3. **Environment variables**: Look for `CHANGEME` in code to change required variables:
 ```
+# This is the activity process address.
+ACTIVITY_PROCESS= 
 
+# This is the ARIO token process address.
+ARIO_TOKEN_PROCESS_ID=
 ```
 
 ### Deployment Steps

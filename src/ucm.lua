@@ -197,19 +197,6 @@ end
 
 -- Helper function to handle ARIO token orders: we are selling ANT token, so we need to add to orderbook
 local function handleArioOrder(args, validPair, pairIndex)
-	-- Validate ANT token quantity must be exactly 1 when selling ANT
-	if not utils.isArioToken(args.dominantToken) and args.quantity ~= 1 then
-		handleError({
-			Target = args.sender,
-			Action = 'Validation-Error',
-			Message = 'ANT tokens can only be sold in quantities of exactly 1',
-			Quantity = args.quantity,
-			TransferToken = validPair[1],
-			OrderGroupId = args.orderGroupId
-		})
-		return
-	end
-
 	-- Check if this ANT token is already being sold (prevent duplicate ANT sell orders)
 	if not utils.isArioToken(args.dominantToken) then
 		local currentOrders = Orderbook[pairIndex].Orders
@@ -473,7 +460,7 @@ function ucm.createOrder(args)
 	if pairIndex > -1 then
 		-- Check if the desired token is ARIO (add to orderbook) or ANT (immediate trade only)
 		local isBuyingAnt = utils.isArioToken(args.dominantToken) -- If dominantToken is ARIO, we're buying ANT
-		local isSellingAnt = utils.isArioToken(args.dominantToken) == false -- If dominantToken is not ARIO, we're selling ANT
+		local isBuyingArio = not isBuyingAnt -- If dominantToken is not ARIO, we're selling ANT
 
 		-- Handle ANT token orders - check for immediate trades only, don't add to orderbook
 		if isBuyingAnt then
@@ -482,7 +469,7 @@ function ucm.createOrder(args)
 		end
 
 		-- Handle ARIO token orders - add to orderbook for buy now
-		if isSellingAnt then
+		if isBuyingArio then
 			handleArioOrder(args, validPair, pairIndex)
 			return
 		end

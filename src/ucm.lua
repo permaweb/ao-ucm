@@ -54,10 +54,91 @@ function ucm.getPairIndex(pair)
 	return pairIndex
 end
 
+-- Helper function to validate ANT dominant token orders (selling ANT for ARIO)
+local function validateAntDominantOrder(args, validPair)
+	-- ANT tokens can only be sold in quantities of exactly 1
+	if args.quantity ~= 1 then
+		handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'ANT tokens can only be sold in quantities of exactly 1',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+
+	-- Expiration time is required when selling ANT
+	if not args.expirationTime then
+		handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'Expiration time is required when selling ANT tokens',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+
+	-- Price is required when selling ANT
+	if not args.price then
+		handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'Price is required when selling ANT tokens',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+	
+	-- Validate expiration time is valid
+	local isValidExpiration, expirationError = utils.checkValidExpirationTime(args.expirationTime, args.timestamp)
+	if not isValidExpiration then
+		handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = expirationError,
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+
+	-- Validate price is valid
+	local isValidPrice, priceError = utils.checkValidAmount(args.price)
+	if not isValidPrice then
+		handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = priceError,
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+
+	return true
+end
+
+-- Helper function to validate ARIO dominant token orders (buying ANT with ARIO)
+local function validateArioDominantOrder(args, validPair)
+	-- Currently no specific validation rules for ARIO dominant orders
+	-- All general validations (quantity, pair, etc.) are handled in validateOrderParams
+	-- This function is a placeholder for future ARIO-specific validation rules
+	
+	return true
+end
+
 -- Helper function to validate order parameters
 local function validateOrderParams(args)
+	-- 1. Check pair data
 	local validPair, pairError = utils.validatePairData({ args.dominantToken, args.swapToken })
-
 	if not validPair then
 		handleError({
 			Target = args.sender,
@@ -70,7 +151,7 @@ local function validateOrderParams(args)
 		return nil
 	end
 
-	-- Ensure ARIO token is involved in the trade (marketplace requirement)
+	-- 2. Validate ARIO is in trade (marketplace requirement)
 	local isArioValid, arioError = utils.validateArioInTrade(args.dominantToken, args.swapToken)
 	if not isArioValid then
 		handleError({
@@ -84,7 +165,7 @@ local function validateOrderParams(args)
 		return nil
 	end
 
-	-- Validate quantity is positive integer
+	-- 3. Check quantity is positive integer
 	if not utils.checkValidAmount(args.quantity) then
 		handleError({
 			Target = args.sender,
@@ -97,20 +178,7 @@ local function validateOrderParams(args)
 		return nil
 	end
 
-	-- Validate ANT token quantity must be exactly 1 when selling ANT
-	if not utils.isArioToken(args.dominantToken) and args.quantity ~= 1 then
-		handleError({
-			Target = args.sender,
-			Action = 'Validation-Error',
-			Message = 'ANT tokens can only be sold in quantities of exactly 1',
-			Quantity = args.quantity,
-			TransferToken = validPair[1],
-			OrderGroupId = args.orderGroupId
-		})
-		return nil
-	end
-
-	-- Validate orderType is supported
+	-- 4. Check order type is supported
 	if not args.orderType or args.orderType ~= "fixed" then
 		handleError({
 			Target = args.sender,
@@ -123,60 +191,35 @@ local function validateOrderParams(args)
 		return nil
 	end
 
-	-- Validate expiration time only when selling ANT (not when buying ANT with ARIO)
-	if not utils.isArioToken(args.dominantToken) then
-		-- Expiration time is required when selling ANT
-		if not args.expirationTime then
-			handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = 'Expiration time is required when selling ANT tokens',
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
-			return nil
-		end
-
-		if not args.price then
-			handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = 'Price is required when selling ANT tokens',
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
-			return nil
-		end
-		
-		-- Validate expiration time is valid
-		local isValidExpiration, expirationError = utils.checkValidExpirationTime(args.expirationTime, args.timestamp)
-		if not isValidExpiration then
-			handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = expirationError,
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
-			return nil
-		end
-
-		local isValidPrice, priceError = utils.checkValidAmount(args.price)
-		if not isValidPrice then
-			handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = priceError,
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
-			return nil
-		end
+	-- 5. Check if it's ANT dominant (selling ANT) or ARIO dominant (buying ANT)
+	local isAntDominant = not utils.isArioToken(args.dominantToken)
 	
+	if isAntDominant then
+		-- ANT dominant: validate ANT-specific requirements
+		if not validateAntDominantOrder(args, validPair) then
+			handleError({
+				Target = args.sender,
+				Action = 'Validation-Error',
+				Message = 'Error validating ANT dominant order',
+				Quantity = args.quantity,
+				TransferToken = validPair[1],
+				OrderGroupId = args.orderGroupId
+			})
+			return nil
+		end
+	else
+		-- ARIO dominant: validate ARIO-specific requirements
+		if not validateArioDominantOrder(args, validPair) then
+			handleError({
+				Target = args.sender,
+				Action = 'Validation-Error',
+				Message = 'Error validating ARIO dominant order',
+				Quantity = args.quantity,
+				TransferToken = validPair[1],
+				OrderGroupId = args.orderGroupId
+			})
+			return nil
+		end
 	end
 
 	return validPair

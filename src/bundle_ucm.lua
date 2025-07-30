@@ -801,16 +801,12 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 			timestamp = msg.Timestamp,
 			blockheight = msg['Block-Height'],
 			syncState = syncState,
-			orderType = msg.Tags['X-Order-Type'] or 'fixed'
+			orderType = msg.Tags['X-Order-Type'] or 'fixed',
+			expirationTime = msg.Tags['X-Expiration-Time'],
+			price = msg.Tags['X-Price'],
+			transferDenomination = msg.Tags['X-Transfer-Denomination']
 		}
-
-		if msg.Tags['X-Price'] then
-			orderArgs.price = msg.Tags['X-Price']
-		end
-		if msg.Tags['X-Transfer-Denomination'] then
-			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
-		end
-
+		
 		ucm.createOrder(orderArgs)
 	end
 end)

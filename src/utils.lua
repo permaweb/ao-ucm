@@ -213,4 +213,78 @@ function utils.checkValidExpirationTime(expirationTime, timestamp)
 	return true, nil
 end
 
+
+function utils.handleError(args) -- Target, TransferToken, Quantity
+	-- If there is a valid quantity then return the funds
+	if args.TransferToken and args.Quantity and utils.checkValidAmount(args.Quantity) then
+		ao.send({
+			Target = args.TransferToken,
+			Action = 'Transfer',
+			Tags = {
+				Recipient = args.Target,
+				Quantity = tostring(args.Quantity)
+			}
+		})
+	end
+	ao.send({ Target = args.Target, Action = args.Action, Tags = { Status = 'Error', Message = args.Message, ['X-Group-ID'] = args.OrderGroupId } })
+end
+
+-- Helper function to execute token transfers
+function utils.executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
+	-- Transfer tokens to the seller (order creator)
+	ao.send({
+		Target = validPair[1],
+		Action = 'Transfer',
+		Tags = {
+			Recipient = currentOrderEntry.Creator,
+			Quantity = tostring(calculatedSendAmount)
+		}
+	})
+
+	-- Transfer swap tokens to the buyer (order sender)
+	ao.send({
+		Target = args.swapToken,
+		Action = 'Transfer',
+		Tags = {
+			Recipient = args.sender,
+			Quantity = tostring(calculatedFillAmount)
+		}
+	})
+end
+
+-- Helper function to record match and send activity data
+function utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
+	-- Record the successful match
+	local match = {
+		Id = currentOrderEntry.Id,
+		Quantity = calculatedFillAmount,
+		Price = tostring(currentOrderEntry.Price)
+	}
+
+	-- Send match data to activity tracking
+	local matchedDataSuccess, matchedData = pcall(function()
+		return json.encode({
+			Order = {
+				Id = currentOrderEntry.Id,
+				MatchId = args.orderId,
+				DominantToken = validPair[2],
+				SwapToken = validPair[1],
+				Sender = currentOrderEntry.Creator,
+				Receiver = args.sender,
+				Quantity = calculatedFillAmount,
+				Price = tostring(currentOrderEntry.Price),
+				Timestamp = args.timestamp
+			}
+		})
+	end)
+
+	ao.send({
+		Target = ACTIVITY_PROCESS,
+		Action = 'Update-Executed-Orders',
+		Data = matchedDataSuccess and matchedData or ''
+	})
+
+	return match
+end
+
 return utils

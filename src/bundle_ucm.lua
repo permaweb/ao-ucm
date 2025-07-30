@@ -3,10 +3,8 @@ local bint = require('.bint')(256)
 
 if Name ~= 'ANT Marketplace' then Name = 'ANT Marketplace' end
 
+-- CHANGEME
 ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
-DEFAULT_SWAP_TOKEN = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8' -- Replace with actual ARIO token process ID
-
--- ARIO token process ID - replace with actual ARIO token process ID
 ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 
 -- Orderbook {

@@ -113,7 +113,7 @@ To run the test suite:
 
 2. Run the tests:
    ```bash
-   lua tests.lua
+   lua ucm_tests.lua
    ```
 
 ## Development
@@ -137,6 +137,41 @@ cd toolkit
 npm install
 npm run build
 ```
+
+## Deployment
+
+### Prerequisites
+
+Before deploying, ensure you have:
+
+1. **AO SDK installed**: Install the AO command line tools
+   ```bash
+	npm i -g https://get_ao.g8way.io
+   ```
+
+2. **Wallet file**: An Arweave wallet JSON file for deployment. You can generate one simply by running `aos` in terminal. It should be created in `~/.aos.json`.
+
+3. **Environment variables**: Look for `CHANGEME` in code to change required variables:
+```
+
+```
+
+### Deployment Steps
+
+1. **Start CLI**:
+   ```bash
+   aos --wallet /path/to/your/wallet.json
+   ```
+
+2. **Deploy the code**:
+	```bash
+	user@aos-2.0.4[Inbox:1]> .load src/bundle_ucm.lua
+	```
+	If the code is correct, the CLI will show the standard prompt.
+
+### Deployment Notes
+
+- Use `src/bundle_ucm.lua` which is a self-contained version with all dependencies.
 
 ## Project Structure
 

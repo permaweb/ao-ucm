@@ -223,6 +223,36 @@ local function ensurePairExists(validPair)
 	return pairIndex
 end
 
+local function handleAntOrderAuctions(args, validPair, pairIndex)
+	if args.orderType == "fixed" then
+		fixed_auction.handleAntOrder(args, validPair, pairIndex)
+	else
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = 'Order type not implemented yet',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+	end
+end
+
+local function handleArioOrderAuctions(args, validPair, pairIndex)
+	if args.orderType == "fixed" then
+		fixed_auction.handleArioOrder(args, validPair, pairIndex)
+	else
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = 'Order type not implemented yet',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+	end
+end
+
 function ucm.createOrder(args)
 	-- Validate order parameters
 	-- TODO: Order type is added, but not used yet - add it's usage with a new order type
@@ -241,13 +271,13 @@ function ucm.createOrder(args)
 
 		-- Handle ANT token orders - check for immediate trades only, don't add to orderbook
 		if isBuyingAnt then
-			fixed_auction.handleAntOrder(args, validPair, pairIndex)
+			handleAntOrderAuctions(args, validPair, pairIndex)
 			return
 		end
 
 		-- Handle ARIO token orders - add to orderbook for buy now
 		if isBuyingArio then
-			fixed_auction.handleArioOrder(args, validPair, pairIndex)
+			handleArioOrderAuctions(args, validPair, pairIndex)
 			return
 		end
 

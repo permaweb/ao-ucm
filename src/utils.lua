@@ -190,4 +190,27 @@ function utils.testSummary()
     end
 end
 
+function utils.checkValidExpirationTime(expirationTime, timestamp)
+	-- Check if expiration time is a valid positive integer
+	expirationTime = tonumber(expirationTime)
+	if not expirationTime or not utils.checkValidAmount(expirationTime) then
+		return false, 'Expiration time must be a valid positive integer'
+	end
+	
+	-- Check if expiration time is greater than current timestamp
+	local status, result = pcall(function()
+		return bint(expirationTime) <= bint(timestamp)
+	end)
+	
+	if not status then
+		return false, 'Expiration time must be a valid timestamp'
+	end
+	
+	if result then
+		return false, 'Expiration time must be greater than current timestamp'
+	end
+	
+	return true, nil
+end
+
 return utils

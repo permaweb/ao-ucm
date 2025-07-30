@@ -123,6 +123,39 @@ local function validateOrderParams(args)
 		return nil
 	end
 
+	-- Validate expiration time only when selling ANT (not when buying ANT with ARIO)
+	if not utils.isArioToken(args.dominantToken) then
+		-- Expiration time is required when selling ANT
+		if not args.expirationTime then
+			handleError({
+				Target = args.sender,
+				Action = 'Validation-Error',
+				Message = 'Expiration time is required when selling ANT tokens',
+				Quantity = args.quantity,
+				TransferToken = validPair[1],
+				OrderGroupId = args.orderGroupId
+			})
+			return nil
+		end
+		
+		-- Validate expiration time is valid
+		local isValidExpiration, expirationError = utils.checkValidExpirationTime(args.expirationTime, args.timestamp)
+
+		print('isValidExpiration', isValidExpiration)
+		print('expirationError', expirationError)
+		if not isValidExpiration then
+			handleError({
+				Target = args.sender,
+				Action = 'Validation-Error',
+				Message = expirationError,
+				Quantity = args.quantity,
+				TransferToken = validPair[1],
+				OrderGroupId = args.orderGroupId
+			})
+			return nil
+		end
+	end
+
 	return validPair
 end
 
@@ -181,6 +214,7 @@ local function handleArioOrder(args, validPair, pairIndex)
 		Token = validPair[1],
 		DateCreated = args.timestamp,
 		Price = args.price and tostring(args.price) or '0',
+		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
 	})
 
 	-- Send order data to activity tracking process

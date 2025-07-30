@@ -520,7 +520,7 @@ utils.test('should handle fee calculation with very small amounts when buying AN
 )
 
 -- Order Expiration Tests
-utils.test('should handle order expiration correctly',
+utils.test('should not match expired ANT orders',
 	function()
 		Orderbook = {
 			{

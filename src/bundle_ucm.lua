@@ -553,7 +553,7 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 			SwapToken = args.swapToken,
 			Quantity = tostring(args.quantity),
 			Price = args.price and tostring(args.price),
-			Message = 'ARIO order added to orderbook for buy now!',
+			Message = 'ARIO order added to orderbook for Dutch auction!',
 			['X-Group-ID'] = args.orderGroupId,
 			OrderType = 'dutch'
 		}

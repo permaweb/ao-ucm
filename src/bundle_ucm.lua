@@ -18,6 +18,10 @@ ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 -- 		DateCreated,
 -- 		Price
 -- 		ExpirationTime
+-- 		Type
+-- 		MinimumPrice (dutch)
+-- 		DecreaseInterval (dutch)
+-- 		DecreaseStep (dutch)
 -- 	} []
 -- } []
 

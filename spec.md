@@ -60,15 +60,7 @@ Handles error reporting and, if applicable, refunds the sender's tokens in case 
 
 ### Order Types
 
-- **Market Orders**: Executed at the best available price in the order book. The protocol attempts to fill the entire order quantity based on existing limit orders.
-- **Limit Orders**: Executed only if the market price meets the user's specified price. Any remaining unfilled quantity is added to the order book.
-
-### Tracking
-
-#### 1. **Volume-Weighted Average Price (VWAP)**
-For every set of matched orders, the **VWAP** is computed and stored for reference. This provides a clear view of the average price of traded ARNS tokens over time.
-
----
+- **Fixed Orders**: Executed if there is an immediate match in orderbook, fails otherwise.
 
 ### Processes
 
@@ -93,7 +85,7 @@ Handles updating of executed orders, logging them with their relevant details (s
 
 ### Fees
 
-ARNS Marketplace captures a 0.5% fee on trades.
+ARNS Marketplace captures a 0.5% fee on trades, which can be changed in `calculateFeeAmount` and `calculateSendAmount` located in `utils.lua` or in `bundle_ucm.lua` for bundled deployment.
 
 ---
 

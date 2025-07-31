@@ -235,4 +235,56 @@ utils.test('should fail if decrease interval is not provided',
 	}
 )
 
+utils.test('should fail if decrease interval is negative',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'ant-sell-order',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (selling ANT)
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'ant-seller',
+			quantity = 1,
+			price = '500000000000',
+			timestamp = '1735689600000',
+			blockheight = '123456789',
+			orderType = 'dutch',
+			orderGroupId = 'test-group',
+			expirationTime = '1736035200000',
+			minimumPrice = '100000000000',
+			decreaseInterval = '-2'
+		})
+		
+		return Orderbook
+	end,
+	{
+	}
+)
+
+utils.test('should fail if decrease interval is 0',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'ant-sell-order',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (selling ANT)
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'ant-seller',
+			quantity = 1,
+			price = '500000000000',
+			timestamp = '1735689600000',
+			blockheight = '123456789',
+			orderType = 'dutch',
+			orderGroupId = 'test-group',
+			expirationTime = '1736035200000',
+			minimumPrice = '100000000000',
+			decreaseInterval = '0'
+		})
+		
+		return Orderbook
+	end,
+	{
+	}
+)
+
 utils.testSummary() 

@@ -83,6 +83,17 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 
 	-- If Order-Action then create the order
 	if (Handlers.utils.hasMatchingTag('Action', 'X-Order-Action') and msg.Tags['X-Order-Action'] == 'Create-Order') then
+		-- Validate that at least one token in the trade is ARIO
+		local isArioValid, arioError = utils.validateArioInTrade(msg.From, msg.Tags['X-Swap-Token'])
+		if not isArioValid then
+			ao.send({ 
+				Target = msg.From, 
+				Action = 'Validation-Error', 
+				Tags = { Status = 'Error', Message = arioError or 'At least one token in the trade must be ARIO' } 
+			})
+			return
+		end
+
 		local orderArgs = {
 			orderId = msg.Id,
 			orderGroupId = msg.Tags['X-Group-ID'] or 'None',
@@ -91,7 +102,9 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			sender = data.Sender,
 			quantity = msg.Tags.Quantity,
 			timestamp = msg.Timestamp,
-			blockheight = msg['Block-Height']
+			blockheight = msg['Block-Height'],
+			orderType = msg.Tags['X-Order-Type'] or 'fixed',
+			expirationTime = msg.Tags['X-Expiration-Time']
 		}
 
 		if msg.Tags['X-Price'] then

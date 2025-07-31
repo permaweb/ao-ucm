@@ -3,6 +3,9 @@ local bint = require('.bint')(256)
 
 local utils = {}
 
+-- CHANGEME
+ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+
 function utils.checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
 		return false
@@ -13,6 +16,24 @@ end
 
 function utils.checkValidAmount(data)
 	return bint(data) > bint(0)
+end
+
+function utils.isArioToken(tokenAddress)
+	return tokenAddress == ARIO_TOKEN_PROCESS_ID
+end
+
+function utils.validateArioSwapToken(tokenAddress)
+	-- Allow ARIO tokens in both dominant and swap positions
+	-- This enables both selling for ARIO and buying with ARIO
+	return true, nil
+end
+
+function utils.validateArioInTrade(dominantToken, swapToken)
+	-- At least one of the tokens in the trade must be ARIO
+	if dominantToken == ARIO_TOKEN_PROCESS_ID or swapToken == ARIO_TOKEN_PROCESS_ID then
+		return true, nil
+	end
+	return false, 'At least one token in the trade must be ARIO'
 end
 
 function utils.decodeMessageData(data)
@@ -167,6 +188,29 @@ function utils.testSummary()
         print(colors.green .. 'Tests passed: ' .. testResults.passed .. '/' .. testResults.total .. colors.reset)
         print(colors.red .. 'Tests failed: ' .. testResults.failed .. '/' .. testResults.total .. colors.reset .. '\n')
     end
+end
+
+function utils.checkValidExpirationTime(expirationTime, timestamp)
+	-- Check if expiration time is a valid positive integer
+	expirationTime = tonumber(expirationTime)
+	if not expirationTime or not utils.checkValidAmount(expirationTime) then
+		return false, 'Expiration time must be a valid positive integer'
+	end
+	
+	-- Check if expiration time is greater than current timestamp
+	local status, result = pcall(function()
+		return bint(expirationTime) <= bint(timestamp)
+	end)
+	
+	if not status then
+		return false, 'Expiration time must be a valid timestamp'
+	end
+	
+	if result then
+		return false, 'Expiration time must be greater than current timestamp'
+	end
+	
+	return true, nil
 end
 
 return utils

@@ -30,24 +30,6 @@ local function updateVwapData(pairIndex, matches, args, currentToken)
 end
 -- Helper function to handle ARIO token orders: we are selling ANT token, so we need to add to orderbook
 function fixed_auction.handleArioOrder(args, validPair, pairIndex)
-	-- Check if this ANT token is already being sold (prevent duplicate ANT sell orders)
-	if not utils.isArioToken(args.dominantToken) then
-		local currentOrders = Orderbook[pairIndex].Orders
-		for _, existingOrder in ipairs(currentOrders) do
-			if existingOrder.Token == args.dominantToken then
-				utils.handleError({
-					Target = args.sender,
-					Action = 'Validation-Error',
-					Message = 'This ANT token is already being sold - cannot create duplicate sell order',
-					Quantity = args.quantity,
-					TransferToken = validPair[1],
-					OrderGroupId = args.orderGroupId
-				})
-				return
-			end
-		end
-	end
-
 	-- Add the new order to the orderbook (buy now functionality)
 	table.insert(Orderbook[pairIndex].Orders, {
 		Id = args.orderId,
@@ -57,7 +39,8 @@ function fixed_auction.handleArioOrder(args, validPair, pairIndex)
 		Token = validPair[1],
 		DateCreated = args.timestamp,
 		Price = args.price and tostring(args.price),
-		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
+		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+		Type = 'fixed'
 	})
 
 	-- Send order data to activity tracking process
@@ -95,7 +78,8 @@ function fixed_auction.handleArioOrder(args, validPair, pairIndex)
 			Quantity = tostring(args.quantity),
 			Price = args.price and tostring(args.price),
 			Message = 'ARIO order added to orderbook for buy now!',
-			['X-Group-ID'] = args.orderGroupId
+			['X-Group-ID'] = args.orderGroupId,
+			OrderType = 'fixed'
 		}
 	})
 end
@@ -111,6 +95,11 @@ function fixed_auction.handleAntOrder(args, validPair, pairIndex)
 		-- Check if order has expired
 		if currentOrderEntry.ExpirationTime and bint(currentOrderEntry.ExpirationTime) < bint(args.timestamp) then
 			-- Skip expired orders
+			goto continue
+		end
+
+		-- Check if the order is a fixed order
+		if currentOrderEntry.Type ~= 'fixed' then
 			goto continue
 		end
 		

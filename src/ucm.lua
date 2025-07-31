@@ -3,6 +3,7 @@ local json = require('json')
 
 local utils = require('utils')
 local fixed_auction = require('fixed_auction')
+local dutch_auction = require('dutch_auction')
 if Name ~= 'ANT Marketplace' then Name = 'ANT Marketplace' end
 
 -- CHANGEME
@@ -19,6 +20,7 @@ ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
 -- 		DateCreated,
 -- 		Price
 -- 		ExpirationTime
+-- 		Type
 -- 	} []
 -- } []
 
@@ -164,7 +166,7 @@ local function validateOrderParams(args)
 	end
 
 	-- 4. Check order type is supported
-	if not args.orderType or args.orderType ~= "fixed" then
+	if not args.orderType or args.orderType ~= "fixed" and args.orderType ~= "dutch" then
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
@@ -192,6 +194,23 @@ local function validateOrderParams(args)
 			})
 			return nil
 		end
+
+		-- Dutch auction specific validation
+		if args.orderType == "dutch" then
+			local isValidDutch, dutchError = dutch_auction.validateDutchParams(args)
+			if not isValidDutch then
+				utils.handleError({
+					Target = args.sender,
+					Action = 'Validation-Error',
+					Message = dutchError,
+					Quantity = args.quantity,
+					TransferToken = validPair[1],
+					OrderGroupId = args.orderGroupId
+				})
+				return nil
+			end
+		end
+		
 	else
 		-- ARIO dominant: validate ARIO-specific requirements
 		if not validateArioDominantOrder(args, validPair) then
@@ -239,8 +258,27 @@ local function handleAntOrderAuctions(args, validPair, pairIndex)
 end
 
 local function handleArioOrderAuctions(args, validPair, pairIndex)
+
+	-- Check if the desired token is already being sold (prevent duplicate sell orders)
+	local currentOrders = Orderbook[pairIndex].Orders
+	for _, existingOrder in ipairs(currentOrders) do
+		if existingOrder.Token == args.dominantToken then
+			utils.handleError({
+				Target = args.sender,
+				Action = 'Validation-Error',
+				Message = 'This ANT token is already being sold - cannot create duplicate sell order',
+				Quantity = args.quantity,
+				TransferToken = validPair[1],
+				OrderGroupId = args.orderGroupId
+			})
+			return
+		end
+	end
+
 	if args.orderType == "fixed" then
 		fixed_auction.handleArioOrder(args, validPair, pairIndex)
+	elseif args.orderType == "dutch" then
+		dutch_auction.handleArioOrder(args, validPair, pairIndex)
 	else
 		utils.handleError({
 			Target = args.sender,

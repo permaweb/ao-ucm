@@ -24,6 +24,7 @@ ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 if not Orderbook then Orderbook = {} end
 
 local fixed_auction = {}
+local dutch_auction = {}
 local utils = {}
 local ucm = {}
 
@@ -339,24 +340,6 @@ local function updateVwapData(pairIndex, matches, args, currentToken)
 end
 -- Helper function to handle ARIO token orders: we are selling ANT token, so we need to add to orderbook
 function fixed_auction.handleArioOrder(args, validPair, pairIndex)
-	-- Check if this ANT token is already being sold (prevent duplicate ANT sell orders)
-	if not utils.isArioToken(args.dominantToken) then
-		local currentOrders = Orderbook[pairIndex].Orders
-		for _, existingOrder in ipairs(currentOrders) do
-			if existingOrder.Token == args.dominantToken then
-				utils.handleError({
-					Target = args.sender,
-					Action = 'Validation-Error',
-					Message = 'This ANT token is already being sold - cannot create duplicate sell order',
-					Quantity = args.quantity,
-					TransferToken = validPair[1],
-					OrderGroupId = args.orderGroupId
-				})
-				return
-			end
-		end
-	end
-
 	-- Add the new order to the orderbook (buy now functionality)
 	table.insert(Orderbook[pairIndex].Orders, {
 		Id = args.orderId,
@@ -366,7 +349,8 @@ function fixed_auction.handleArioOrder(args, validPair, pairIndex)
 		Token = validPair[1],
 		DateCreated = args.timestamp,
 		Price = args.price and tostring(args.price),
-		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
+		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+		Type = 'fixed'
 	})
 
 	-- Send order data to activity tracking process
@@ -404,7 +388,8 @@ function fixed_auction.handleArioOrder(args, validPair, pairIndex)
 			Quantity = tostring(args.quantity),
 			Price = args.price and tostring(args.price),
 			Message = 'ARIO order added to orderbook for buy now!',
-			['X-Group-ID'] = args.orderGroupId
+			['X-Group-ID'] = args.orderGroupId,
+			OrderType = 'fixed'
 		}
 	})
 end
@@ -505,6 +490,98 @@ function fixed_auction.handleAntOrder(args, validPair, pairIndex)
 		return
 	end
 end
+
+-- dutch_auction.lua
+--------------------------------
+
+
+function dutch_auction.handleArioOrder(args, validPair, pairIndex)
+    local intervals = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
+    local priceDecreaseMax = bint(args.price) - bint(args.minimumPrice)
+    local decreaseStep = math.floor(priceDecreaseMax / intervals)
+
+    table.insert(Orderbook[pairIndex].Orders, {
+		Id = args.orderId,
+		Quantity = tostring(args.quantity),
+		OriginalQuantity = tostring(args.quantity),
+		Creator = args.sender,
+		Token = validPair[1],
+		DateCreated = args.timestamp,
+		Price = args.price and tostring(args.price),
+		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+        Type = 'dutch',
+        MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
+        DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),
+        DecreaseStep = tostring(decreaseStep)
+	})
+
+    	-- Send order data to activity tracking process
+	local limitDataSuccess, limitData = pcall(function()
+		return json.encode({
+			Order = {
+				Id = args.orderId,
+				DominantToken = validPair[1],
+				SwapToken = validPair[2],
+				Sender = args.sender,
+				Receiver = nil,
+				Quantity = tostring(args.quantity),
+				Price = args.price and tostring(args.price),
+				Timestamp = args.timestamp,
+				OrderType = 'dutch',
+				MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
+				DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),
+				DecreaseStep = tostring(decreaseStep)
+			}
+		})
+	end)
+
+	ao.send({
+		Target = ACTIVITY_PROCESS,
+		Action = 'Update-Listed-Orders',
+		Data = limitDataSuccess and limitData or ''
+	})
+
+	-- Notify sender of successful order creation
+	ao.send({
+		Target = args.sender,
+		Action = 'Order-Success',
+		Tags = {
+			Status = 'Success',
+			OrderId = args.orderId,
+			Handler = 'Create-Order',
+			DominantToken = validPair[1],
+			SwapToken = args.swapToken,
+			Quantity = tostring(args.quantity),
+			Price = args.price and tostring(args.price),
+			Message = 'ARIO order added to orderbook for buy now!',
+			['X-Group-ID'] = args.orderGroupId,
+			OrderType = 'dutch'
+		}
+	})
+end
+
+
+function dutch_auction.validateDutchParams(args)
+    if not args.minimumPrice then
+		return false, 'Minimum price must be provided'
+	end
+
+	local isValidMinimumPrice, minimumPriceError = utils.checkValidAmount(args.minimumPrice)
+	if not isValidMinimumPrice then
+		return false, minimumPriceError
+	end
+
+    if not args.decreaseInterval then
+        return false, 'Decrease interval must be provided'
+    end
+
+    if bint(args.decreaseInterval) >= bint(args.expirationTime) then
+        return false, 'Decrease interval must be less than expiration time'
+    end
+
+    return true
+end
+
 
 -- ucm.lua
 --------------------------------
@@ -647,7 +724,7 @@ local function validateOrderParams(args)
 	end
 
 	-- 4. Check order type is supported
-	if not args.orderType or args.orderType ~= "fixed" then
+	if not args.orderType or args.orderType ~= "fixed" and args.orderType ~= "dutch" then
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
@@ -675,6 +752,23 @@ local function validateOrderParams(args)
 			})
 			return nil
 		end
+
+		-- Dutch auction specific validation
+		if args.orderType == "dutch" then
+			local isValidDutch, dutchError = dutch_auction.validateDutchParams(args)
+			if not isValidDutch then
+				utils.handleError({
+					Target = args.sender,
+					Action = 'Validation-Error',
+					Message = dutchError,
+					Quantity = args.quantity,
+					TransferToken = validPair[1],
+					OrderGroupId = args.orderGroupId
+				})
+				return nil
+			end
+		end
+		
 	else
 		-- ARIO dominant: validate ARIO-specific requirements
 		if not validateArioDominantOrder(args, validPair) then
@@ -722,8 +816,27 @@ local function handleAntOrderAuctions(args, validPair, pairIndex)
 end
 
 local function handleArioOrderAuctions(args, validPair, pairIndex)
+
+	-- Check if the desired token is already being sold (prevent duplicate sell orders)
+	local currentOrders = Orderbook[pairIndex].Orders
+	for _, existingOrder in ipairs(currentOrders) do
+		if existingOrder.Token == args.dominantToken then
+			utils.handleError({
+				Target = args.sender,
+				Action = 'Validation-Error',
+				Message = 'This ANT token is already being sold - cannot create duplicate sell order',
+				Quantity = args.quantity,
+				TransferToken = validPair[1],
+				OrderGroupId = args.orderGroupId
+			})
+			return
+		end
+	end
+
 	if args.orderType == "fixed" then
 		fixed_auction.handleArioOrder(args, validPair, pairIndex)
+	elseif args.orderType == "dutch" then
+		dutch_auction.handleArioOrder(args, validPair, pairIndex)
 	else
 		utils.handleError({
 			Target = args.sender,

@@ -28,7 +28,8 @@ utils.test('should execute immediate trade when selling ARIO to buy ANT with mat
 						Creator = 'ant-seller',
 						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 						DateCreated = '1722535710966',
-						ExpirationTime = '1722535720966' 
+						ExpirationTime = '1722535720966',
+						Type = 'fixed'
 					}
 				}
 			}
@@ -101,7 +102,8 @@ utils.test('should add ANT sell order to orderbook when selling ANT to buy ARIO'
 					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 					DateCreated = '1722535710966',
 					ExpirationTime = '1722535720966',
-					Price = '500000000000'
+					Price = '500000000000',
+					Type = 'fixed'
 				}
 			}
 		}
@@ -178,7 +180,6 @@ utils.test('should fail when buying ANT with ARIO but no ANT orders exist to mat
 	}
 )
 
--- FIXME
 utils.test('should fail when buying specific ANT with ARIO but only different ANT orders exist',
 	function()
 		Orderbook = {
@@ -415,7 +416,6 @@ utils.test('should reject orders with malformed token addresses',
 	{}
 )
 
--- FIXME
 utils.test('should apply correct fees to successful ANT trades when buying with ARIO',
 	function()
 		Orderbook = {
@@ -427,7 +427,8 @@ utils.test('should apply correct fees to successful ANT trades when buying with 
 						Quantity = '1',
 						Price = '1000000000000', -- 1000 ARIO per ANT
 						Creator = 'ant-seller',
-						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- ANT sell order
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						Type = 'fixed' -- ANT sell order
 					}
 				}
 			}
@@ -467,7 +468,6 @@ utils.test('should apply correct fees to successful ANT trades when buying with 
 	}
 )
 
--- FIXME
 utils.test('should handle fee calculation with very small amounts when buying ANT with ARIO',
 	function()
 		Orderbook = {
@@ -479,7 +479,8 @@ utils.test('should handle fee calculation with very small amounts when buying AN
 						Quantity = '1',
 						Price = '1000', -- Very small price
 						Creator = 'ant-seller',
-						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- ANT sell order
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						Type = 'fixed' -- ANT sell order
 					}
 				}
 			}
@@ -631,7 +632,8 @@ utils.test('should allow different ANT tokens to be sold simultaneously',
 						Quantity = '1',
 						Price = '500000000000',
 						Creator = 'ant-seller-1',
-						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- First ANT token
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						Type = 'fixed' -- First ANT token
 					}
 				}
 			}
@@ -662,7 +664,8 @@ utils.test('should allow different ANT tokens to be sold simultaneously',
 					Quantity = '1',
 					Price = '500000000000',
 					Creator = 'ant-seller-1',
-					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' -- First ANT token
+					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+					Type = 'fixed' -- First ANT token
 				}
 			}
 		},
@@ -677,7 +680,8 @@ utils.test('should allow different ANT tokens to be sold simultaneously',
 					Token = 'Xd1zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dGdS',
 					DateCreated = '1722535710966',
 					ExpirationTime = '1753860134000',
-					Price = '600000000000'
+					Price = '600000000000',
+					Type = 'fixed'
 				}
 			}
 		}
@@ -857,7 +861,8 @@ utils.test('should accept order with valid expiration time greater than timestam
 					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 					DateCreated = '1722535710966',
 					Price = '500000000000',
-					ExpirationTime = '1722535720966'
+					ExpirationTime = '1722535720966',
+					Type = 'fixed'
 				}
 			}
 		}
@@ -876,7 +881,8 @@ utils.test('should execute immediate trade with valid expiration time when selli
 						Price = '500000000000',
 						Creator = 'ant-seller',
 						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT sell order
-						ExpirationTime = '1722535720966' -- Valid expiration time
+						ExpirationTime = '1722535720966',
+						Type = 'fixed'
 					}
 				}
 			}

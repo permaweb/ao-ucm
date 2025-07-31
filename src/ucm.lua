@@ -2,7 +2,7 @@ local bint = require('.bint')(256)
 local json = require('json')
 
 local utils = require('utils')
-local fixed_auction = require('fixed_auction')
+local fixed_price = require('fixed_price')
 local dutch_auction = require('dutch_auction')
 if Name ~= 'ANT Marketplace' then Name = 'ANT Marketplace' end
 
@@ -244,7 +244,7 @@ end
 
 local function handleAntOrderAuctions(args, validPair, pairIndex)
 	if args.orderType == "fixed" then
-		fixed_auction.handleAntOrder(args, validPair, pairIndex)
+		fixed_price.handleAntOrder(args, validPair, pairIndex)
 	else
 		utils.handleError({
 			Target = args.sender,
@@ -276,7 +276,7 @@ local function handleArioOrderAuctions(args, validPair, pairIndex)
 	end
 
 	if args.orderType == "fixed" then
-		fixed_auction.handleArioOrder(args, validPair, pairIndex)
+		fixed_price.handleArioOrder(args, validPair, pairIndex)
 	elseif args.orderType == "dutch" then
 		dutch_auction.handleArioOrder(args, validPair, pairIndex)
 	else

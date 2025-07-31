@@ -23,7 +23,7 @@ ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 
 if not Orderbook then Orderbook = {} end
 
-local fixed_auction = {}
+local fixed_price = {}
 local dutch_auction = {}
 local utils = {}
 local ucm = {}
@@ -312,7 +312,7 @@ function utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmo
 	return match
 end
 
--- fixed_auction.lua
+-- fixed_price.lua
 --------------------------------
 
 -- Helper function to update VWAP data
@@ -339,7 +339,7 @@ local function updateVwapData(pairIndex, matches, args, currentToken)
 	return sumVolume
 end
 -- Helper function to handle ARIO token orders: we are selling ANT token, so we need to add to orderbook
-function fixed_auction.handleArioOrder(args, validPair, pairIndex)
+function fixed_price.handleArioOrder(args, validPair, pairIndex)
 	-- Add the new order to the orderbook (buy now functionality)
 	table.insert(Orderbook[pairIndex].Orders, {
 		Id = args.orderId,
@@ -395,7 +395,7 @@ function fixed_auction.handleArioOrder(args, validPair, pairIndex)
 end
 
 -- Helper function to handle ANT token orders: we are buying ANT token, so we need to match with an existing ANT sell order or fail
-function fixed_auction.handleAntOrder(args, validPair, pairIndex)
+function fixed_price.handleAntOrder(args, validPair, pairIndex)
 	local currentOrders = Orderbook[pairIndex].Orders
 	local matches = {}
 	local matchedOrderIndex = nil
@@ -802,7 +802,7 @@ end
 
 local function handleAntOrderAuctions(args, validPair, pairIndex)
 	if args.orderType == "fixed" then
-		fixed_auction.handleAntOrder(args, validPair, pairIndex)
+		fixed_price.handleAntOrder(args, validPair, pairIndex)
 	else
 		utils.handleError({
 			Target = args.sender,
@@ -834,7 +834,7 @@ local function handleArioOrderAuctions(args, validPair, pairIndex)
 	end
 
 	if args.orderType == "fixed" then
-		fixed_auction.handleArioOrder(args, validPair, pairIndex)
+		fixed_price.handleArioOrder(args, validPair, pairIndex)
 	elseif args.orderType == "dutch" then
 		dutch_auction.handleArioOrder(args, validPair, pairIndex)
 	else

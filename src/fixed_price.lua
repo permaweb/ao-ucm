@@ -3,7 +3,7 @@ local json = require('json')
 
 local utils = require('utils')
 
-local fixed_auction = {}
+local fixed_price = {}
 
 -- Helper function to update VWAP data
 local function updateVwapData(pairIndex, matches, args, currentToken)
@@ -29,7 +29,7 @@ local function updateVwapData(pairIndex, matches, args, currentToken)
 	return sumVolume
 end
 -- Helper function to handle ARIO token orders: we are selling ANT token, so we need to add to orderbook
-function fixed_auction.handleArioOrder(args, validPair, pairIndex)
+function fixed_price.handleArioOrder(args, validPair, pairIndex)
 	-- Add the new order to the orderbook (buy now functionality)
 	table.insert(Orderbook[pairIndex].Orders, {
 		Id = args.orderId,
@@ -85,7 +85,7 @@ function fixed_auction.handleArioOrder(args, validPair, pairIndex)
 end
 
 -- Helper function to handle ANT token orders: we are buying ANT token, so we need to match with an existing ANT sell order or fail
-function fixed_auction.handleAntOrder(args, validPair, pairIndex)
+function fixed_price.handleAntOrder(args, validPair, pairIndex)
 	local currentOrders = Orderbook[pairIndex].Orders
 	local matches = {}
 	local matchedOrderIndex = nil
@@ -186,4 +186,4 @@ function fixed_auction.handleAntOrder(args, validPair, pairIndex)
 	end
 end
 
-return fixed_auction
+return fixed_price

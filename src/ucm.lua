@@ -21,6 +21,9 @@ ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
 -- 		Price
 -- 		ExpirationTime
 -- 		Type
+-- 		MinimumPrice (dutch)
+-- 		DecreaseInterval (dutch)
+-- 		DecreaseStep (dutch)
 -- 	} []
 -- } []
 

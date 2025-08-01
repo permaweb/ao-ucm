@@ -174,17 +174,15 @@ local function validateOrderParams(args)
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
-			Message = 'Order type must be "fixed"',
+			Message = 'Order type must be "fixed" or "dutch" or "english"',
 			Quantity = args.quantity,
 			TransferToken = validPair[1],
 			OrderGroupId = args.orderGroupId
 		})
 		return nil
 	end
-
 	-- 5. Check if it's ANT dominant (selling ANT) or ARIO dominant (buying ANT)
 	local isAntDominant = not utils.isArioToken(args.dominantToken)
-	
 	if isAntDominant then
 		-- ANT dominant: validate ANT-specific requirements
 		if not validateAntDominantOrder(args, validPair) then
@@ -249,6 +247,8 @@ end
 local function handleAntOrderAuctions(args, validPair, pairIndex)
 	if args.orderType == "fixed" then
 		fixed_price.handleAntOrder(args, validPair, pairIndex)
+	elseif args.orderType == "dutch" then
+		dutch_auction.handleAntOrder(args, validPair, pairIndex)
 	else
 		utils.handleError({
 			Target = args.sender,

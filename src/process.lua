@@ -104,7 +104,9 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			timestamp = msg.Timestamp,
 			blockheight = msg['Block-Height'],
 			orderType = msg.Tags['X-Order-Type'] or 'fixed',
-			expirationTime = msg.Tags['X-Expiration-Time']
+			expirationTime = msg.Tags['X-Expiration-Time'],
+			minimumPrice = msg.Tags['X-Minimum-Price'],
+			decreaseInterval = msg.Tags['X-Decrease-Interval'],
 		}
 
 		if msg.Tags['X-Price'] then

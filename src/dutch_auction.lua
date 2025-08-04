@@ -5,9 +5,9 @@ local json = require('json')
 local dutch_auction = {}
 
 function dutch_auction.handleArioOrder(args, validPair, pairIndex)
-    local intervals = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
+    local intervalsCount = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
     local priceDecreaseMax = bint(args.price) - bint(args.minimumPrice)
-    local decreaseStep = math.floor(priceDecreaseMax / intervals)
+    local decreaseStep = math.floor(priceDecreaseMax / intervalsCount)
 
     table.insert(Orderbook[pairIndex].Orders, {
 		Id = args.orderId,

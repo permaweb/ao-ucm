@@ -3,11 +3,6 @@ name: 'Commit lint'
 on:
     workflow_dispatch:
     pull_request:
-        branches:
-            - develop
-            - main
-        paths:
-            - '**'
 
 permissions:
     contents: read

@@ -1,4 +1,4 @@
-local json = require('json')
+local json = require('JSON')
 
 local ucm = require('ucm')
 local utils = require('utils')
@@ -86,10 +86,10 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		-- Validate that at least one token in the trade is ARIO
 		local isArioValid, arioError = utils.validateArioInTrade(msg.From, msg.Tags['X-Swap-Token'])
 		if not isArioValid then
-			ao.send({ 
-				Target = msg.From, 
-				Action = 'Validation-Error', 
-				Tags = { Status = 'Error', Message = arioError or 'At least one token in the trade must be ARIO' } 
+			ao.send({
+				Target = msg.From,
+				Action = 'Validation-Error',
+				Tags = { Status = 'Error', Message = arioError or 'At least one token in the trade must be ARIO' }
 			})
 			return
 		end

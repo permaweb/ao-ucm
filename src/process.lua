@@ -115,6 +115,9 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		if msg.Tags['X-Transfer-Denomination'] then
 			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
 		end
+		if msg.Tags['X-Requested-Order-ID'] then
+			orderArgs.requestedOrderId = msg.Tags['X-Requested-Order-ID']
+		end
 
 		ucm.createOrder(orderArgs)
 	end

@@ -412,16 +412,28 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 			-- Skip expired orders
 			goto continue
 		end
+
+		-- Check if the order is a fixed order
+		if currentOrderEntry.Type ~= 'fixed' then
+			goto continue
+		end
+		
+		-- Check if this is the specific order we're looking for
+		if currentOrderEntry.Id ~= args.requestedOrderId then
+			goto continue
+		end
 		
 		-- Check if we can still fill and the order has remaining quantity
 		if bint(args.quantity) > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 			-- For ANT tokens, only allow complete trades - no partial amounts
 			local fillAmount, sendAmount
 
-			-- Check if the order quantity matches exactly what we want to buy
-			if bint(currentOrderEntry.Quantity) == bint(args.quantity) then
-				fillAmount = bint(args.quantity)
-				sendAmount = fillAmount * bint(currentOrderEntry.Price)
+			-- Check if the user's ARIO amount matches the ANT sell order price exactly
+			if bint(args.quantity) == bint(currentOrderEntry.Price) then
+				-- User wants to buy 1 ANT token
+				fillAmount = bint(1) -- 1 ANT token (always 1 for ANT orders)
+				-- User pays the exact amount of ARIO specified in the ANT sell order
+				sendAmount = bint(args.quantity)
 
 				-- Validate we have a valid fill amount
 				if fillAmount <= bint(0) then
@@ -451,7 +463,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 				matchedOrderIndex = i
 				break -- Only match with one order, no partial matching
 			end
-			-- If quantities don't match exactly, skip this order and continue searching
+			-- If ARIO amount doesn't match ANT sell order price exactly, skip this order and continue searching
 		end
 		
 		::continue::
@@ -487,7 +499,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
-			Message = 'No matching orders found for immediate ANT trade - exact quantity match required',
+			Message = 'No matching orders found for immediate ANT trade - exact ARIO amount match required',
 			Quantity = args.quantity,
 			TransferToken = validPair[1],
 			OrderGroupId = args.orderGroupId
@@ -1216,6 +1228,10 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 		end
 		if msg.Tags['X-Transfer-Denomination'] then
 			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
+		end
+
+		if msg.Tags['X-Requested-Order-ID'] then
+			orderArgs.requestedOrderId = msg.Tags['X-Requested-Order-ID']
 		end
 
 		ucm.createOrder(orderArgs)

@@ -498,11 +498,14 @@ end
 -- dutch_auction.lua
 --------------------------------
 
-
-function dutch_auction.handleArioOrder(args, validPair, pairIndex)
+function dutch_auction.calculateDecreaseStep(args)
     local intervalsCount = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
     local priceDecreaseMax = bint(args.price) - bint(args.minimumPrice)
-    local decreaseStep = math.floor(priceDecreaseMax / intervalsCount)
+    return math.floor(priceDecreaseMax / intervalsCount)
+end
+
+function dutch_auction.handleArioOrder(args, validPair, pairIndex)
+    local decreaseStep = dutch_auction.calculateDecreaseStep(args)
 
     table.insert(Orderbook[pairIndex].Orders, {
 		Id = args.orderId,
@@ -564,7 +567,6 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 	})
 end
 
-
 function dutch_auction.validateDutchParams(args)
     if not args.minimumPrice then
 		return false, 'Minimum price must be provided'
@@ -579,13 +581,23 @@ function dutch_auction.validateDutchParams(args)
         return false, 'Decrease interval must be provided'
     end
 
+	local isValidDecreaseInterval, decreaseIntervalError = utils.checkValidAmount(args.decreaseInterval)
+	if not isValidDecreaseInterval then
+		return false, decreaseIntervalError
+	end
+
     if bint(args.decreaseInterval) >= bint(args.expirationTime) then
         return false, 'Decrease interval must be less than expiration time'
     end
 
+    local decreaseStep = dutch_auction.calculateDecreaseStep(args)
+    
+    if decreaseStep < 1 then
+        return false, 'Decrease step must be at least 1. Price difference is too small for the given time intervals.'
+    end
+
     return true
 end
-
 
 -- ucm.lua
 --------------------------------

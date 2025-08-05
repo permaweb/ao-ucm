@@ -187,6 +187,7 @@ function utils.testSummary()
     else
         print(colors.green .. 'Tests passed: ' .. testResults.passed .. '/' .. testResults.total .. colors.reset)
         print(colors.red .. 'Tests failed: ' .. testResults.failed .. '/' .. testResults.total .. colors.reset .. '\n')
+        os.exit(1)
     end
 end
 

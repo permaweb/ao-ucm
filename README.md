@@ -127,6 +127,7 @@ To test the `bundle_ucm.lua` in a real environment, follow these steps.
 ```
 Send({Target = "processId", Action = "Read-Orders", Tags = {["DominantToken"] = "some-address-1", ["SwapToken"] = "some-address-2"}})
 ```
+5. Check ao.link for debugging or messages results.
 
 ## Development
 

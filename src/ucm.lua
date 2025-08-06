@@ -39,6 +39,7 @@ function ucm.getPairIndex(pair)
 		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) or
 			(existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1]) then
 			pairIndex = i
+			break
 		end
 	end
 

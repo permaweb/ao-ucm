@@ -287,4 +287,30 @@ utils.test('should fail if decrease interval is 0',
 	}
 )
 
+utils.test('should handle case where decreaseStep becomes zero due to small price difference',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'zero-decrease-test-order',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (selling ANT)
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'zero-decrease-seller',
+			quantity = 1,
+			price = '105',
+			timestamp = '1735689600000',
+			blockheight = '123456789',
+			orderType = 'dutch',
+			orderGroupId = 'test-group',
+			expirationTime = '1735776000000', -- 24 hours later
+			minimumPrice = '100',
+			decreaseInterval = '8640000' -- 1 hour intervals (24 intervals total)
+		})
+		
+		return Orderbook
+	end,
+	{
+	}
+)
+
 utils.testSummary() 

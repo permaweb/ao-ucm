@@ -14,7 +14,7 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 		Quantity = tostring(args.quantity),
 		OriginalQuantity = tostring(args.quantity),
 		Creator = args.sender,
-		Token = validPair[1],
+		Token = args.dominantToken,
 		DateCreated = args.timestamp,
 		Price = args.price and tostring(args.price),
 		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
@@ -29,8 +29,8 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 		return json.encode({
 			Order = {
 				Id = args.orderId,
-				DominantToken = validPair[1],
-				SwapToken = validPair[2],
+				DominantToken = args.dominantToken,
+				SwapToken = args.swapToken,
 				Sender = args.sender,
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
@@ -58,7 +58,7 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 			Status = 'Success',
 			OrderId = args.orderId,
 			Handler = 'Create-Order',
-			DominantToken = validPair[1],
+			DominantToken = args.dominantToken,
 			SwapToken = args.swapToken,
 			Quantity = tostring(args.quantity),
 			Price = args.price and tostring(args.price),
@@ -86,86 +86,88 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 		if currentOrderEntry.Type ~= 'dutch' then
 			goto continue
 		end
+
+		-- Check if this is the specific order we're looking for
+		if currentOrderEntry.Id ~= args.requestedOrderId then
+			goto continue
+		end
+
+		-- Calculate current price based on time passed since order creation
+		local timePassed = bint(args.timestamp) - bint(currentOrderEntry.DateCreated)
+		local intervalsPassed = math.floor(timePassed / bint(currentOrderEntry.DecreaseInterval))
+		local intervalsBint = bint(intervalsPassed)
+		local decreaseStepBint = bint(currentOrderEntry.DecreaseStep)
+		local priceReduction = intervalsBint * decreaseStepBint
+		local currentPrice = (currentOrderEntry.Price) - priceReduction
 		
-		-- Check if we can still fill and the order has remaining quantity
-		if bint(args.quantity) > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
-			-- For ANT tokens, only allow complete trades - no partial amounts
-			local fillAmount, sendAmount
+		-- Ensure price doesn't go below minimum
+		if currentPrice < bint(currentOrderEntry.MinimumPrice) then
+			currentPrice = bint(currentOrderEntry.MinimumPrice)
+		end
 
-			-- Check if the order quantity matches exactly what we want to buy
-			if bint(currentOrderEntry.Quantity) == bint(args.quantity) then
-				-- Calculate current price based on time passed since order creation
-				local timePassed = bint(args.timestamp) - bint(currentOrderEntry.DateCreated)
-				local intervalsPassed = math.floor(timePassed / bint(currentOrderEntry.DecreaseInterval))
-				local priceReduction = intervalsPassed * bint(currentOrderEntry.DecreaseStep)
-				local currentPrice = bint(currentOrderEntry.Price) - priceReduction
-				
-				-- Ensure price doesn't go below minimum
-				if currentPrice < bint(currentOrderEntry.MinimumPrice) then
-					currentPrice = bint(currentOrderEntry.MinimumPrice)
-				end
+		-- Check if the user sent enough ARIO to pay for 1 ANT token at the current Dutch auction price
+		if bint(args.quantity) >= currentPrice then
+			local fillAmount = bint(1) -- 1 ANT token (always 1 for ANT orders)
+			local sendAmount = currentPrice -- User pays the current Dutch auction price
 
-				fillAmount = bint(args.quantity)
-				sendAmount = fillAmount * currentPrice
-
-				-- Validate we have a valid fill amount
-				if fillAmount <= bint(0) then
-					utils.handleError({
-						Target = args.sender,
-						Action = 'Order-Error',
-						Message = 'No amount to fill',
-						Quantity = args.quantity,
-						TransferToken = validPair[1],
-						OrderGroupId = args.orderGroupId
-					})
-					return
-				end
-
-				-- Check if sent amount is sufficient for current price
-				local sentAmount = bint(args.price or 0)
-				if sentAmount < sendAmount then
-					utils.handleError({
-						Target = args.sender,
-						Action = 'Order-Error',
-						Message = 'Insufficient payment for current Dutch auction price',
-						Quantity = args.price, -- Refund the ARIO amount that was sent
-						TransferToken = args.swapToken, -- Send to ARIO token process
-						OrderGroupId = args.orderGroupId,
-						RequiredAmount = tostring(sendAmount),
-						SentAmount = tostring(sentAmount)
-					})
-					return
-				end
-
-				-- Apply fees and calculate final amounts
-				local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
-				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
-
-				-- Execute token transfers
-				utils.executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
-
-				-- Handle refund if sent amount was more than required
-				if sentAmount > sendAmount then
-					local refundAmount = sentAmount - sendAmount
-					ao.send({
-						Target = args.swapToken, -- ARIO token process
-						Action = 'Transfer',
-						Tags = {
-							Recipient = args.sender,
-							Quantity = tostring(refundAmount)
-						}
-					})
-				end
-
-				-- Record the match
-				local match = utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
-				table.insert(matches, match)
-
-				-- Mark the order index for removal
-				matchedOrderIndex = i
-				break -- Only match with one order, no partial matching
+			-- Validate we have a valid fill amount
+			if fillAmount <= bint(0) then
+				utils.handleError({
+					Target = args.sender,
+					Action = 'Order-Error',
+					Message = 'No amount to fill',
+					Quantity = args.quantity,
+					TransferToken = args.dominantToken,
+					OrderGroupId = args.orderGroupId
+				})
+				return
 			end
-			-- If quantities don't match exactly, skip this order and continue searching
+
+			-- Check if sent amount is sufficient for current price
+			local sentAmount = bint(args.quantity)
+			local requiredAmount = currentPrice
+			
+			if sentAmount < requiredAmount then
+				utils.handleError({
+					Target = args.sender,
+					Action = 'Order-Error',
+					Message = 'Insufficient payment for current Dutch auction price',
+					Quantity = args.quantity, -- Refund the ARIO amount that was sent
+					TransferToken = args.dominantToken, -- Send to ARIO token process (dominantToken)
+					OrderGroupId = args.orderGroupId,
+					RequiredAmount = tostring(requiredAmount),
+					SentAmount = tostring(sentAmount)
+				})
+				return
+			end
+
+			-- Apply fees and calculate final amounts
+			local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
+			local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
+
+			-- Execute token transfers
+			utils.executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
+
+			-- Handle refund if sent amount was more than required
+			if sentAmount > requiredAmount then
+				local refundAmount = sentAmount - requiredAmount
+				ao.send({
+					Target = args.dominantToken, -- ARIO token process (dominantToken)
+					Action = 'Transfer',
+					Tags = {
+						Recipient = args.sender,
+						Quantity = tostring(refundAmount)
+					}
+				})
+			end
+
+			-- Record the match
+			local match = utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
+			table.insert(matches, match)
+
+			-- Mark the order index for removal
+			matchedOrderIndex = i
+			break -- Only match with one order, no partial matching
 		end
 		
 		::continue::
@@ -185,7 +187,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 				OrderId = args.orderId,
 				Status = 'Success',
 				Handler = 'Create-Order',
-				DominantToken = validPair[1],
+				DominantToken = args.dominantToken,
 				SwapToken = args.swapToken,
 				Quantity = tostring(args.quantity),
 				Price = args.price and tostring(args.price) or 'None',
@@ -201,7 +203,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 			Action = 'Order-Error',
 			Message = 'No matching Dutch auction orders found for immediate ANT trade - exact quantity match required',
 			Quantity = args.quantity,
-			TransferToken = validPair[1],
+			TransferToken = args.dominantToken,
 			OrderGroupId = args.orderGroupId
 		})
 		return

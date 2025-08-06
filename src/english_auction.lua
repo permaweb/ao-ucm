@@ -13,7 +13,7 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 		Quantity = tostring(args.quantity),
 		OriginalQuantity = tostring(args.quantity),
 		Creator = args.sender,
-		Token = validPair[1],
+		Token = args.dominantToken,
 		DateCreated = args.timestamp,
 		Price = args.price and tostring(args.price),
 		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
@@ -25,8 +25,8 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 		return json.encode({
 			Order = {
 				Id = args.orderId,
-				DominantToken = validPair[1],
-				SwapToken = validPair[2],
+				DominantToken = args.dominantToken,
+				SwapToken = args.swapToken,
 				Sender = args.sender,
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
@@ -51,7 +51,7 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 			Status = 'Success',
 			OrderId = args.orderId,
 			Handler = 'Create-Order',
-			DominantToken = validPair[1],
+			DominantToken = args.dominantToken,
 			SwapToken = args.swapToken,
 			Quantity = tostring(args.quantity),
 			Price = args.price and tostring(args.price),

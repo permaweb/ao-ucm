@@ -2,7 +2,7 @@ package.path = package.path .. ';../src/?.lua'
 
 local ucm = require('ucm')
 local utils = require('utils')
-
+ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 -- Global transfer tracking
 local transfers = {}
 
@@ -103,7 +103,7 @@ utils.test('should execute immediate trade when selling ARIO to buy ANT with mat
 				action = 'Transfer',
 				quantity = '497500000000', -- After fees
 				recipient = 'ant-seller',
-				target = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+				target = ARIO_TOKEN_PROCESS_ID
 			},
 			{
 				action = 'Transfer',
@@ -213,7 +213,7 @@ utils.test('should reject order with invalid orderType',
 				action = 'Transfer',
 				quantity = '1000', -- Refund the sent amount
 				recipient = 'test-seller',
-				target = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+				target = ARIO_TOKEN_PROCESS_ID
 			}
 		}
 		
@@ -275,7 +275,7 @@ utils.test('should fail when buying ANT with ARIO but no ANT orders exist to mat
 				action = 'Transfer',
 				quantity = '500000000000', -- Refund the sent amount
 				recipient = 'test-seller',
-				target = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+				target = ARIO_TOKEN_PROCESS_ID
 			}
 		}
 		
@@ -335,7 +335,7 @@ utils.test('should fail when buying specific ANT with ARIO but only different AN
 				action = 'Transfer',
 				quantity = '500000000000', -- Refund the sent amount
 				recipient = 'ario-buyer',
-				target = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+				target = ARIO_TOKEN_PROCESS_ID
 			}
 		}
 		
@@ -504,7 +504,7 @@ utils.test('should reject partial ANT purchase when buying with ARIO',
 				action = 'Transfer',
 				quantity = '250000000000', -- Refund the sent amount
 				recipient = 'ario-buyer',
-				target = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+				target = ARIO_TOKEN_PROCESS_ID
 			}
 		}
 		
@@ -636,7 +636,7 @@ utils.test('should apply correct fees to successful ANT trades when buying with 
 				action = 'Transfer',
 				quantity = '995000000000', -- After fees
 				recipient = 'ant-seller',
-				target = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+				target = ARIO_TOKEN_PROCESS_ID
 			},
 			{
 				action = 'Transfer',
@@ -711,7 +711,7 @@ utils.test('should handle fee calculation with very small amounts when buying AN
 				action = 'Transfer',
 				quantity = '995', -- After fees
 				recipient = 'ant-seller',
-				target = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+				target = ARIO_TOKEN_PROCESS_ID
 			},
 			{
 				action = 'Transfer',
@@ -1322,7 +1322,7 @@ utils.test('should reject ARIO dominant order without requestedOrderId',
 				action = 'Transfer',
 				quantity = '500000000000', -- Refund the sent amount
 				recipient = 'ario-seller',
-				target = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+				target = ARIO_TOKEN_PROCESS_ID
 			}
 		}
 		
@@ -1376,7 +1376,7 @@ utils.test('should reject ANT purchase when user sends different ARIO quantity t
 				action = 'Transfer',
 				quantity = '400000000000', -- Refund the sent amount
 				recipient = 'ario-seller',
-				target = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+				target = ARIO_TOKEN_PROCESS_ID
 			}
 		}
 		

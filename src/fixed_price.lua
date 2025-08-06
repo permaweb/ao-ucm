@@ -36,7 +36,7 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 		Quantity = tostring(args.quantity),
 		OriginalQuantity = tostring(args.quantity),
 		Creator = args.sender,
-		Token = validPair[1],
+		Token = args.dominantToken,
 		DateCreated = args.timestamp,
 		Price = args.price and tostring(args.price),
 		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
@@ -48,8 +48,8 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 		return json.encode({
 			Order = {
 				Id = args.orderId,
-				DominantToken = validPair[1],
-				SwapToken = validPair[2],
+				DominantToken = args.dominantToken,
+				SwapToken = args.swapToken,
 				Sender = args.sender,
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
@@ -73,7 +73,7 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 			Status = 'Success',
 			OrderId = args.orderId,
 			Handler = 'Create-Order',
-			DominantToken = validPair[1],
+			DominantToken = args.dominantToken,
 			SwapToken = args.swapToken,
 			Quantity = tostring(args.quantity),
 			Price = args.price and tostring(args.price),
@@ -127,7 +127,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 						Action = 'Order-Error',
 						Message = 'No amount to fill',
 						Quantity = args.quantity,
-						TransferToken = validPair[1],
+						TransferToken = args.dominantToken,
 						OrderGroupId = args.orderGroupId
 					})
 					return
@@ -160,7 +160,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 	end
 
 	-- Update VWAP and get total volume
-	local sumVolume = updateVwapData(pairIndex, matches, args, validPair[1])
+	local sumVolume = updateVwapData(pairIndex, matches, args, args.dominantToken)
 
 	-- Send success response if any matches occurred
 	if sumVolume > 0 then
@@ -171,7 +171,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 				OrderId = args.orderId,
 				Status = 'Success',
 				Handler = 'Create-Order',
-				DominantToken = validPair[1],
+				DominantToken = args.dominantToken,
 				SwapToken = args.swapToken,
 				Quantity = tostring(sumVolume),
 				Price = args.price and tostring(args.price) or 'None',
@@ -186,7 +186,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 			Action = 'Order-Error',
 			Message = 'No matching orders found for immediate ANT trade - exact ARIO amount match required',
 			Quantity = args.quantity,
-			TransferToken = validPair[1],
+			TransferToken = args.dominantToken,
 			OrderGroupId = args.orderGroupId
 		})
 		return

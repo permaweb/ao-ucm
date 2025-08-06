@@ -122,7 +122,18 @@ local function validateArioDominantOrder(args, validPair)
 	-- Currently no specific validation rules for ARIO dominant orders
 	-- All general validations (quantity, pair, etc.) are handled in validateOrderParams
 	-- This function is a placeholder for future ARIO-specific validation rules
-	
+	if not args.requestedOrderId then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'Requested order ID is required',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
+
 	return true
 end
 
@@ -186,14 +197,6 @@ local function validateOrderParams(args)
 	if isAntDominant then
 		-- ANT dominant: validate ANT-specific requirements
 		if not validateAntDominantOrder(args, validPair) then
-			utils.handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = 'Error validating ANT dominant order',
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
 			return nil
 		end
 
@@ -216,14 +219,6 @@ local function validateOrderParams(args)
 	else
 		-- ARIO dominant: validate ARIO-specific requirements
 		if not validateArioDominantOrder(args, validPair) then
-			utils.handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = 'Error validating ARIO dominant order',
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
 			return nil
 		end
 	end

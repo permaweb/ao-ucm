@@ -117,6 +117,17 @@ To run the test suite:
    lua dutch_tests.lua
    ```
 
+### E2E Testing
+To test the `bundle_ucm.lua` in a real environment, follow these steps.
+
+1. Start the processes that will be deploying the required contracts: `aos your_process_name [--wallet /optional/path/to/wallet.json]`. There should be 3 in total.
+2. Deploy the token blueprint to act as ARIO tokens in one of the processes: `> .load-blueprint token`. The address of that process will be handling token messages. 
+3. Deploy the `activity.lua` and `bundle_ucm.lua` with correct addresses from the first and second step. 
+4. Handlers define what actions can be taken. To do an action, for example read orders, send:
+```
+Send({Target = "processId", Action = "Read-Orders", Tags = {["DominantToken"] = "some-address-1", ["SwapToken"] = "some-address-2"}})
+```
+
 ## Development
 
 ### SDK Development

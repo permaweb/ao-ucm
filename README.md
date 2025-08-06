@@ -114,6 +114,7 @@ To run the test suite:
 2. Run the tests:
    ```bash
    lua ucm_tests.lua
+   lua dutch_tests.lua
    ```
 
 ## Development

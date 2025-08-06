@@ -345,6 +345,32 @@ utils.test('should fail if decrease interval is 0',
 	}
 )
 
+utils.test('should fail if expiration time is less than timestamp',
+	function()
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'ant-sell-order',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (selling ANT)
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'ant-seller',
+			quantity = 1,
+			price = '500000000000',
+			timestamp = '1735689600000',
+			blockheight = '123456789',
+			orderType = 'dutch',
+			orderGroupId = 'test-group',
+			expirationTime = '1735689500000', -- Earlier than timestamp
+			minimumPrice = '100000000000',
+			decreaseInterval = '86400000'
+		})
+		
+		return Orderbook
+	end,
+	{
+	}
+)
+
 -- 96 hrs, step every 1 day, should decrease 4 times for 100000000000
 -- we are buying ANT token after one day, so the price should decrease once
 -- the price should be: 500000000000 - 100000000000 = 400000000000

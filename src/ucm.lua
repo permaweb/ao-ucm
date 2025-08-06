@@ -240,11 +240,18 @@ local function ensurePairExists(validPair)
 end
 
 local function handleAntOrderAuctions(args, validPair, pairIndex)
+	print("DEBUG: handleAntOrderAuctions called with orderType: " .. (args.orderType or "nil"))
 	if args.orderType == "fixed" then
+		print("DEBUG: Calling fixed_price.handleAntOrder")
 		fixed_price.handleAntOrder(args, validPair, pairIndex)
 	elseif args.orderType == "dutch" then
+		print("DEBUG: Calling dutch_auction.handleAntOrder")
 		dutch_auction.handleAntOrder(args, validPair, pairIndex)
+	elseif args.orderType == "english" then
+		print("DEBUG: Calling english_auction.handleAntOrder")
+		english_auction.handleAntOrder(args, validPair, pairIndex)
 	else
+		print("DEBUG: Order type not implemented: " .. (args.orderType or "nil"))
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
@@ -293,13 +300,20 @@ local function handleArioOrderAuctions(args, validPair, pairIndex)
 end
 
 function ucm.createOrder(args)
+	print("DEBUG: ucm.createOrder called")
+	print("DEBUG: dominantToken: " .. (args.dominantToken or "nil"))
+	print("DEBUG: swapToken: " .. (args.swapToken or "nil"))
+	print("DEBUG: orderType: " .. (args.orderType or "nil"))
+	
 	-- Validate order parameters
 	-- TODO: Order type is added, but not used yet - add it's usage with a new order type
 	local validPair = validateOrderParams(args)
 	if not validPair then
+		print("DEBUG: Order validation failed")
 		return
 	end
 
+	print("DEBUG: Order validation passed")
 	-- Ensure trading pair exists in orderbook
 	local pairIndex = ensurePairExists(validPair)
 
@@ -307,20 +321,26 @@ function ucm.createOrder(args)
 		-- Check if the desired token is ARIO (add to orderbook) or ANT (immediate trade only)
 		local isBuyingAnt = utils.isArioToken(args.dominantToken) -- If dominantToken is ARIO, we're buying ANT
 		local isBuyingArio = not isBuyingAnt -- If dominantToken is not ARIO, we're selling ANT
+		
+		print("DEBUG: isBuyingAnt: " .. tostring(isBuyingAnt))
+		print("DEBUG: isBuyingArio: " .. tostring(isBuyingArio))
 
 		-- Handle ANT token orders - check for immediate trades only, don't add to orderbook
 		if isBuyingAnt then
+			print("DEBUG: Handling ANT order (buying ANT)")
 			handleAntOrderAuctions(args, validPair, pairIndex)
 			return
 		end
 
 		-- Handle ARIO token orders - add to orderbook for buy now
 		if isBuyingArio then
+			print("DEBUG: Handling ARIO order (selling ANT)")
 			handleArioOrderAuctions(args, validPair, pairIndex)
 			return
 		end
 
 		-- Placeholder for future order type handling
+		print("DEBUG: No matching order type found")
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
@@ -333,6 +353,7 @@ function ucm.createOrder(args)
 
 	else
 		-- Pair not found in orderbook (shouldn't happen after creation)
+		print("DEBUG: Pair not found in orderbook")
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
@@ -342,6 +363,10 @@ function ucm.createOrder(args)
 			OrderGroupId = args.orderGroupId
 		})
 	end
+end
+
+function ucm.settleAuction(args)
+	english_auction.settleAuction(args)
 end
 
 return ucm

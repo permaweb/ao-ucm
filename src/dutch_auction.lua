@@ -1,6 +1,6 @@
 local utils = require('utils')
-local bint = require('.bint')(256)
-local json = require('json')
+local bint = require('bint')(256)
+local json = require('JSON')
 
 local dutch_auction = {}
 

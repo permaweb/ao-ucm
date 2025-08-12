@@ -172,6 +172,7 @@ local function validateOrderParams(args)
 		return nil
 	end
 
+
 	-- 3. Check quantity is positive integer
 	if not utils.checkValidAmount(args.quantity) then
 		utils.handleError({
@@ -187,6 +188,7 @@ local function validateOrderParams(args)
 
 	-- 4. Check order type is supported
 	if not args.orderType or args.orderType ~= "fixed" and args.orderType ~= "dutch" and args.orderType ~= "english" then
+		print("Invalid order type")
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
@@ -310,7 +312,7 @@ function ucm.createOrder(args)
 	print("DEBUG: dominantToken: " .. (args.dominantToken or "nil"))
 	print("DEBUG: swapToken: " .. (args.swapToken or "nil"))
 	print("DEBUG: orderType: " .. (args.orderType or "nil"))
-	
+
 	-- Validate order parameters
 	-- TODO: Order type is added, but not used yet - add it's usage with a new order type
 	local validPair = validateOrderParams(args)
@@ -327,7 +329,7 @@ function ucm.createOrder(args)
 		-- Check if the desired token is ARIO (add to orderbook) or ANT (immediate trade only)
 		local isBuyingAnt = utils.isArioToken(args.dominantToken) -- If dominantToken is ARIO, we're buying ANT
 		local isBuyingArio = not isBuyingAnt -- If dominantToken is not ARIO, we're selling ANT
-		
+
 		print("DEBUG: isBuyingAnt: " .. tostring(isBuyingAnt))
 		print("DEBUG: isBuyingArio: " .. tostring(isBuyingArio))
 

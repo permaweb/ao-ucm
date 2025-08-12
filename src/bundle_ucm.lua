@@ -511,11 +511,14 @@ end
 -- dutch_auction.lua
 --------------------------------
 
+function dutch_auction.calculateDecreaseStep(args)
+    local intervalsCount = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
+    local priceDecreaseMax = bint(args.price) - bint(args.minimumPrice)
+    return math.floor(priceDecreaseMax / intervalsCount)
+end
 
 function dutch_auction.handleArioOrder(args, validPair, pairIndex)
-    local intervals = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
-    local priceDecreaseMax = bint(args.price) - bint(args.minimumPrice)
-    local decreaseStep = math.floor(priceDecreaseMax / intervals)
+    local decreaseStep = dutch_auction.calculateDecreaseStep(args)
 
     table.insert(Orderbook[pairIndex].Orders, {
 		Id = args.orderId,
@@ -731,8 +734,19 @@ function dutch_auction.validateDutchParams(args)
         return false, 'Decrease interval must be provided'
     end
 
+	local isValidDecreaseInterval, decreaseIntervalError = utils.checkValidAmount(args.decreaseInterval)
+	if not isValidDecreaseInterval then
+		return false, decreaseIntervalError
+	end
+
     if bint(args.decreaseInterval) >= bint(args.expirationTime) then
         return false, 'Decrease interval must be less than expiration time'
+    end
+
+    local decreaseStep = dutch_auction.calculateDecreaseStep(args)
+
+    if decreaseStep < 1 then
+        return false, 'Decrease step must be at least 1. Price difference is too small for the given time intervals.'
     end
 
     return true
@@ -809,6 +823,7 @@ function ucm.getPairIndex(pair)
 		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) or
 			(existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1]) then
 			pairIndex = i
+			break
 		end
 	end
 
@@ -953,6 +968,7 @@ local function validateOrderParams(args)
 	end
 	-- 5. Check if it's ANT dominant (selling ANT) or ARIO dominant (buying ANT)
 	local isAntDominant = not utils.isArioToken(args.dominantToken)
+
 	if isAntDominant then
 		-- ANT dominant: validate ANT-specific requirements
 		if not validateAntDominantOrder(args, validPair) then

@@ -5,7 +5,9 @@ local utils = require('utils')
 local fixed_price = require('fixed_price')
 local dutch_auction = require('dutch_auction')
 local english_auction = require('english_auction')
-if Name ~= 'ANT Marketplace' then Name = 'ANT Marketplace' end
+if Name ~= 'ANT Marketplace' then
+	Name = 'ANT Marketplace'
+end
 
 -- CHANGEME
 ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
@@ -28,7 +30,9 @@ ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
 -- 	} []
 -- } []
 
-if not Orderbook then Orderbook = {} end
+if not Orderbook then
+	Orderbook = {}
+end
 
 local ucm = {}
 
@@ -39,6 +43,7 @@ function ucm.getPairIndex(pair)
 		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) or
 			(existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1]) then
 			pairIndex = i
+			break
 		end
 	end
 
@@ -194,6 +199,7 @@ local function validateOrderParams(args)
 	end
 	-- 5. Check if it's ANT dominant (selling ANT) or ARIO dominant (buying ANT)
 	local isAntDominant = not utils.isArioToken(args.dominantToken)
+
 	if isAntDominant then
 		-- ANT dominant: validate ANT-specific requirements
 		if not validateAntDominantOrder(args, validPair) then

@@ -3,7 +3,7 @@ local bint = require('.bint')(256)
 
 local utils = {}
 
--- ARIO token process ID - replace with actual ARIO token process ID
+-- CHANGEME
 ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 
 function utils.checkValidAddress(address)
@@ -195,6 +195,7 @@ function utils.testSummary()
     else
         print(colors.green .. 'Tests passed: ' .. testResults.passed .. '/' .. testResults.total .. colors.reset)
         print(colors.red .. 'Tests failed: ' .. testResults.failed .. '/' .. testResults.total .. colors.reset .. '\n')
+        os.exit(1)
     end
 end
 

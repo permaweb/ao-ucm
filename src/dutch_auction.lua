@@ -4,10 +4,14 @@ local json = require('JSON')
 
 local dutch_auction = {}
 
-function dutch_auction.handleArioOrder(args, validPair, pairIndex)
-	local intervals = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
+function dutch_auction.calculateDecreaseStep(args)
+	local intervalsCount = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
 	local priceDecreaseMax = bint(args.price) - bint(args.minimumPrice)
-	local decreaseStep = math.floor(priceDecreaseMax / intervals)
+	return math.floor(priceDecreaseMax / intervalsCount)
+end
+
+function dutch_auction.handleArioOrder(args, validPair, pairIndex)
+	local decreaseStep = dutch_auction.calculateDecreaseStep(args)
 
 	table.insert(Orderbook[pairIndex].Orders, {
 		Id = args.orderId,
@@ -236,6 +240,12 @@ function dutch_auction.validateDutchParams(args)
 
 	if bint(args.decreaseInterval) >= bint(args.expirationTime) then
 		return false, 'Decrease interval must be less than expiration time'
+	end
+
+	local decreaseStep = dutch_auction.calculateDecreaseStep(args)
+
+	if decreaseStep < 1 then
+		return false, 'Decrease step must be at least 1. Price difference is too small for the given time intervals.'
 	end
 
 	return true

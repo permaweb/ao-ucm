@@ -1,0 +1,36 @@
+name: 'Commit lint'
+
+on:
+    workflow_dispatch:
+    pull_request:
+
+permissions:
+    contents: read
+
+jobs:
+    commitlint:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            -   uses: actions/checkout@v4
+                with:
+                    fetch-depth: 0
+            -   name: Setup node
+                uses: actions/setup-node@v4
+                with:
+                    node-version: lts/*
+            -   name: Install commitlint
+                run: npm install -D @commitlint/cli @commitlint/config-conventional
+            -   name: Print versions
+                run: |
+                    git --version
+                    node --version
+                    npm --version
+                    npx commitlint --version
+            -   name: Configure commitlint
+                run: |
+                    echo "export default { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
+            -   name: Lint commit messages in PR
+                run: |
+                    echo "Checking commits from ${{ github.event.pull_request.base.sha }} to ${{ github.event.pull_request.head.sha }}"
+                    npx commitlint --from=${{ github.event.pull_request.base.sha }} --to=${{ github.event.pull_request.head.sha }} --verbose

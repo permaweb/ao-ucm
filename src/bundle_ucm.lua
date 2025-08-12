@@ -1,4 +1,4 @@
-local json = require('json')
+local json = require('JSON')
 local bint = require('.bint')(256)
 
 if Name ~= 'ANT Marketplace' then Name = 'ANT Marketplace' end
@@ -226,20 +226,20 @@ function utils.checkValidExpirationTime(expirationTime, timestamp)
 	if not expirationTime or not utils.checkValidAmount(expirationTime) then
 		return false, 'Expiration time must be a valid positive integer'
 	end
-	
+
 	-- Check if expiration time is greater than current timestamp
 	local status, result = pcall(function()
 		return bint(expirationTime) <= bint(timestamp)
 	end)
-	
+
 	if not status then
 		return false, 'Expiration time must be a valid timestamp'
 	end
-	
+
 	if result then
 		return false, 'Expiration time must be greater than current timestamp'
 	end
-	
+
 	return true, nil
 end
 
@@ -417,12 +417,12 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 		if currentOrderEntry.Type ~= 'fixed' then
 			goto continue
 		end
-		
+
 		-- Check if this is the specific order we're looking for
 		if currentOrderEntry.Id ~= args.requestedOrderId then
 			goto continue
 		end
-		
+
 		-- Check if we can still fill and the order has remaining quantity
 		if bint(args.quantity) > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 			-- For ANT tokens, only allow complete trades - no partial amounts
@@ -465,7 +465,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 			end
 			-- If ARIO amount doesn't match ANT sell order price exactly, skip this order and continue searching
 		end
-		
+
 		::continue::
 	end
 
@@ -595,7 +595,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 		if currentOrderEntry.Type ~= 'dutch' then
 			goto continue
 		end
-		
+
 		-- Check if we can still fill and the order has remaining quantity
 		if bint(args.quantity) > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 			-- For ANT tokens, only allow complete trades - no partial amounts
@@ -608,7 +608,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 				local intervalsPassed = math.floor(timePassed / bint(currentOrderEntry.DecreaseInterval))
 				local priceReduction = intervalsPassed * bint(currentOrderEntry.DecreaseStep)
 				local currentPrice = bint(currentOrderEntry.Price) - priceReduction
-				
+
 				-- Ensure price doesn't go below minimum
 				if currentPrice < bint(currentOrderEntry.MinimumPrice) then
 					currentPrice = bint(currentOrderEntry.MinimumPrice)
@@ -676,7 +676,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 			end
 			-- If quantities don't match exactly, skip this order and continue searching
 		end
-		
+
 		::continue::
 	end
 
@@ -855,7 +855,7 @@ local function validateAntDominantOrder(args, validPair)
 		})
 		return false
 	end
-	
+
 	-- Validate expiration time is valid
 	local isValidExpiration, expirationError = utils.checkValidExpirationTime(args.expirationTime, args.timestamp)
 	if not isValidExpiration then
@@ -892,7 +892,7 @@ local function validateArioDominantOrder(args, validPair)
 	-- Currently no specific validation rules for ARIO dominant orders
 	-- All general validations (quantity, pair, etc.) are handled in validateOrderParams
 	-- This function is a placeholder for future ARIO-specific validation rules
-	
+
 	return true
 end
 
@@ -982,7 +982,7 @@ local function validateOrderParams(args)
 				return nil
 			end
 		end
-		
+
 	else
 		-- ARIO dominant: validate ARIO-specific requirements
 		if not validateArioDominantOrder(args, validPair) then
@@ -1200,9 +1200,9 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 		-- Validate that at least one token in the trade is ARIO
 		local isArioValid, arioError = utils.validateArioInTrade(msg.From, msg.Tags['X-Swap-Token'])
 		if not isArioValid then
-			msg.reply({ 
-				Action = 'Validation-Error', 
-				Tags = { Status = 'Error', Message = arioError or 'At least one token in the trade must be ARIO' } 
+			msg.reply({
+				Action = 'Validation-Error',
+				Tags = { Status = 'Error', Message = arioError or 'At least one token in the trade must be ARIO' }
 			})
 			return
 		end

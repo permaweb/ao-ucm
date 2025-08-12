@@ -1,5 +1,5 @@
 local bint = require('.bint')(256)
-local json = require('json')
+local json = require('JSON')
 
 local utils = require('utils')
 local fixed_price = require('fixed_price')
@@ -85,7 +85,7 @@ local function validateAntDominantOrder(args, validPair)
 		})
 		return false
 	end
-	
+
 	-- Validate expiration time is valid
 	local isValidExpiration, expirationError = utils.checkValidExpirationTime(args.expirationTime, args.timestamp)
 	if not isValidExpiration then
@@ -215,7 +215,7 @@ local function validateOrderParams(args)
 				return nil
 			end
 		end
-		
+
 	else
 		-- ARIO dominant: validate ARIO-specific requirements
 		if not validateArioDominantOrder(args, validPair) then

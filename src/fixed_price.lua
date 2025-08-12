@@ -1,5 +1,5 @@
 local bint = require('.bint')(256)
-local json = require('json')
+local json = require('JSON')
 
 local utils = require('utils')
 
@@ -102,12 +102,12 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 		if currentOrderEntry.Type ~= 'fixed' then
 			goto continue
 		end
-		
+
 		-- Check if this is the specific order we're looking for
 		if currentOrderEntry.Id ~= args.requestedOrderId then
 			goto continue
 		end
-		
+
 		-- Check if we can still fill and the order has remaining quantity
 		if bint(args.quantity) > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 			-- For ANT tokens, only allow complete trades - no partial amounts
@@ -150,7 +150,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 			end
 			-- If ARIO amount doesn't match ANT sell order price exactly, skip this order and continue searching
 		end
-		
+
 		::continue::
 	end
 

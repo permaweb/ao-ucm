@@ -497,8 +497,8 @@ utils.test('Multi order partially matched (denominated)',
 
 -- FIXME
 utils.test('New listing adds to CurrentListings',
-    function()  
-		local json = require('json')
+    function()
+		local json = require('JSON')
         Orderbook = {}
         CurrentListings = {}
         ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
@@ -517,7 +517,7 @@ utils.test('New listing adds to CurrentListings',
         ao.send({
             Target = ACTIVITY_PROCESS,
             Action = 'Update-Listed-Orders',
-            Data = json:encode({ 
+            Data = json:encode({
                 Order = {
                     Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
                     DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
@@ -663,7 +663,7 @@ utils.test('Full execution removes from CurrentListings',
 
 utils.test('Cancel order removes from CurrentListings',
     function()
-		local json = require('json')
+		local json = require('JSON')
         Orderbook = {
             {
                 Pair = { 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
@@ -699,7 +699,7 @@ utils.test('Cancel order removes from CurrentListings',
                 OrderTxId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'
             })
         })
-        
+
         CurrentListings = {}
 
         return CurrentListings

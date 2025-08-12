@@ -1,15 +1,15 @@
 local utils = require('utils')
 local bint = require('.bint')(256)
-local json = require('json')
+local json = require('JSON')
 
 local dutch_auction = {}
 
 function dutch_auction.handleArioOrder(args, validPair, pairIndex)
-    local intervals = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
-    local priceDecreaseMax = bint(args.price) - bint(args.minimumPrice)
-    local decreaseStep = math.floor(priceDecreaseMax / intervals)
+	local intervals = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
+	local priceDecreaseMax = bint(args.price) - bint(args.minimumPrice)
+	local decreaseStep = math.floor(priceDecreaseMax / intervals)
 
-    table.insert(Orderbook[pairIndex].Orders, {
+	table.insert(Orderbook[pairIndex].Orders, {
 		Id = args.orderId,
 		Quantity = tostring(args.quantity),
 		OriginalQuantity = tostring(args.quantity),
@@ -18,13 +18,13 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 		DateCreated = args.timestamp,
 		Price = args.price and tostring(args.price),
 		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
-        Type = 'dutch',
-        MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
-        DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),
-        DecreaseStep = tostring(decreaseStep)
+		Type = 'dutch',
+		MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
+		DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),
+		DecreaseStep = tostring(decreaseStep)
 	})
 
-    	-- Send order data to activity tracking process
+	-- Send order data to activity tracking process
 	local limitDataSuccess, limitData = pcall(function()
 		return json.encode({
 			Order = {
@@ -70,6 +70,7 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 end
 
 function dutch_auction.handleAntOrder(args, validPair, pairIndex)
+	print("handleAntOrder")
 	local currentOrders = Orderbook[pairIndex].Orders
 	local matches = {}
 	local matchedOrderIndex = nil
@@ -92,26 +93,29 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 			goto continue
 		end
 
+		print("CP1")
 		-- Calculate current price based on time passed since order creation
 		local timePassed = bint(args.timestamp) - bint(currentOrderEntry.DateCreated)
+		print("timePassed", timePassed)
 		local intervalsPassed = math.floor(timePassed / bint(currentOrderEntry.DecreaseInterval))
 		local intervalsBint = bint(intervalsPassed)
 		local decreaseStepBint = bint(currentOrderEntry.DecreaseStep)
 		local priceReduction = intervalsBint * decreaseStepBint
 		local currentPrice = (currentOrderEntry.Price) - priceReduction
-		
+		print("CP2")
 		-- Ensure price doesn't go below minimum
 		if currentPrice < bint(currentOrderEntry.MinimumPrice) then
 			currentPrice = bint(currentOrderEntry.MinimumPrice)
 		end
+		print("CP3")
 
 		-- Check if the user sent enough ARIO to pay for 1 ANT token at the current Dutch auction price
 		if bint(args.quantity) >= currentPrice then
 			local fillAmount = bint(1) -- 1 ANT token (always 1 for ANT orders)
-			local sendAmount = currentPrice -- User pays the current Dutch auction price
-
+			print("CP4")
 			-- Validate we have a valid fill amount
 			if fillAmount <= bint(0) then
+				print("CP5")
 				utils.handleError({
 					Target = args.sender,
 					Action = 'Order-Error',
@@ -124,9 +128,10 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 			end
 
 			-- Check if sent amount is sufficient for current price
-			local sentAmount = bint(args.quantity)
+
 			local requiredAmount = currentPrice
-			
+			local sentAmount = bint(args.quantity) -- User pays the current Dutch auction price
+
 			if sentAmount < requiredAmount then
 				utils.handleError({
 					Target = args.sender,
@@ -142,7 +147,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 			end
 
 			-- Apply fees and calculate final amounts
-			local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
+			local calculatedSendAmount = utils.calculateSendAmount(requiredAmount)
 			local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
 			-- Execute token transfers
@@ -169,8 +174,8 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 			matchedOrderIndex = i
 			break -- Only match with one order, no partial matching
 		end
-		
-		::continue::
+
+		:: continue ::
 	end
 
 	-- Remove the matched order from the orderbook
@@ -211,7 +216,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 end
 
 function dutch_auction.validateDutchParams(args)
-    if not args.minimumPrice then
+	if not args.minimumPrice then
 		return false, 'Minimum price must be provided'
 	end
 
@@ -220,20 +225,20 @@ function dutch_auction.validateDutchParams(args)
 		return false, minimumPriceError
 	end
 
-    if not args.decreaseInterval then
-        return false, 'Decrease interval must be provided'
-    end
+	if not args.decreaseInterval then
+		return false, 'Decrease interval must be provided'
+	end
 
 	local isValidDecreaseInterval, decreaseIntervalError = utils.checkValidAmount(args.decreaseInterval)
 	if not isValidDecreaseInterval then
 		return false, decreaseIntervalError
 	end
 
-    if bint(args.decreaseInterval) >= bint(args.expirationTime) then
-        return false, 'Decrease interval must be less than expiration time'
-    end
+	if bint(args.decreaseInterval) >= bint(args.expirationTime) then
+		return false, 'Decrease interval must be less than expiration time'
+	end
 
-    return true
+	return true
 end
 
 return dutch_auction

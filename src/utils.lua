@@ -1,9 +1,9 @@
-local json = require('json')
+local json = require('JSON')
 local bint = require('.bint')(256)
 
 local utils = {}
 
--- ARIO token process ID - replace with actual ARIO token process ID
+-- CHANGEME
 ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 
 function utils.checkValidAddress(address)
@@ -195,6 +195,7 @@ function utils.testSummary()
     else
         print(colors.green .. 'Tests passed: ' .. testResults.passed .. '/' .. testResults.total .. colors.reset)
         print(colors.red .. 'Tests failed: ' .. testResults.failed .. '/' .. testResults.total .. colors.reset .. '\n')
+        os.exit(1)
     end
 end
 
@@ -204,20 +205,20 @@ function utils.checkValidExpirationTime(expirationTime, timestamp)
 	if not expirationTime or not utils.checkValidAmount(expirationTime) then
 		return false, 'Expiration time must be a valid positive integer'
 	end
-	
+
 	-- Check if expiration time is greater than current timestamp
 	local status, result = pcall(function()
 		return bint(expirationTime) <= bint(timestamp)
 	end)
-	
+
 	if not status then
 		return false, 'Expiration time must be a valid timestamp'
 	end
-	
+
 	if result then
 		return false, 'Expiration time must be greater than current timestamp'
 	end
-	
+
 	return true, nil
 end
 

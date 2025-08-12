@@ -13,6 +13,8 @@ This specification describes the ARNS Marketplace's functionality, including ord
 2. **Order Book**: The data structure that stores active buy and sell orders for trading ARNS tokens.
 3. **Swap Token**: A token used in exchange for ARNS tokens. The default swap token is defined as `DEFAULT_SWAP_TOKEN`.
 
+[//]: # (@TODO update DEFAULT_SWAP_TOKEN)
+
 ---
 
 ### Core Data Structures

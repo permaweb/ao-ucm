@@ -29,6 +29,7 @@ if not Orderbook then Orderbook = {} end
 
 local fixed_price = {}
 local dutch_auction = {}
+local english_auction = {}
 local utils = {}
 local ucm = {}
 
@@ -599,6 +600,67 @@ function dutch_auction.validateDutchParams(args)
     return true
 end
 
+
+-- english_auction.lua
+--------------------------------
+
+-- Helper function to handle ARIO token orders: we are selling ANT token, so we need to add to orderbook
+function english_auction.handleArioOrder(args, validPair, pairIndex)
+	-- Add the new order to the orderbook (buy now functionality)
+	table.insert(Orderbook[pairIndex].Orders, {
+		Id = args.orderId,
+		Quantity = tostring(args.quantity),
+		OriginalQuantity = tostring(args.quantity),
+		Creator = args.sender,
+		Token = validPair[1],
+		DateCreated = args.timestamp,
+		Price = args.price and tostring(args.price),
+		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+		Type = 'english'
+	})
+
+	-- Send order data to activity tracking process
+	local limitDataSuccess, limitData = pcall(function()
+		return json.encode({
+			Order = {
+				Id = args.orderId,
+				DominantToken = validPair[1],
+				SwapToken = validPair[2],
+				Sender = args.sender,
+				Receiver = nil,
+				Quantity = tostring(args.quantity),
+				Price = args.price and tostring(args.price),
+				Timestamp = args.timestamp,
+				OrderType = 'english'
+			}
+		})
+	end)
+
+	ao.send({
+		Target = ACTIVITY_PROCESS,
+		Action = 'Update-Listed-Orders',
+		Data = limitDataSuccess and limitData or ''
+	})
+
+	-- Notify sender of successful order creation
+	ao.send({
+		Target = args.sender,
+		Action = 'Order-Success',
+		Tags = {
+			Status = 'Success',
+			OrderId = args.orderId,
+			Handler = 'Create-Order',
+			DominantToken = validPair[1],
+			SwapToken = args.swapToken,
+			Quantity = tostring(args.quantity),
+			Price = args.price and tostring(args.price),
+			Message = 'ARIO order added to orderbook for English auction!',
+			['X-Group-ID'] = args.orderGroupId,
+			OrderType = 'english'
+		}
+	})
+end
+
 -- ucm.lua
 --------------------------------
 
@@ -741,7 +803,7 @@ local function validateOrderParams(args)
 	end
 
 	-- 4. Check order type is supported
-	if not args.orderType or args.orderType ~= "fixed" and args.orderType ~= "dutch" then
+	if not args.orderType or args.orderType ~= "fixed" and args.orderType ~= "dutch" and args.orderType ~= "english" then
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
@@ -854,6 +916,8 @@ local function handleArioOrderAuctions(args, validPair, pairIndex)
 		fixed_price.handleArioOrder(args, validPair, pairIndex)
 	elseif args.orderType == "dutch" then
 		dutch_auction.handleArioOrder(args, validPair, pairIndex)
+	elseif args.orderType == "english" then
+		english_auction.handleArioOrder(args, validPair, pairIndex)
 	else
 		utils.handleError({
 			Target = args.sender,

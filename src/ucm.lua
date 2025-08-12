@@ -4,6 +4,7 @@ local json = require('JSON')
 local utils = require('utils')
 local fixed_price = require('fixed_price')
 local dutch_auction = require('dutch_auction')
+local english_auction = require('english_auction')
 if Name ~= 'ANT Marketplace' then Name = 'ANT Marketplace' end
 
 -- CHANGEME
@@ -170,7 +171,7 @@ local function validateOrderParams(args)
 	end
 
 	-- 4. Check order type is supported
-	if not args.orderType or args.orderType ~= "fixed" and args.orderType ~= "dutch" then
+	if not args.orderType or args.orderType ~= "fixed" and args.orderType ~= "dutch" and args.orderType ~= "english" then
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
@@ -283,6 +284,8 @@ local function handleArioOrderAuctions(args, validPair, pairIndex)
 		fixed_price.handleArioOrder(args, validPair, pairIndex)
 	elseif args.orderType == "dutch" then
 		dutch_auction.handleArioOrder(args, validPair, pairIndex)
+	elseif args.orderType == "english" then
+		english_auction.handleArioOrder(args, validPair, pairIndex)
 	else
 		utils.handleError({
 			Target = args.sender,

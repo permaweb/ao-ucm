@@ -48,18 +48,22 @@ end
 
 function utils.validatePairData(data)
 	if type(data) ~= 'table' or #data ~= 2 then
+		print('Pair must be a list of exactly two strings - [TokenId, TokenId]')
 		return nil, 'Pair must be a list of exactly two strings - [TokenId, TokenId]'
 	end
 
 	if type(data[1]) ~= 'string' or type(data[2]) ~= 'string' then
+		print('Both pair elements must be strings')
 		return nil, 'Both pair elements must be strings'
 	end
 
 	if not utils.checkValidAddress(data[1]) or not utils.checkValidAddress(data[2]) then
+		print('Both pair elements must be valid addresses')
 		return nil, 'Both pair elements must be valid addresses'
 	end
 
 	if data[1] == data[2] then
+		print('Pair addresses cannot be equal')
 		return nil, 'Pair addresses cannot be equal'
 	end
 

@@ -104,7 +104,9 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			timestamp = msg.Timestamp,
 			blockheight = msg['Block-Height'],
 			orderType = msg.Tags['X-Order-Type'] or 'fixed',
-			expirationTime = msg.Tags['X-Expiration-Time']
+			expirationTime = msg.Tags['X-Expiration-Time'],
+			minimumPrice = msg.Tags['X-Minimum-Price'],
+			decreaseInterval = msg.Tags['X-Decrease-Interval'],
 		}
 
 		if msg.Tags['X-Price'] then
@@ -112,6 +114,9 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		end
 		if msg.Tags['X-Transfer-Denomination'] then
 			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
+		end
+		if msg.Tags['X-Requested-Order-ID'] then
+			orderArgs.requestedOrderId = msg.Tags['X-Requested-Order-ID']
 		end
 
 		ucm.createOrder(orderArgs)

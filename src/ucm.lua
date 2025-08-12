@@ -1,11 +1,13 @@
-local bint = require('bint')(256)
+local bint = require('.bint')(256)
 local json = require('JSON')
 
 local utils = require('utils')
 local fixed_price = require('fixed_price')
 local dutch_auction = require('dutch_auction')
 local english_auction = require('english_auction')
-if Name ~= 'ANT Marketplace' then Name = 'ANT Marketplace' end
+if Name ~= 'ANT Marketplace' then
+	Name = 'ANT Marketplace'
+end
 
 -- CHANGEME
 ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
@@ -28,7 +30,9 @@ ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
 -- 	} []
 -- } []
 
-if not Orderbook then Orderbook = {} end
+if not Orderbook then
+	Orderbook = {}
+end
 
 local ucm = {}
 
@@ -123,6 +127,17 @@ local function validateArioDominantOrder(args, validPair)
 	-- Currently no specific validation rules for ARIO dominant orders
 	-- All general validations (quantity, pair, etc.) are handled in validateOrderParams
 	-- This function is a placeholder for future ARIO-specific validation rules
+	if not args.requestedOrderId then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Validation-Error',
+			Message = 'Requested order ID is required',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return false
+	end
 
 	return true
 end
@@ -175,28 +190,19 @@ local function validateOrderParams(args)
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
-			Message = 'Order type must be "fixed"',
+			Message = 'Order type must be "fixed" or "dutch" or "english"',
 			Quantity = args.quantity,
 			TransferToken = validPair[1],
 			OrderGroupId = args.orderGroupId
 		})
 		return nil
 	end
-
 	-- 5. Check if it's ANT dominant (selling ANT) or ARIO dominant (buying ANT)
 	local isAntDominant = not utils.isArioToken(args.dominantToken)
 
 	if isAntDominant then
 		-- ANT dominant: validate ANT-specific requirements
 		if not validateAntDominantOrder(args, validPair) then
-			utils.handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = 'Error validating ANT dominant order',
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
 			return nil
 		end
 
@@ -219,14 +225,6 @@ local function validateOrderParams(args)
 	else
 		-- ARIO dominant: validate ARIO-specific requirements
 		if not validateArioDominantOrder(args, validPair) then
-			utils.handleError({
-				Target = args.sender,
-				Action = 'Validation-Error',
-				Message = 'Error validating ARIO dominant order',
-				Quantity = args.quantity,
-				TransferToken = validPair[1],
-				OrderGroupId = args.orderGroupId
-			})
 			return nil
 		end
 	end
@@ -250,6 +248,8 @@ end
 local function handleAntOrderAuctions(args, validPair, pairIndex)
 	if args.orderType == "fixed" then
 		fixed_price.handleAntOrder(args, validPair, pairIndex)
+	elseif args.orderType == "dutch" then
+		dutch_auction.handleAntOrder(args, validPair, pairIndex)
 	else
 		utils.handleError({
 			Target = args.sender,

@@ -1,5 +1,5 @@
 local json = require('JSON')
-local bint = require('bint')(256)
+local bint = require('.bint')(256)
 
 local utils = {}
 
@@ -163,11 +163,19 @@ function utils.test(description, fn, expected)
             print(colors.green .. 'Passed - ' .. description .. colors.reset)
         else
             testResults.failed = testResults.failed + 1
-            print(colors.red .. 'Failed - ' .. description .. colors.reset .. '\n')
-            print(colors.red .. 'Expected' .. colors.reset)
-            utils.printTable(expected)
-            print('\n' .. colors.red .. 'Got' .. colors.reset)
-            utils.printTable(result)
+			if type(result) == 'table' and type(expected) == 'table' then
+            	print(colors.red .. 'Failed - ' .. description .. colors.reset .. '\n')
+            	print(colors.red .. 'Expected' .. colors.reset)
+            	utils.printTable(expected)
+            	print('\n' .. colors.red .. 'Got' .. colors.reset)
+            	utils.printTable(result)
+			else
+				print(colors.red .. 'Failed - ' .. description .. colors.reset .. '\n')
+				print(colors.red .. 'Expected' .. colors.reset)
+				print(expected)
+				print('\n' .. colors.red .. 'Got' .. colors.reset)
+				print(result)
+			end
         end
     end
 end

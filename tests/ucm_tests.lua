@@ -2,11 +2,21 @@ package.path = package.path .. ';../src/?.lua'
 
 local ucm = require('ucm')
 local utils = require('utils')
+ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+-- Global transfer tracking
+local transfers = {}
 
 -- Mock ao.send for testing
 ao = {
 	send = function(msg)
 		if msg.Action == 'Transfer' then
+			local transfer = {
+				action = msg.Action,
+				quantity = msg.Tags.Quantity,
+				recipient = msg.Tags.Recipient,
+				target = msg.Target
+			}
+			table.insert(transfers, transfer)
 			print(msg.Action .. ' ' .. msg.Tags.Quantity .. ' to ' .. msg.Tags.Recipient)
 		else
 			print(msg.Action)
@@ -14,9 +24,48 @@ ao = {
 	 end
 }
 
+-- Helper function to reset transfers for each test
+local function resetTransfers()
+	transfers = {}
+end
+
+-- Helper function to validate expected transfers
+local function validateTransfers(expectedTransfers)
+	if not expectedTransfers then
+		return true
+	end
+	
+	if #transfers ~= #expectedTransfers then
+		print("Transfer count mismatch: expected " .. #expectedTransfers .. ", got " .. #transfers)
+		return false
+	end
+	
+	for i, expected in ipairs(expectedTransfers) do
+		local actual = transfers[i]
+		if not actual then
+			print("Missing transfer at index " .. i)
+			return false
+		end
+		
+		if actual.action ~= expected.action or 
+		   actual.quantity ~= expected.quantity or 
+		   actual.recipient ~= expected.recipient or
+		   actual.target ~= expected.target then
+			print("Transfer mismatch at index " .. i .. ":")
+			print("  Expected: " .. expected.action .. " " .. expected.quantity .. " to " .. expected.recipient .. " (target: " .. expected.target .. ")")
+			print("  Actual: " .. actual.action .. " " .. actual.quantity .. " to " .. actual.recipient .. " (target: " .. actual.target .. ")")
+			return false
+		end
+	end
+	
+	return true
+end
+
 -- Test complete createOrder function scenarios
 utils.test('should execute immediate trade when selling ARIO to buy ANT with matching ANT order',
 	function()
+		resetTransfers()
+		
 		Orderbook = {
 			{
 				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
@@ -40,13 +89,33 @@ utils.test('should execute immediate trade when selling ARIO to buy ANT with mat
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-seller',
-			quantity = 1,
-			price = '500000000000',
+			quantity = 500000000000, -- Send exactly the ARIO amount that matches the ANT sell order price
 			timestamp = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
-			orderGroupId = 'test-group'
+			orderGroupId = 'test-group',
+			requestedOrderId = 'existing-ant-order' -- Specify which ANT order to buy
 		})
+		
+		-- Validate expected transfers
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '497500000000', -- After fees
+				recipient = 'ant-seller',
+				target = ARIO_TOKEN_PROCESS_ID
+			},
+			{
+				action = 'Transfer',
+				quantity = '1',
+				recipient = 'ario-seller',
+				target = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+			}
+		}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
 		
 		return Orderbook
 	end,
@@ -72,6 +141,8 @@ utils.test('should execute immediate trade when selling ARIO to buy ANT with mat
 
 utils.test('should add ANT sell order to orderbook when selling ANT to buy ARIO',
 	function()
+		resetTransfers()
+		
 		Orderbook = {}
 		
 		ucm.createOrder({
@@ -87,6 +158,13 @@ utils.test('should add ANT sell order to orderbook when selling ANT to buy ARIO'
 			orderGroupId = 'test-group',
 			expirationTime = '1722535720966' -- Valid expiration time
 		})
+		
+		-- Validate that no transfers occurred (just adding to orderbook)
+		local expectedTransfers = {}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
 		
 		return Orderbook
 	end,
@@ -112,6 +190,8 @@ utils.test('should add ANT sell order to orderbook when selling ANT to buy ARIO'
 
 utils.test('should reject order with invalid orderType',
 	function()
+		resetTransfers()
+		
 		Orderbook = {}
 		
 		ucm.createOrder({
@@ -127,6 +207,20 @@ utils.test('should reject order with invalid orderType',
 			orderGroupId = 'test-group'
 		})
 		
+		-- Validate that exactly one refund transfer occurred
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '1000', -- Refund the sent amount
+				recipient = 'test-seller',
+				target = ARIO_TOKEN_PROCESS_ID
+			}
+		}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
+		
 		return Orderbook
 	end,
 	{}
@@ -134,6 +228,8 @@ utils.test('should reject order with invalid orderType',
 
 utils.test('should reject order without ARIO token in trade',
 	function()
+		resetTransfers()
+		
 		Orderbook = {}
 		
 		ucm.createOrder({
@@ -156,6 +252,8 @@ utils.test('should reject order without ARIO token in trade',
 
 utils.test('should fail when buying ANT with ARIO but no ANT orders exist to match against',
 	function()
+		resetTransfers()
+		
 		Orderbook = {}
 		
 		ucm.createOrder({
@@ -163,12 +261,27 @@ utils.test('should fail when buying ANT with ARIO but no ANT orders exist to mat
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 			sender = 'test-seller',
-			quantity = 1000,
+			quantity = 500000000000, -- Send ARIO amount
 			timestamp = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
-			orderGroupId = 'test-group'
+			orderGroupId = 'test-group',
+			requestedOrderId = 'non-existent-order' -- Try to buy a non-existent order
 		})
+		
+		-- Validate that exactly one refund transfer occurred
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '500000000000', -- Refund the sent amount
+				recipient = 'test-seller',
+				target = ARIO_TOKEN_PROCESS_ID
+			}
+		}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
 		
 		return Orderbook
 	end,
@@ -182,6 +295,8 @@ utils.test('should fail when buying ANT with ARIO but no ANT orders exist to mat
 
 utils.test('should fail when buying specific ANT with ARIO but only different ANT orders exist',
 	function()
+		resetTransfers()
+		
 		Orderbook = {
 			{
 				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'different-ant-token-address'},
@@ -206,12 +321,27 @@ utils.test('should fail when buying specific ANT with ARIO but only different AN
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (using ARIO to buy)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- Specific ANT token (wanting specific ANT)
 			sender = 'ario-buyer',
-			quantity = 1,
+			quantity = 500000000000, -- Send ARIO amount
 			timestamp = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
-			orderGroupId = 'test-group'
+			orderGroupId = 'test-group',
+			requestedOrderId = 'non-existent-specific-order' -- Try to buy a specific order that doesn't exist
 		})
+		
+		-- Validate that exactly one refund transfer occurred
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '500000000000', -- Refund the sent amount
+				recipient = 'ario-buyer',
+				target = ARIO_TOKEN_PROCESS_ID
+			}
+		}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
 		
 		return Orderbook
 	end,
@@ -238,6 +368,8 @@ utils.test('should fail when buying specific ANT with ARIO but only different AN
 -- Test edge cases
 utils.test('should reject order with zero quantity',
 	function()
+		resetTransfers()
+		
 		Orderbook = {}
 		
 		ucm.createOrder({
@@ -253,6 +385,13 @@ utils.test('should reject order with zero quantity',
 			orderGroupId = 'test-group'
 		})
 		
+		-- Validate that no transfers occurred (fails early validation)
+		local expectedTransfers = {}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
+		
 		return Orderbook
 	end,
 	{}
@@ -260,6 +399,8 @@ utils.test('should reject order with zero quantity',
 
 utils.test('should reject order with negative quantity',
 	function()
+		resetTransfers()
+		
 		Orderbook = {}
 		
 		ucm.createOrder({
@@ -275,6 +416,13 @@ utils.test('should reject order with negative quantity',
 			orderGroupId = 'test-group'
 		})
 		
+		-- Validate that no transfers occurred (fails early validation)
+		local expectedTransfers = {}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
+		
 		return Orderbook
 	end,
 	{}
@@ -282,6 +430,8 @@ utils.test('should reject order with negative quantity',
 
 utils.test('should reject ANT sell order with quantity greater than 1',
 	function()
+		resetTransfers()
+		
 		Orderbook = {}
 		
 		ucm.createOrder({
@@ -297,6 +447,20 @@ utils.test('should reject ANT sell order with quantity greater than 1',
 			orderGroupId = 'test-group'
 		})
 		
+		-- Validate that exactly one refund transfer occurred
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '2', -- Refund the sent amount
+				recipient = 'ant-seller',
+				target = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+			}
+		}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
+		
 		return Orderbook
 	end,
 	{}
@@ -304,6 +468,8 @@ utils.test('should reject ANT sell order with quantity greater than 1',
 
 utils.test('should reject partial ANT purchase when buying with ARIO',
 	function()
+		resetTransfers()
+		
 		Orderbook = {
 			{
 				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
@@ -324,12 +490,27 @@ utils.test('should reject partial ANT purchase when buying with ARIO',
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (using ARIO to buy)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer',
-			quantity = 1, -- Wanting to buy 1 ANT when 2 are available - partial purchase should be rejected
+			quantity = 250000000000, -- Wanting to buy 1 ANT when 2 are available - partial purchase should be rejected
 			timestamp = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
-			orderGroupId = 'test-group'
+			orderGroupId = 'test-group',
+			requestedOrderId = 'existing-ant-order' -- Try to buy the specific order
 		})
+		
+		-- Validate that exactly one refund transfer occurred
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '250000000000', -- Refund the sent amount
+				recipient = 'ario-buyer',
+				target = ARIO_TOKEN_PROCESS_ID
+			}
+		}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
 		
 		return Orderbook
 	end,
@@ -418,6 +599,8 @@ utils.test('should reject orders with malformed token addresses',
 
 utils.test('should apply correct fees to successful ANT trades when buying with ARIO',
 	function()
+		resetTransfers()
+		
 		Orderbook = {
 			{
 				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
@@ -439,12 +622,33 @@ utils.test('should apply correct fees to successful ANT trades when buying with 
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (using ARIO to buy)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer',
-			quantity = 1,
+			quantity = 1000000000000, -- Send exactly the ARIO amount that matches the ANT sell order price
 			timestamp = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
-			orderGroupId = 'test-group'
+			orderGroupId = 'test-group',
+			requestedOrderId = 'existing-ant-order' -- Buy the specific ANT order
 		})
+		
+		-- Validate that exactly two transfers occurred for successful trade
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '995000000000', -- After fees
+				recipient = 'ant-seller',
+				target = ARIO_TOKEN_PROCESS_ID
+			},
+			{
+				action = 'Transfer',
+				quantity = '1',
+				recipient = 'ario-buyer',
+				target = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+			}
+		}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
 		
 		return Orderbook
 	end,
@@ -470,6 +674,8 @@ utils.test('should apply correct fees to successful ANT trades when buying with 
 
 utils.test('should handle fee calculation with very small amounts when buying ANT with ARIO',
 	function()
+		resetTransfers()
+		
 		Orderbook = {
 			{
 				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
@@ -491,12 +697,33 @@ utils.test('should handle fee calculation with very small amounts when buying AN
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (using ARIO to buy)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer',
-			quantity = 1,
+			quantity = 1000, -- Send exactly the ARIO amount that matches the ANT sell order price
 			timestamp = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
-			orderGroupId = 'test-group'
+			orderGroupId = 'test-group',
+			requestedOrderId = 'existing-ant-order-small' -- Buy the specific small amount order
 		})
+		
+		-- Validate that exactly two transfers occurred for successful trade
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '995', -- After fees
+				recipient = 'ant-seller',
+				target = ARIO_TOKEN_PROCESS_ID
+			},
+			{
+				action = 'Transfer',
+				quantity = '1',
+				recipient = 'ario-buyer',
+				target = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+			}
+		}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
 		
 		return Orderbook
 	end,
@@ -545,11 +772,12 @@ utils.test('should not match expired ANT orders',
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (using ARIO to buy)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer',
-			quantity = 1,
+			quantity = 500000000000, -- Send exactly the ARIO amount that matches the ANT sell order price
 			timestamp = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
-			orderGroupId = 'test-group'
+			orderGroupId = 'test-group',
+			requestedOrderId = 'expired-ant-order' -- Try to buy the expired order
 		})
 		
 		return Orderbook
@@ -600,7 +828,8 @@ utils.test('should reject duplicate ANT sell order for same ANT token',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
-			orderGroupId = 'test-group'
+			orderGroupId = 'test-group',
+			expirationTime = '1722535720966' -- Add required expiration time
 		})
 		
 		return Orderbook
@@ -893,13 +1122,13 @@ utils.test('should execute immediate trade with valid expiration time when selli
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-seller',
-			quantity = 1,
-			price = '500000000000',
+			quantity = 500000000000, -- Send exactly the ARIO amount that matches the ANT sell order price
 			timestamp = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
-			expirationTime = '1722535720966' -- Valid expiration time
+			expirationTime = '1722535720966', -- Valid expiration time
+			requestedOrderId = 'existing-ant-order-with-expiration' -- Buy the specific order with expiration
 		})
 		
 		return Orderbook
@@ -1065,6 +1294,114 @@ utils.test('should reject order with zero price',
 		return Orderbook
 	end,
 	{
+	}
+)
+
+utils.test('should reject ARIO dominant order without requestedOrderId',
+	function()
+		resetTransfers()
+		
+		Orderbook = {}
+		
+		ucm.createOrder({
+			orderId = 'ario-order-no-requested-id',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
+			sender = 'ario-seller',
+			quantity = 500000000000, -- Send ARIO amount
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'fixed',
+			orderGroupId = 'test-group'
+			-- missing requestedOrderId
+		})
+		
+		-- Validate that exactly one refund transfer occurred (tokens were sent, then validation failed)
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '500000000000', -- Refund the sent amount
+				recipient = 'ario-seller',
+				target = ARIO_TOKEN_PROCESS_ID
+			}
+		}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Return empty orderbook instead of nil to avoid serialization error
+		end
+		
+		return Orderbook
+	end,
+	{}
+)
+
+utils.test('should reject ANT purchase when user sends different ARIO quantity than ANT sell order price',
+	function()
+		resetTransfers()
+		
+		Orderbook = {
+			{
+				Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+				Orders = {
+					{
+						Id = 'existing-ant-order',
+						Quantity = '1',
+						Price = '500000000000', -- ANT sell order price
+						Creator = 'ant-seller',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						DateCreated = '1722535710966',
+						ExpirationTime = '1722535720966',
+						Type = 'fixed'
+					}
+				}
+			}
+		}
+		
+		ucm.createOrder({
+			orderId = 'ario-order-wrong-quantity',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
+			sender = 'ario-seller',
+			quantity = 400000000000, -- Send different ARIO amount than the ANT sell order price
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			orderType = 'fixed',
+			orderGroupId = 'test-group',
+			requestedOrderId = 'existing-ant-order' -- Specify which ANT order to buy
+		})
+		
+		-- Validate that exactly one refund transfer occurred
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '400000000000', -- Refund the sent amount
+				recipient = 'ario-seller',
+				target = ARIO_TOKEN_PROCESS_ID
+			}
+		}
+		
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
+		
+		return Orderbook
+	end,
+	{
+		{
+			Pair = {'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'},
+			Orders = {
+				{
+					Id = 'existing-ant-order',
+					Quantity = '1',
+					Price = '500000000000', -- ANT sell order should remain unchanged
+					Creator = 'ant-seller',
+					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+					DateCreated = '1722535710966',
+					ExpirationTime = '1722535720966',
+					Type = 'fixed'
+				}
+			}
+		}
 	}
 )
 

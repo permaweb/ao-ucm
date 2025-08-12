@@ -1,5 +1,5 @@
 local json = require('JSON')
-local bint = require('bint')(256)
+local bint = require('.bint')(256)
 
 if Name ~= 'ANT Marketplace' then Name = 'ANT Marketplace' end
 
@@ -413,15 +413,27 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 			goto continue
 		end
 
+		-- Check if the order is a fixed order
+		if currentOrderEntry.Type ~= 'fixed' then
+			goto continue
+		end
+
+		-- Check if this is the specific order we're looking for
+		if currentOrderEntry.Id ~= args.requestedOrderId then
+			goto continue
+		end
+
 		-- Check if we can still fill and the order has remaining quantity
 		if bint(args.quantity) > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 			-- For ANT tokens, only allow complete trades - no partial amounts
 			local fillAmount, sendAmount
 
-			-- Check if the order quantity matches exactly what we want to buy
-			if bint(currentOrderEntry.Quantity) == bint(args.quantity) then
-				fillAmount = bint(args.quantity)
-				sendAmount = fillAmount * bint(currentOrderEntry.Price)
+			-- Check if the user's ARIO amount matches the ANT sell order price exactly
+			if bint(args.quantity) == bint(currentOrderEntry.Price) then
+				-- User wants to buy 1 ANT token
+				fillAmount = bint(1) -- 1 ANT token (always 1 for ANT orders)
+				-- User pays the exact amount of ARIO specified in the ANT sell order
+				sendAmount = bint(args.quantity)
 
 				-- Validate we have a valid fill amount
 				if fillAmount <= bint(0) then
@@ -451,7 +463,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 				matchedOrderIndex = i
 				break -- Only match with one order, no partial matching
 			end
-			-- If quantities don't match exactly, skip this order and continue searching
+			-- If ARIO amount doesn't match ANT sell order price exactly, skip this order and continue searching
 		end
 
 		::continue::
@@ -487,7 +499,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
-			Message = 'No matching orders found for immediate ANT trade - exact quantity match required',
+			Message = 'No matching orders found for immediate ANT trade - exact ARIO amount match required',
 			Quantity = args.quantity,
 			TransferToken = validPair[1],
 			OrderGroupId = args.orderGroupId
@@ -568,6 +580,146 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 	})
 end
 
+
+function dutch_auction.handleAntOrder(args, validPair, pairIndex)
+	local currentOrders = Orderbook[pairIndex].Orders
+	local matches = {}
+	local matchedOrderIndex = nil
+
+	-- Attempt to match with existing Dutch orders for immediate trade
+	for i, currentOrderEntry in ipairs(currentOrders) do
+		-- Check if order has expired
+		if currentOrderEntry.ExpirationTime and bint(currentOrderEntry.ExpirationTime) < bint(args.timestamp) then
+			-- Skip expired orders
+			goto continue
+		end
+
+		-- Check if the order is a Dutch auction order
+		if currentOrderEntry.Type ~= 'dutch' then
+			goto continue
+		end
+
+		-- Check if we can still fill and the order has remaining quantity
+		if bint(args.quantity) > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
+			-- For ANT tokens, only allow complete trades - no partial amounts
+			local fillAmount, sendAmount
+
+			-- Check if the order quantity matches exactly what we want to buy
+			if bint(currentOrderEntry.Quantity) == bint(args.quantity) then
+				-- Calculate current price based on time passed since order creation
+				local timePassed = bint(args.timestamp) - bint(currentOrderEntry.DateCreated)
+				local intervalsPassed = math.floor(timePassed / bint(currentOrderEntry.DecreaseInterval))
+				local priceReduction = intervalsPassed * bint(currentOrderEntry.DecreaseStep)
+				local currentPrice = bint(currentOrderEntry.Price) - priceReduction
+
+				-- Ensure price doesn't go below minimum
+				if currentPrice < bint(currentOrderEntry.MinimumPrice) then
+					currentPrice = bint(currentOrderEntry.MinimumPrice)
+				end
+
+				fillAmount = bint(args.quantity)
+				sendAmount = fillAmount * currentPrice
+
+				-- Validate we have a valid fill amount
+				if fillAmount <= bint(0) then
+					utils.handleError({
+						Target = args.sender,
+						Action = 'Order-Error',
+						Message = 'No amount to fill',
+						Quantity = args.quantity,
+						TransferToken = validPair[1],
+						OrderGroupId = args.orderGroupId
+					})
+					return
+				end
+
+				-- Check if sent amount is sufficient for current price
+				local sentAmount = bint(args.price or 0)
+				if sentAmount < sendAmount then
+					utils.handleError({
+						Target = args.sender,
+						Action = 'Order-Error',
+						Message = 'Insufficient payment for current Dutch auction price',
+						Quantity = args.price, -- Refund the ARIO amount that was sent
+						TransferToken = args.swapToken, -- Send to ARIO token process
+						OrderGroupId = args.orderGroupId,
+						RequiredAmount = tostring(sendAmount),
+						SentAmount = tostring(sentAmount)
+					})
+					return
+				end
+
+				-- Apply fees and calculate final amounts
+				local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
+				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
+
+				-- Execute token transfers
+				utils.executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
+
+				-- Handle refund if sent amount was more than required
+				if sentAmount > sendAmount then
+					local refundAmount = sentAmount - sendAmount
+					ao.send({
+						Target = args.swapToken, -- ARIO token process
+						Action = 'Transfer',
+						Tags = {
+							Recipient = args.sender,
+							Quantity = tostring(refundAmount)
+						}
+					})
+				end
+
+				-- Record the match
+				local match = utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
+				table.insert(matches, match)
+
+				-- Mark the order index for removal
+				matchedOrderIndex = i
+				break -- Only match with one order, no partial matching
+			end
+			-- If quantities don't match exactly, skip this order and continue searching
+		end
+
+		::continue::
+	end
+
+	-- Remove the matched order from the orderbook
+	if matchedOrderIndex then
+		table.remove(Orderbook[pairIndex].Orders, matchedOrderIndex)
+	end
+
+	-- Send success response if any matches occurred
+	if #matches > 0 then
+		ao.send({
+			Target = args.sender,
+			Action = 'Order-Success',
+			Tags = {
+				OrderId = args.orderId,
+				Status = 'Success',
+				Handler = 'Create-Order',
+				DominantToken = validPair[1],
+				SwapToken = args.swapToken,
+				Quantity = tostring(args.quantity),
+				Price = args.price and tostring(args.price) or 'None',
+				Message = 'ANT order executed immediately in Dutch auction!',
+				['X-Group-ID'] = args.orderGroupId or 'None',
+				OrderType = 'dutch'
+			}
+		})
+	else
+		-- No matches found for ANT token - return error
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = 'No matching Dutch auction orders found for immediate ANT trade - exact quantity match required',
+			Quantity = args.quantity,
+			TransferToken = validPair[1],
+			OrderGroupId = args.orderGroupId
+		})
+		return
+	end
+end
+
 function dutch_auction.validateDutchParams(args)
     if not args.minimumPrice then
 		return false, 'Minimum price must be provided'
@@ -592,7 +744,7 @@ function dutch_auction.validateDutchParams(args)
     end
 
     local decreaseStep = dutch_auction.calculateDecreaseStep(args)
-    
+
     if decreaseStep < 1 then
         return false, 'Decrease step must be at least 1. Price difference is too small for the given time intervals.'
     end
@@ -807,14 +959,13 @@ local function validateOrderParams(args)
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
-			Message = 'Order type must be "fixed"',
+			Message = 'Order type must be "fixed" or "dutch" or "english"',
 			Quantity = args.quantity,
 			TransferToken = validPair[1],
 			OrderGroupId = args.orderGroupId
 		})
 		return nil
 	end
-
 	-- 5. Check if it's ANT dominant (selling ANT) or ARIO dominant (buying ANT)
 	local isAntDominant = not utils.isArioToken(args.dominantToken)
 
@@ -882,6 +1033,8 @@ end
 local function handleAntOrderAuctions(args, validPair, pairIndex)
 	if args.orderType == "fixed" then
 		fixed_price.handleAntOrder(args, validPair, pairIndex)
+	elseif args.orderType == "dutch" then
+		dutch_auction.handleAntOrder(args, validPair, pairIndex)
 	else
 		utils.handleError({
 			Target = args.sender,
@@ -1082,9 +1235,20 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 			syncState = syncState,
 			orderType = msg.Tags['X-Order-Type'] or 'fixed',
 			expirationTime = msg.Tags['X-Expiration-Time'],
-			price = msg.Tags['X-Price'],
-			transferDenomination = msg.Tags['X-Transfer-Denomination']
+			minimumPrice = msg.Tags['X-Minimum-Price'],
+			decreaseInterval = msg.Tags['X-Decrease-Interval'],
 		}
+
+		if msg.Tags['X-Price'] then
+			orderArgs.price = msg.Tags['X-Price']
+		end
+		if msg.Tags['X-Transfer-Denomination'] then
+			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
+		end
+
+		if msg.Tags['X-Requested-Order-ID'] then
+			orderArgs.requestedOrderId = msg.Tags['X-Requested-Order-ID']
+		end
 
 		ucm.createOrder(orderArgs)
 	end

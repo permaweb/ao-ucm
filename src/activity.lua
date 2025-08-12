@@ -1,4 +1,4 @@
-local bint = require('bint')(256)
+local bint = require('.bint')(256)
 local json = require('JSON')
 
 local utils = require('utils')

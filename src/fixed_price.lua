@@ -1,4 +1,4 @@
-local bint = require('bint')(256)
+local bint = require('.bint')(256)
 local json = require('JSON')
 
 local utils = require('utils')
@@ -36,7 +36,7 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 		Quantity = tostring(args.quantity),
 		OriginalQuantity = tostring(args.quantity),
 		Creator = args.sender,
-		Token = validPair[1],
+		Token = args.dominantToken,
 		DateCreated = args.timestamp,
 		Price = args.price and tostring(args.price),
 		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
@@ -48,8 +48,8 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 		return json.encode({
 			Order = {
 				Id = args.orderId,
-				DominantToken = validPair[1],
-				SwapToken = validPair[2],
+				DominantToken = args.dominantToken,
+				SwapToken = args.swapToken,
 				Sender = args.sender,
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
@@ -73,7 +73,7 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 			Status = 'Success',
 			OrderId = args.orderId,
 			Handler = 'Create-Order',
-			DominantToken = validPair[1],
+			DominantToken = args.dominantToken,
 			SwapToken = args.swapToken,
 			Quantity = tostring(args.quantity),
 			Price = args.price and tostring(args.price),
@@ -103,15 +103,22 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 			goto continue
 		end
 
+		-- Check if this is the specific order we're looking for
+		if currentOrderEntry.Id ~= args.requestedOrderId then
+			goto continue
+		end
+
 		-- Check if we can still fill and the order has remaining quantity
 		if bint(args.quantity) > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 			-- For ANT tokens, only allow complete trades - no partial amounts
 			local fillAmount, sendAmount
 
-			-- Check if the order quantity matches exactly what we want to buy
-			if bint(currentOrderEntry.Quantity) == bint(args.quantity) then
-				fillAmount = bint(args.quantity)
-				sendAmount = fillAmount * bint(currentOrderEntry.Price)
+			-- Check if the user's ARIO amount matches the ANT sell order price exactly
+			if bint(args.quantity) == bint(currentOrderEntry.Price) then
+				-- User wants to buy 1 ANT token
+				fillAmount = bint(1) -- 1 ANT token (always 1 for ANT orders)
+				-- User pays the exact amount of ARIO specified in the ANT sell order
+				sendAmount = bint(args.quantity)
 
 				-- Validate we have a valid fill amount
 				if fillAmount <= bint(0) then
@@ -120,7 +127,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 						Action = 'Order-Error',
 						Message = 'No amount to fill',
 						Quantity = args.quantity,
-						TransferToken = validPair[1],
+						TransferToken = args.dominantToken,
 						OrderGroupId = args.orderGroupId
 					})
 					return
@@ -141,7 +148,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 				matchedOrderIndex = i
 				break -- Only match with one order, no partial matching
 			end
-			-- If quantities don't match exactly, skip this order and continue searching
+			-- If ARIO amount doesn't match ANT sell order price exactly, skip this order and continue searching
 		end
 
 		::continue::
@@ -153,7 +160,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 	end
 
 	-- Update VWAP and get total volume
-	local sumVolume = updateVwapData(pairIndex, matches, args, validPair[1])
+	local sumVolume = updateVwapData(pairIndex, matches, args, args.dominantToken)
 
 	-- Send success response if any matches occurred
 	if sumVolume > 0 then
@@ -164,7 +171,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 				OrderId = args.orderId,
 				Status = 'Success',
 				Handler = 'Create-Order',
-				DominantToken = validPair[1],
+				DominantToken = args.dominantToken,
 				SwapToken = args.swapToken,
 				Quantity = tostring(sumVolume),
 				Price = args.price and tostring(args.price) or 'None',
@@ -177,9 +184,9 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
-			Message = 'No matching orders found for immediate ANT trade - exact quantity match required',
+			Message = 'No matching orders found for immediate ANT trade - exact ARIO amount match required',
 			Quantity = args.quantity,
-			TransferToken = validPair[1],
+			TransferToken = args.dominantToken,
 			OrderGroupId = args.orderGroupId
 		})
 		return

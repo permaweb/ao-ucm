@@ -98,7 +98,7 @@ export async function createOrderbook(
 
 const assetOrderbookEval = (orderbookId: string) => {
 	return `
-		local json = require('json')
+		local json = require('JSON')
 
 		if Metadata then
 			Metadata.OrderbookId = '${orderbookId}'

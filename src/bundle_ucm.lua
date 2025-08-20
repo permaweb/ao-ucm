@@ -833,7 +833,7 @@ end
 -- Helper function to validate ANT dominant token orders (selling ANT for ARIO)
 local function validateAntDominantOrder(args, validPair)
 	-- ANT tokens can only be sold in quantities of exactly 1
-	if args.quantity ~= 1 then
+	if bint(args.quantity) ~= bint(1) then
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',

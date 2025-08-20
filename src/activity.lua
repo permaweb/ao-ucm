@@ -11,6 +11,27 @@ if not CancelledOrders then CancelledOrders = {} end
 if not SalesByAddress then SalesByAddress = {} end
 if not PurchasesByAddress then PurchasesByAddress = {} end
 
+-- Get executed orders
+Handlers.add('Get-Executed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-Executed-Orders'), function(msg)
+	local page = utils.parsePaginationTags(msg)
+
+	local ordersArray = {}
+	for _, order in pairs(ExecutedOrders) do
+		local orderCopy = utils.deepCopy(order)
+		table.insert(ordersArray, orderCopy)
+	end
+
+	local paginatedOrders = utils.paginateTableWithCursor(ordersArray, page.cursor, page.cursorField, page.limit, page.sortBy, page.sortOrder, page.filters)
+
+	ao.send({
+		Target = msg.From,
+		Action = 'Read-Success',
+		Data = json.encode(paginatedOrders)
+	})
+end)
+
+
+
 -- Read activity
 Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activity'), function(msg)
 	local decodeCheck, data = utils.decodeMessageData(msg.Data)

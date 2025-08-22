@@ -1237,6 +1237,7 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 			expirationTime = msg.Tags['X-Expiration-Time'],
 			minimumPrice = msg.Tags['X-Minimum-Price'],
 			decreaseInterval = msg.Tags['X-Decrease-Interval'],
+			requestedOrderId = msg.Tags['X-Requested-Order-Id']
 		}
 
 		if msg.Tags['X-Price'] then

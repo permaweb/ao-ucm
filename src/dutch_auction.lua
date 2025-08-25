@@ -25,7 +25,8 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 		Type = 'dutch',
 		MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
 		DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),
-		DecreaseStep = tostring(decreaseStep)
+		DecreaseStep = tostring(decreaseStep),
+		Domain = args.domain
 	})
 
 	-- Send order data to activity tracking process
@@ -43,7 +44,8 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 				OrderType = 'dutch',
 				MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
 				DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),
-				DecreaseStep = tostring(decreaseStep)
+				DecreaseStep = tostring(decreaseStep),
+				Domain = args.domain
 			}
 		})
 	end)
@@ -68,7 +70,8 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 			Price = args.price and tostring(args.price),
 			Message = 'ARIO order added to orderbook for Dutch auction!',
 			['X-Group-ID'] = args.orderGroupId,
-			OrderType = 'dutch'
+			OrderType = 'dutch',
+			Domain = args.domain
 		}
 	})
 end

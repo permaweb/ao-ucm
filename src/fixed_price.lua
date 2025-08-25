@@ -40,7 +40,8 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 		DateCreated = args.timestamp,
 		Price = args.price and tostring(args.price),
 		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
-		Type = 'fixed'
+		Type = 'fixed',
+		Domain = args.domain
 	})
 
 	-- Send order data to activity tracking process
@@ -54,7 +55,8 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
 				Price = args.price and tostring(args.price),
-				Timestamp = args.timestamp
+				Timestamp = args.timestamp,
+				Domain = args.domain
 			}
 		})
 	end)
@@ -79,7 +81,8 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 			Price = args.price and tostring(args.price),
 			Message = 'ARIO order added to orderbook for buy now!',
 			['X-Group-ID'] = args.orderGroupId,
-			OrderType = 'fixed'
+			OrderType = 'fixed',
+			Domain = args.domain
 		}
 	})
 end

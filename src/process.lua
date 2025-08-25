@@ -3,6 +3,10 @@ local json = require('JSON')
 local ucm = require('ucm')
 local utils = require('utils')
 
+-- CHANGEME
+ACTIVITY_PROCESS = 'Zz5S_0uDj9CWOrwz9uwmguelVyJVBOfKX3QT7j98Aws'
+ARIO_TOKEN_PROCESS_ID = 'agYcCFJtrMG6cqMuZfskIkFTGvUPddICmtQSBIoPdiA'
+
 function Trusted(msg)
 	local mu = 'fcoN_xJeisVsPXA-trzVAuIiqO3ydLQxM-L4XbrQKzY'
 	if msg.Owner == mu then
@@ -94,6 +98,20 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			return
 		end
 
+		-- Fetch domain from ARIO token process
+		local domainPaginatedRecords = ao.send({
+			Target = ARIO_TOKEN_PROCESS_ID,
+			Action = "Paginated-Records",
+			Data = "",
+			Tags = {
+				Action = "Paginated-Records",
+				Filters = string.format("{\"processId\":[\"%s\"]}", msg.From)
+			}
+		}).receive()
+		
+		local decodeCheck, domainData = utils.decodeMessageData(domainPaginatedRecords.Data)
+		local domain = domainData.items[1].name
+
 		local orderArgs = {
 			orderId = msg.Id,
 			orderGroupId = msg.Tags['X-Group-ID'] or 'None',
@@ -107,7 +125,8 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			expirationTime = msg.Tags['X-Expiration-Time'],
 			minimumPrice = msg.Tags['X-Minimum-Price'],
 			decreaseInterval = msg.Tags['X-Decrease-Interval'],
-			requestedOrderId = msg.Tags['X-Requested-Order-Id']
+			requestedOrderId = msg.Tags['X-Requested-Order-Id'],
+			domain = domain
 		}
 
 		if msg.Tags['X-Price'] then
@@ -115,9 +134,6 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		end
 		if msg.Tags['X-Transfer-Denomination'] then
 			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
-		end
-		if msg.Tags['X-Requested-Order-ID'] then
-			orderArgs.requestedOrderId = msg.Tags['X-Requested-Order-ID']
 		end
 
 		ucm.createOrder(orderArgs)

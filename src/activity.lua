@@ -10,6 +10,7 @@ if not ExecutedOrders then ExecutedOrders = {} end
 if not CancelledOrders then CancelledOrders = {} end
 if not SalesByAddress then SalesByAddress = {} end
 if not PurchasesByAddress then PurchasesByAddress = {} end
+if not AuctionBids then AuctionBids = {} end
 
 -- Get listed orders
 Handlers.add('Get-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-Listed-Orders'), function(msg)
@@ -68,6 +69,147 @@ Handlers.add('Get-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 'Ge
 	})
 end)
 
+-- Get order by ID
+Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Order-By-Id'), function(msg)
+	local decodeCheck, data = utils.decodeMessageData(msg.Data)
+
+	if not decodeCheck or not data.OrderId then
+		ao.send({
+			Target = msg.From,
+			Action = 'Input-Error',
+			Message = 'OrderId is required'
+		})
+		return
+	end
+
+	local orderId = data.OrderId
+	local currentTimestamp = msg.Timestamp
+	
+	-- Search for the order in all order tables
+	local foundOrder = nil
+	local orderStatus = nil
+	local orderSource = nil
+
+	-- Check ListedOrders (active orders)
+	for _, order in ipairs(ListedOrders) do
+		if order.OrderId == orderId then
+			foundOrder = order
+			orderSource = 'ListedOrders'
+			
+			-- Check if order has expired
+			if order.Timestamp and order.ExpirationTime then
+				local expirationTime = bint(order.ExpirationTime)
+				local currentTime = bint(currentTimestamp)
+				
+				if currentTime >= expirationTime then
+					orderStatus = 'expired'
+				else
+					orderStatus = 'active'
+				end
+			else
+				orderStatus = 'active'
+			end
+			break
+		end
+	end
+
+	-- Check ExecutedOrders (settled orders)
+	if not foundOrder then
+		for _, order in ipairs(ExecutedOrders) do
+			if order.OrderId == orderId then
+				foundOrder = order
+				orderStatus = 'settled'
+				orderSource = 'ExecutedOrders'
+				break
+			end
+		end
+	end
+
+	-- Check CancelledOrders (cancelled orders)
+	if not foundOrder then
+		for _, order in ipairs(CancelledOrders) do
+			if order.OrderId == orderId then
+				foundOrder = order
+				orderStatus = 'cancelled'
+				orderSource = 'CancelledOrders'
+				break
+			end
+		end
+	end
+
+	if not foundOrder then
+		ao.send({
+			Target = msg.From,
+			Action = 'Order-Not-Found',
+			Message = 'Order with ID ' .. orderId .. ' not found'
+		})
+		return
+	end
+
+	-- Build the response with common fields
+	local response = {
+		OrderId = foundOrder.OrderId,
+		Status = orderStatus,
+		Type = foundOrder.OrderType or 'fixed', -- Default to fixed if not specified
+		CreatedAt = foundOrder.Timestamp,
+		ExpirationTime = foundOrder.ExpirationTime,
+		DominantToken = foundOrder.DominantToken,
+		SwapToken = foundOrder.SwapToken,
+		Sender = foundOrder.Sender,
+		Receiver = foundOrder.Receiver,
+		Quantity = foundOrder.Quantity,
+		Price = foundOrder.Price,
+		Domain = foundOrder.Domain
+	}
+
+	-- Add status-specific fields
+	if orderStatus == 'settled' then
+		response.SettlementDate = foundOrder.Timestamp
+		response.Buyer = foundOrder.Receiver
+		response.FinalPrice = foundOrder.Price
+		
+		-- For English auctions, include settlement details
+		if foundOrder.OrderType == 'english' then
+			local auctionBids = AuctionBids[orderId]
+			if auctionBids and auctionBids.Settlement then
+				response.Settlement = auctionBids.Settlement
+			end
+		end
+	elseif orderStatus == 'expired' then
+		-- No specific fields for expired orders
+	elseif orderStatus == 'active' then
+		-- No specific fields for active orders
+	end
+
+	-- Add type-specific fields
+	if foundOrder.OrderType == 'english' then
+		-- Get bid information for English auctions
+		local auctionBids = AuctionBids[orderId]
+		if auctionBids then
+			response.Bids = auctionBids.Bids
+			response.HighestBid = auctionBids.HighestBid
+			response.HighestBidder = auctionBids.HighestBidder
+		else
+			response.Bids = {}
+			response.HighestBid = nil
+			response.HighestBidder = nil
+		end
+		response.StartingPrice = foundOrder.Price
+	elseif foundOrder.OrderType == 'dutch' then
+		response.StartingPrice = foundOrder.Price
+		response.MinimumPrice = foundOrder.MinimumPrice
+		response.DecreaseInterval = foundOrder.DecreaseInterval
+		response.DecreaseStep = foundOrder.DecreaseStep
+	elseif foundOrder.OrderType == 'fixed' then
+		-- Fixed price orders don't have additional type-specific fields
+	end
+
+	ao.send({
+		Target = msg.From,
+		Action = 'Read-Success',
+		Data = json.encode(response)
+	})
+end)
 
 -- Read activity
 Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activity'), function(msg)
@@ -206,7 +348,8 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
 			Timestamp = data.Order.Timestamp,
-			Domain = data.Order.Domain
+			Domain = data.Order.Domain,
+			OrderType = data.Order.OrderType
 		})
 
 		if not SalesByAddress[data.Order.Sender] then
@@ -241,7 +384,12 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
 			Timestamp = data.Order.Timestamp,
-			Domain = data.Order.Domain
+			Domain = data.Order.Domain,
+			OrderType = data.Order.OrderType,
+			MinimumPrice = data.Order.MinimumPrice,
+			DecreaseInterval = data.Order.DecreaseInterval,
+			DecreaseStep = data.Order.DecreaseStep,
+			ExpirationTime = data.Order.ExpirationTime
 		})
 	end)
 
@@ -265,8 +413,69 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			Receiver = nil,
 			Quantity = data.Order.Quantity,
 			Timestamp = data.Order.Timestamp,
-			Domain = data.Order.Domain
+			Domain = data.Order.Domain,
+			OrderType = data.Order.OrderType
 		})
+	end)
+
+Handlers.add('Update-Auction-Bids', Handlers.utils.hasMatchingTag('Action', 'Update-Auction-Bids'),
+	function(msg)
+		if msg.From ~= UCM_PROCESS then
+			return
+		end
+
+		local decodeCheck, data = utils.decodeMessageData(msg.Data)
+
+		if not decodeCheck or not data.Bid then
+			return
+		end
+
+		local orderId = data.Bid.OrderId
+		if not AuctionBids[orderId] then
+			AuctionBids[orderId] = {
+				Bids = {},
+				HighestBid = nil,
+				HighestBidder = nil
+			}
+		end
+
+		-- Add the new bid
+		table.insert(AuctionBids[orderId].Bids, {
+			Bidder = data.Bid.Bidder,
+			Amount = data.Bid.Amount,
+			Timestamp = data.Bid.Timestamp,
+			OrderId = data.Bid.OrderId
+		})
+
+		-- Update highest bid if this is higher
+		if not AuctionBids[orderId].HighestBid or bint(data.Bid.Amount) > bint(AuctionBids[orderId].HighestBid) then
+			AuctionBids[orderId].HighestBid = data.Bid.Amount
+			AuctionBids[orderId].HighestBidder = data.Bid.Bidder
+		end
+	end)
+
+Handlers.add('Update-Auction-Settlement', Handlers.utils.hasMatchingTag('Action', 'Update-Auction-Settlement'),
+	function(msg)
+		if msg.From ~= UCM_PROCESS then
+			return
+		end
+
+		local decodeCheck, data = utils.decodeMessageData(msg.Data)
+
+		if not decodeCheck or not data.Settlement then
+			return
+		end
+
+		-- Add settlement information to the auction bids
+		local orderId = data.Settlement.OrderId
+		if AuctionBids[orderId] then
+			AuctionBids[orderId].Settlement = {
+				Winner = data.Settlement.Winner,
+				WinningBid = data.Settlement.WinningBid,
+				Quantity = data.Settlement.Quantity,
+				Timestamp = data.Settlement.Timestamp
+			}
+		end
 	end)
 
 Handlers.add('Get-UCM-Purchase-Amount', Handlers.utils.hasMatchingTag('Action', 'Get-UCM-Purchase-Amount'),

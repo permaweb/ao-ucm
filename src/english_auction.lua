@@ -374,9 +374,9 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 		Token = args.dominantToken,
 		DateCreated = args.timestamp,
 		Price = args.price and tostring(args.price),
-		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
 		Type = 'english',
-		Domain = args.domain
+		Domain = args.domain,
+		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
 	})
 
 	-- Send order data to activity tracking process
@@ -392,7 +392,8 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 				Price = args.price and tostring(args.price),
 				Timestamp = args.timestamp,
 				OrderType = 'english',
-				Domain = args.domain
+				Domain = args.domain,
+				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
 			}
 		})
 	end)
@@ -418,7 +419,8 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 			Message = 'ARIO order added to orderbook for English auction!',
 			['X-Group-ID'] = args.orderGroupId,
 			OrderType = 'english',
-			Domain = args.domain
+			Domain = args.domain,
+			ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
 		}
 	})
 end

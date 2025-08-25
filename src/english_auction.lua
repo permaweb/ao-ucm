@@ -90,7 +90,7 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 
 	-- Find the English auction order to bid on
 	for i, order in ipairs(currentOrders) do
-		if order.Type == 'english' and order.Id == (args.targetAuctionId or args.orderId) then
+		if order.Type == 'english' and order.Id == (args.requestedOrderId or args.orderId) then
 			targetOrder = order
 			break
 		end
@@ -123,7 +123,7 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 	end
 
 	-- Get existing auction bids for validation
-	local targetAuctionId = args.targetAuctionId or args.orderId
+	local targetAuctionId = args.requestedOrderId or args.orderId
 	local existingBids = getExistingAuctionBids(targetAuctionId)
 	
 	-- Validate bid amount - use args.quantity for ARIO-dominant orders (buying ANT)

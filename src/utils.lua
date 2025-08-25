@@ -534,7 +534,7 @@ function utils.safeDecodeJson(jsonString)
 	if not jsonString then
 		return nil
 	end
-	local status, result = pcall(function() return json:decode(jsonString) end)
+	local status, result = pcall(json.decode, jsonString)
 	if not status then
 		return nil
 	end

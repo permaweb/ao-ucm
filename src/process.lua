@@ -98,20 +98,6 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			return
 		end
 
-		-- Fetch domain from ARIO token process
-		local domainPaginatedRecords = ao.send({
-			Target = ARIO_TOKEN_PROCESS_ID,
-			Action = "Paginated-Records",
-			Data = "",
-			Tags = {
-				Action = "Paginated-Records",
-				Filters = string.format("{\"processId\":[\"%s\"]}", msg.From)
-			}
-		}).receive()
-		
-		local decodeCheck, domainData = utils.decodeMessageData(domainPaginatedRecords.Data)
-		local domain = domainData.items[1].name
-
 		local orderArgs = {
 			orderId = msg.Id,
 			orderGroupId = msg.Tags['X-Group-ID'] or 'None',
@@ -134,6 +120,23 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		end
 		if msg.Tags['X-Transfer-Denomination'] then
 			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
+		end
+
+		if msg.Tags['X-Swap-Token'] == ARIO_TOKEN_PROCESS_ID then
+			-- Fetch domain from ARIO token process
+			local domainPaginatedRecords = ao.send({
+				Target = ARIO_TOKEN_PROCESS_ID,
+				Action = "Paginated-Records",
+				Data = "",
+				Tags = {
+					Action = "Paginated-Records",
+					Filters = string.format("{\"processId\":[\"%s\"]}", msg.From)
+				}
+			}).receive()
+			
+			local decodeCheck, domainData = utils.decodeMessageData(domainPaginatedRecords.Data)
+			local domain = domainData.items[1].name
+			orderArgs.domain = domain
 		end
 
 		ucm.createOrder(orderArgs)

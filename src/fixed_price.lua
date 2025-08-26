@@ -57,6 +57,7 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 				Quantity = tostring(args.quantity),
 				Price = args.price and tostring(args.price),
 				CreatedAt = args.timestamp,
+				OrderType = 'fixed',
 				Domain = args.domain,
 				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
 			}

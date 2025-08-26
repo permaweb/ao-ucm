@@ -110,7 +110,7 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 	end
 
 	-- Check if auction has expired
-	if not isAuctionActive(targetOrder.ExpirationTime, args.timestamp) then
+	if not isAuctionActive(targetOrder.ExpirationTime, args.createdAt) then
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
@@ -372,7 +372,7 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 		OriginalQuantity = tostring(args.quantity),
 		Creator = args.sender,
 		Token = args.dominantToken,
-		DateCreated = args.timestamp,
+		DateCreated = args.createdAt,
 		Price = args.price and tostring(args.price),
 		Type = 'english',
 		Domain = args.domain,
@@ -390,7 +390,7 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
 				Price = args.price and tostring(args.price),
-				CreatedAt = args.timestamp,
+				CreatedAt = args.createdAt,
 				OrderType = 'english',
 				Domain = args.domain,
 				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil

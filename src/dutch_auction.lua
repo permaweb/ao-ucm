@@ -40,7 +40,7 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
 				Price = args.price and tostring(args.price),
-				Timestamp = args.timestamp,
+				CreatedAt = args.timestamp,
 				OrderType = 'dutch',
 				MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
 				DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),

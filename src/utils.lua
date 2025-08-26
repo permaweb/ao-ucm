@@ -286,7 +286,7 @@ function utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmo
 				Receiver = args.sender,
 				Quantity = calculatedFillAmount,
 				Price = tostring(currentOrderEntry.Price),
-				Timestamp = args.timestamp
+				CreatedAt = args.timestamp
 			}
 		})
 	end)
@@ -351,9 +351,9 @@ function utils.paginateTableWithCursor(tableArray, cursor, cursorField, limit, s
 
 	assert(sortOrder == "asc" or sortOrder == "desc", "Invalid sortOrder: expected 'asc' or 'desc'")
 	
-	-- Default to sorting by Timestamp if no sortBy is specified
+	-- Default to sorting by CreatedAt if no sortBy is specified
 	if not sortBy then
-		sortBy = "Timestamp"
+		sortBy = "CreatedAt"
 	end
 	
 	local sortFields = { { order = sortOrder, field = sortBy } }
@@ -381,7 +381,7 @@ function utils.paginateTableWithCursor(tableArray, cursor, cursorField, limit, s
 		-- Find the position where cursor should be inserted
 		for i, obj in ipairs(sortedArray) do
 			local cursorValue = cursor
-			local objValue = obj.Timestamp or obj.Id or obj.OrderId
+			local objValue = obj.CreatedAt or obj.Id or obj.OrderId
 			
 			if sortOrder == "desc" then
 				if objValue < cursorValue then

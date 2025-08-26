@@ -22,6 +22,17 @@ Handlers.add('Get-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-L
 		table.insert(ordersArray, orderCopy)
 	end
 
+	-- Remove expired orders to show just active orders
+	local currentTimestamp = msg.Timestamp
+	for _, order in pairs(ordersArray) do
+		if order.ExpirationTime then
+			local expirationTime = bint(order.ExpirationTime)
+			if currentTimestamp >= expirationTime then
+				ordersArray[order.OrderId] = nil
+			end
+		end
+	end
+
 	local paginatedOrders = utils.paginateTableWithCursor(ordersArray, page.cursor, page.cursorField, page.limit, page.sortBy, page.sortOrder, page.filters)
 
 	ao.send({

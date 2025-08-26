@@ -83,7 +83,7 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 	end
 
 	local orderId = data.OrderId
-	local currentTimestamp = msg.Timestamp
+	local currentTimestamp = data.Timestamp
 	
 	-- Search for the order in all order tables
 	local foundOrder = nil

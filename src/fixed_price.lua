@@ -56,7 +56,8 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
 				Price = args.price and tostring(args.price),
-				Timestamp = args.timestamp,
+				CreatedAt = args.timestamp,
+				OrderType = 'fixed',
 				Domain = args.domain,
 				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
 			}
@@ -99,7 +100,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 	-- Attempt to match with existing orders for immediate trade
 	for i, currentOrderEntry in ipairs(currentOrders) do
 		-- Check if order has expired
-		if currentOrderEntry.ExpirationTime and bint(currentOrderEntry.ExpirationTime) < bint(args.timestamp) then
+		if currentOrderEntry.ExpirationTime and bint(currentOrderEntry.ExpirationTime) < bint(args.createdAt) then
 			-- Skip expired orders
 			goto continue
 		end

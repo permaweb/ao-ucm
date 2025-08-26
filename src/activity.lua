@@ -108,7 +108,7 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 			orderSource = 'ListedOrders'
 			
 			-- Check if order has expired
-			if order.Timestamp and order.ExpirationTime then
+			if order.CreatedAt and order.ExpirationTime then
 				local expirationTime = bint(order.ExpirationTime)
 				local currentTime = bint(currentTimestamp)
 				
@@ -162,7 +162,7 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 		OrderId = foundOrder.OrderId,
 		Status = orderStatus,
 		Type = foundOrder.OrderType or 'fixed', -- Default to fixed if not specified
-		CreatedAt = foundOrder.Timestamp,
+		CreatedAt = foundOrder.CreatedAt,
 		ExpirationTime = foundOrder.ExpirationTime,
 		DominantToken = foundOrder.DominantToken,
 		SwapToken = foundOrder.SwapToken,
@@ -175,7 +175,7 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 
 	-- Add status-specific fields
 	if orderStatus == 'settled' then
-		response.SettlementDate = foundOrder.Timestamp
+		response.SettlementDate = foundOrder.CreatedAt
 		response.Buyer = foundOrder.Receiver
 		response.FinalPrice = foundOrder.Price
 		
@@ -245,8 +245,8 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 			local isOwnerMatch = not owner or order.Sender == owner or order.Receiver == owner
 
 			local isDateMatch = true
-			if order.Timestamp and (startDate or endDate) then
-				local orderDate = bint(order.Timestamp)
+			if order.CreatedAt and (startDate or endDate) then
+				local orderDate = bint(order.CreatedAt)
 
 				if startDate then startDate = bint(startDate) end
 				if endDate then endDate = bint(endDate) end
@@ -358,7 +358,7 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			Receiver = data.Order.Receiver,
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp,
+			CreatedAt = data.Order.CreatedAt,
 			Domain = data.Order.Domain,
 			OrderType = data.Order.OrderType
 		})
@@ -394,7 +394,7 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 			Receiver = nil,
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp,
+			CreatedAt = data.Order.CreatedAt,
 			Domain = data.Order.Domain,
 			OrderType = data.Order.OrderType,
 			MinimumPrice = data.Order.MinimumPrice,
@@ -423,7 +423,7 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			Sender = data.Order.Sender,
 			Receiver = nil,
 			Quantity = data.Order.Quantity,
-			Timestamp = data.Order.Timestamp,
+			CreatedAt = data.Order.CreatedAt,
 			Domain = data.Order.Domain,
 			OrderType = data.Order.OrderType
 		})

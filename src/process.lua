@@ -105,7 +105,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			swapToken = msg.Tags['X-Swap-Token'],
 			sender = data.Sender,
 			quantity = msg.Tags.Quantity,
-			timestamp = msg.Timestamp,
+			createdAt = msg.Timestamp,
 			blockheight = msg['Block-Height'],
 			orderType = msg.Tags['X-Order-Type'] or 'fixed',
 			expirationTime = msg.Tags['X-Expiration-Time'],
@@ -222,7 +222,7 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 							Receiver = nil,
 							Quantity = tostring(order.Quantity),
 							Price = tostring(order.Price),
-							Timestamp = msg.Timestamp
+							CreatedAt = msg.Timestamp
 						}
 					})
 				end)
@@ -268,7 +268,7 @@ Handlers.add('Read-Orders', Handlers.utils.hasMatchingTag('Action', 'Read-Orders
 						creator = order.Creator,
 						quantity = order.Quantity,
 						price = order.Price,
-						timestamp = order.Timestamp
+						CreatedAt = order.CreatedAt
 					})
 				end
 			end

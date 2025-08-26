@@ -99,7 +99,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 	-- Attempt to match with existing orders for immediate trade
 	for i, currentOrderEntry in ipairs(currentOrders) do
 		-- Check if order has expired
-		if currentOrderEntry.ExpirationTime and bint(currentOrderEntry.ExpirationTime) < bint(args.timestamp) then
+		if currentOrderEntry.ExpirationTime and bint(currentOrderEntry.ExpirationTime) < bint(args.createdAt) then
 			-- Skip expired orders
 			goto continue
 		end

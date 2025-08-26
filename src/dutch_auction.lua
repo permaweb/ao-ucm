@@ -19,7 +19,7 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 		OriginalQuantity = tostring(args.quantity),
 		Creator = args.sender,
 		Token = args.dominantToken,
-		DateCreated = args.timestamp,
+		DateCreated = args.createdAt,
 		Price = args.price and tostring(args.price),
 		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
 		Type = 'dutch',
@@ -40,7 +40,7 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
 				Price = args.price and tostring(args.price),
-				CreatedAt = args.timestamp,
+				CreatedAt = args.createdAt,
 				OrderType = 'dutch',
 				MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
 				DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),
@@ -85,7 +85,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 	-- Attempt to match with existing Dutch orders for immediate trade
 	for i, currentOrderEntry in ipairs(currentOrders) do
 		-- Check if order has expired
-		if currentOrderEntry.ExpirationTime and bint(currentOrderEntry.ExpirationTime) < bint(args.timestamp) then
+		if currentOrderEntry.ExpirationTime and bint(currentOrderEntry.ExpirationTime) < bint(args.createdAt) then
 			-- Skip expired orders
 			goto continue
 		end
@@ -102,7 +102,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 
 		print("CP1")
 		-- Calculate current price based on time passed since order creation
-		local timePassed = bint(args.timestamp) - bint(currentOrderEntry.DateCreated)
+		local timePassed = bint(args.createdAt) - bint(currentOrderEntry.DateCreated)
 		print("timePassed", timePassed)
 		local intervalsPassed = math.floor(timePassed / bint(currentOrderEntry.DecreaseInterval))
 		local intervalsBint = bint(intervalsPassed)

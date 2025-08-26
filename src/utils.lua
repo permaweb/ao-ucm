@@ -286,7 +286,7 @@ function utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmo
 				Receiver = args.sender,
 				Quantity = calculatedFillAmount,
 				Price = tostring(currentOrderEntry.Price),
-				CreatedAt = args.timestamp
+				CreatedAt = args.createdAt
 			}
 		})
 	end)

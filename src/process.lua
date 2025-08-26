@@ -268,7 +268,7 @@ Handlers.add('Read-Orders', Handlers.utils.hasMatchingTag('Action', 'Read-Orders
 						creator = order.Creator,
 						quantity = order.Quantity,
 						price = order.Price,
-						timestamp = order.Timestamp
+						CreatedAt = order.CreatedAt
 					})
 				end
 			end

@@ -92,7 +92,7 @@ local function validateAntDominantOrder(args, validPair)
 	end
 
 	-- Validate expiration time is valid
-	local isValidExpiration, expirationError = utils.checkValidExpirationTime(args.expirationTime, args.timestamp)
+	local isValidExpiration, expirationError = utils.checkValidExpirationTime(args.expirationTime, args.createdAt)
 	if not isValidExpiration then
 		utils.handleError({
 			Target = args.sender,
@@ -312,6 +312,8 @@ function ucm.createOrder(args)
 	print("DEBUG: dominantToken: " .. (args.dominantToken or "nil"))
 	print("DEBUG: swapToken: " .. (args.swapToken or "nil"))
 	print("DEBUG: orderType: " .. (args.orderType or "nil"))
+	print("DEBUG: expirationTime: " .. (args.expirationTime or "nil"))
+	print("DEBUG: createdAt: " .. (args.createdAt or "nil"))
 
 	-- Validate order parameters
 	-- TODO: Order type is added, but not used yet - add it's usage with a new order type

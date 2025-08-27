@@ -42,7 +42,10 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
 		Type = 'fixed',
 		Domain = args.domain,
-		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
+		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+		OwnershipType = args.ownershipType,
+		LeaseStartTimestamp = args.leaseStartTimestamp,
+		LeaseEndTimestamp = args.leaseEndTimestamp
 	})
 
 	-- Send order data to activity tracking process
@@ -59,7 +62,10 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 				CreatedAt = args.timestamp,
 				OrderType = 'fixed',
 				Domain = args.domain,
-				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
+				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+				OwnershipType = args.ownershipType,
+				LeaseStartTimestamp = args.leaseStartTimestamp,
+				LeaseEndTimestamp = args.leaseEndTimestamp
 			}
 		})
 	end)
@@ -86,7 +92,10 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 			['X-Group-ID'] = args.orderGroupId,
 			OrderType = 'fixed',
 			Domain = args.domain,
-			ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
+			ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+			OwnershipType = args.ownershipType,
+			LeaseStartTimestamp = args.leaseStartTimestamp,
+			LeaseEndTimestamp = args.leaseEndTimestamp
 		}
 	})
 end

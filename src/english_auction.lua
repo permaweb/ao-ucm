@@ -376,7 +376,10 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 		Price = args.price and tostring(args.price),
 		Type = 'english',
 		Domain = args.domain,
-		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
+		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+		OwnershipType = args.ownershipType,
+		LeaseStartTimestamp = args.leaseStartTimestamp,
+		LeaseEndTimestamp = args.leaseEndTimestamp
 	})
 
 	-- Send order data to activity tracking process
@@ -393,7 +396,10 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 				CreatedAt = args.createdAt,
 				OrderType = 'english',
 				Domain = args.domain,
-				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
+				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+				OwnershipType = args.ownershipType,
+				LeaseStartTimestamp = args.leaseStartTimestamp,
+				LeaseEndTimestamp = args.leaseEndTimestamp
 			}
 		})
 	end)
@@ -420,7 +426,10 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 			['X-Group-ID'] = args.orderGroupId,
 			OrderType = 'english',
 			Domain = args.domain,
-			ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil
+			ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+			OwnershipType = args.ownershipType,
+			LeaseStartTimestamp = args.leaseStartTimestamp,
+			LeaseEndTimestamp = args.leaseEndTimestamp
 		}
 	})
 end

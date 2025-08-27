@@ -136,7 +136,14 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			
 			local decodeCheck, domainData = utils.decodeMessageData(domainPaginatedRecords.Data)
 			local domain = domainData.items[1].name
+			local ownershipType = domainData.items[1].type
+
+			if ownershipType == "lease" then
+				orderArgs.leaseStartTimestamp = domainData.items[1].startTimestamp
+				orderArgs.leaseEndTimestamp = domainData.items[1].endTimestamp
+			end
 			orderArgs.domain = domain
+			orderArgs.ownershipType = ownershipType
 		end
 
 		ucm.createOrder(orderArgs)

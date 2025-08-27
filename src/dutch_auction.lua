@@ -5,7 +5,7 @@ local json = require('JSON')
 local dutch_auction = {}
 
 function dutch_auction.calculateDecreaseStep(args)
-	local intervalsCount = (bint(args.expirationTime) - bint(args.timestamp)) / bint(args.decreaseInterval)
+	local intervalsCount = (bint(args.expirationTime) - bint(args.createdAt)) / bint(args.decreaseInterval)
 	local priceDecreaseMax = bint(args.price) - bint(args.minimumPrice)
 	return math.floor(priceDecreaseMax / intervalsCount)
 end
@@ -26,7 +26,10 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 		MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
 		DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),
 		DecreaseStep = tostring(decreaseStep),
-		Domain = args.domain
+		Domain = args.domain,
+		OwnershipType = args.ownershipType,
+		LeaseStartTimestamp = args.leaseStartTimestamp,
+		LeaseEndTimestamp = args.leaseEndTimestamp
 	})
 
 	-- Send order data to activity tracking process
@@ -40,12 +43,16 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
 				Price = args.price and tostring(args.price),
+				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
 				CreatedAt = args.createdAt,
 				OrderType = 'dutch',
 				MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
 				DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),
 				DecreaseStep = tostring(decreaseStep),
-				Domain = args.domain
+				Domain = args.domain,
+				OwnershipType = args.ownershipType,
+				LeaseStartTimestamp = args.leaseStartTimestamp,
+				LeaseEndTimestamp = args.leaseEndTimestamp
 			}
 		})
 	end)
@@ -71,7 +78,10 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 			Message = 'ARIO order added to orderbook for Dutch auction!',
 			['X-Group-ID'] = args.orderGroupId,
 			OrderType = 'dutch',
-			Domain = args.domain
+			Domain = args.domain,
+			OwnershipType = args.ownershipType,
+			LeaseStartTimestamp = args.leaseStartTimestamp,
+			LeaseEndTimestamp = args.leaseEndTimestamp
 		}
 	})
 end

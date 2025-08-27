@@ -170,7 +170,10 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 		Receiver = foundOrder.Receiver,
 		Quantity = foundOrder.Quantity,
 		Price = foundOrder.Price,
-		Domain = foundOrder.Domain
+		Domain = foundOrder.Domain,
+		OwnershipType = foundOrder.OwnershipType,
+		LeaseStartTimestamp = foundOrder.LeaseStartTimestamp,
+		LeaseEndTimestamp = foundOrder.LeaseEndTimestamp
 	}
 
 	-- Add status-specific fields
@@ -360,7 +363,10 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			Price = data.Order.Price,
 			CreatedAt = data.Order.CreatedAt,
 			Domain = data.Order.Domain,
-			OrderType = data.Order.OrderType
+			OrderType = data.Order.OrderType,
+			OwnershipType = data.Order.OwnershipType,
+			LeaseStartTimestamp = data.Order.LeaseStartTimestamp,
+			LeaseEndTimestamp = data.Order.LeaseEndTimestamp
 		})
 
 		if not SalesByAddress[data.Order.Sender] then
@@ -400,7 +406,10 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 			MinimumPrice = data.Order.MinimumPrice,
 			DecreaseInterval = data.Order.DecreaseInterval,
 			DecreaseStep = data.Order.DecreaseStep,
-			ExpirationTime = data.Order.ExpirationTime
+			ExpirationTime = data.Order.ExpirationTime,
+			OwnershipType = data.Order.OwnershipType,
+			LeaseStartTimestamp = data.Order.LeaseStartTimestamp,
+			LeaseEndTimestamp = data.Order.LeaseEndTimestamp
 		})
 	end)
 
@@ -425,7 +434,10 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			Quantity = data.Order.Quantity,
 			CreatedAt = data.Order.CreatedAt,
 			Domain = data.Order.Domain,
-			OrderType = data.Order.OrderType
+			OrderType = data.Order.OrderType,
+			OwnershipType = data.Order.OwnershipType,
+			LeaseStartTimestamp = data.Order.LeaseStartTimestamp,
+			LeaseEndTimestamp = data.Order.LeaseEndTimestamp
 		})
 	end)
 

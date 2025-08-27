@@ -351,9 +351,16 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			return
 		end
 
-		ListedOrders[data.Order.MatchId or data.Order.Id] = nil
+		-- Find the order in ListedOrders and remove it
+		for i, order in ipairs(ListedOrders) do
+			if order.OrderId == data.Order.Id then
+				table.remove(ListedOrders, i)
+				break
+			end
+		end
+
 		table.insert(ExecutedOrders, {
-			OrderId = data.Order.MatchId or data.Order.Id,
+			OrderId = data.Order.Id,
 			DominantToken = data.Order.DominantToken,
 			SwapToken = data.Order.SwapToken,
 			Sender = data.Order.Sender,
@@ -424,7 +431,14 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			return
 		end
 
-		ListedOrders[data.Order.MatchId or data.Order.Id] = nil
+		-- Find the order in ListedOrders and remove it
+		for i, order in ipairs(ListedOrders) do
+			if order.OrderId == data.Order.Id then
+				table.remove(ListedOrders, i)
+				break
+			end
+		end
+		
 		table.insert(CancelledOrders, {
 			OrderId = data.Order.Id,
 			DominantToken = data.Order.DominantToken,

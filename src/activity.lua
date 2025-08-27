@@ -351,7 +351,7 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			return
 		end
 
-		table.remove(ListedOrders, data.Order.MatchId or data.Order.Id)
+		ListedOrders[data.Order.MatchId or data.Order.Id] = nil
 		table.insert(ExecutedOrders, {
 			OrderId = data.Order.MatchId or data.Order.Id,
 			DominantToken = data.Order.DominantToken,
@@ -424,7 +424,7 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			return
 		end
 
-		table.remove(ListedOrders, data.Order.MatchId or data.Order.Id)
+		ListedOrders[data.Order.MatchId or data.Order.Id] = nil
 		table.insert(CancelledOrders, {
 			OrderId = data.Order.Id,
 			DominantToken = data.Order.DominantToken,

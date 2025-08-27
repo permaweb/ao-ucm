@@ -204,6 +204,11 @@ function utils.testSummary()
 end
 
 function utils.checkValidExpirationTime(expirationTime, timestamp)
+	-- If expiration time is nil, return true
+	if not expirationTime then
+		return true, nil
+	end
+
 	-- Check if expiration time is a valid positive integer
 	expirationTime = tonumber(expirationTime)
 	if not expirationTime or not utils.checkValidAmount(expirationTime) then

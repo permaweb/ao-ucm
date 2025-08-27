@@ -251,7 +251,7 @@ function dutch_auction.validateDutchParams(args)
 		return false, decreaseIntervalError
 	end
 
-	if bint(args.decreaseInterval) >= bint(args.expirationTime) then
+	if args.expirationTime and (bint(args.decreaseInterval) >= bint(args.expirationTime)) then
 		return false, 'Decrease interval must be less than expiration time'
 	end
 

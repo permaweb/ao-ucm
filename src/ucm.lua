@@ -65,19 +65,6 @@ local function validateAntDominantOrder(args, validPair)
 		return false
 	end
 
-	-- Expiration time is required when selling ANT
-	if not args.expirationTime then
-		utils.handleError({
-			Target = args.sender,
-			Action = 'Validation-Error',
-			Message = 'Expiration time is required when selling ANT tokens',
-			Quantity = args.quantity,
-			TransferToken = validPair[1],
-			OrderGroupId = args.orderGroupId
-		})
-		return false
-	end
-
 	-- Price is required when selling ANT
 	if not args.price then
 		utils.handleError({

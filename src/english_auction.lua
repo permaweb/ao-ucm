@@ -27,6 +27,9 @@ end
 
 -- Helper function to validate auction is still active
 local function isAuctionActive(expirationTime, currentTimestamp)
+	if not expirationTime then
+		return true
+	end
 	return bint(expirationTime) > bint(currentTimestamp)
 end
 

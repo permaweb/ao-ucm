@@ -42,33 +42,31 @@ Handlers.add('Get-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-L
 	})
 end)
 
--- Get executed orders
-Handlers.add('Get-Executed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-Executed-Orders'), function(msg)
-	local page = utils.parsePaginationTags(msg)
-
-	local ordersArray = {}
-	for _, order in pairs(ExecutedOrders) do
-		local orderCopy = utils.deepCopy(order)
-		table.insert(ordersArray, orderCopy)
-	end
-
-	local paginatedOrders = utils.paginateTableWithCursor(ordersArray, page.cursor, page.cursorField, page.limit, page.sortBy, page.sortOrder, page.filters)
-
-	ao.send({
-		Target = msg.From,
-		Action = 'Read-Success',
-		Data = json.encode(paginatedOrders)
-	})
-end)
-
--- Get cancelled orders
-Handlers.add('Get-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-Cancelled-Orders'), function(msg)
+-- Get completed orders
+Handlers.add('Get-Completed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-Completed-Orders'), function(msg)
 	local page = utils.parsePaginationTags(msg)
 
 	local ordersArray = {}
 	for _, order in pairs(CancelledOrders) do
 		local orderCopy = utils.deepCopy(order)
 		table.insert(ordersArray, orderCopy)
+	end
+
+	for _, order in pairs(ExecutedOrders) do
+		local orderCopy = utils.deepCopy(order)
+		table.insert(ordersArray, orderCopy)
+	end
+
+	for _, order in pairs(ListedOrders) do
+		-- Add just expired orders
+		local currentTimestamp = msg.Timestamp
+		if order.ExpirationTime then
+			local expirationTime = bint(order.ExpirationTime)
+			if currentTimestamp >= expirationTime then
+				local orderCopy = utils.deepCopy(order)
+				table.insert(ordersArray, orderCopy)
+			end
+		end
 	end
 
 	local paginatedOrders = utils.paginateTableWithCursor(ordersArray, page.cursor, page.cursorField, page.limit, page.sortBy, page.sortOrder, page.filters)
@@ -94,7 +92,7 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 	end
 
 	local orderId = data.OrderId
-	local currentTimestamp = data.Timestamp
+	local currentTimestamp = msg.Timestamp
 	
 	-- Search for the order in all order tables
 	local foundOrder = nil
@@ -353,6 +351,7 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			return
 		end
 
+		table.remove(ListedOrders, data.Order.MatchId or data.Order.Id)
 		table.insert(ExecutedOrders, {
 			OrderId = data.Order.MatchId or data.Order.Id,
 			DominantToken = data.Order.DominantToken,
@@ -425,6 +424,7 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			return
 		end
 
+		table.remove(ListedOrders, data.Order.MatchId or data.Order.Id)
 		table.insert(CancelledOrders, {
 			OrderId = data.Order.Id,
 			DominantToken = data.Order.DominantToken,

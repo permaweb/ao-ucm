@@ -158,7 +158,7 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 	local newBid = {
 		Bidder = args.sender,
 		Amount = tostring(bidAmount), -- Use the quantity sent by user
-		Timestamp = args.timestamp,
+		Timestamp = args.createdAt,
 		OrderId = targetAuctionId
 	}
 	
@@ -175,7 +175,7 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 				OrderId = targetAuctionId,
 				Bidder = args.sender,
 				Amount = tostring(bidAmount), -- Use the quantity sent by user
-				Timestamp = args.timestamp,
+				Timestamp = args.createdAt,
 				DominantToken = args.dominantToken,
 				SwapToken = args.swapToken,
 				BidType = 'english_auction'

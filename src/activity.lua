@@ -49,11 +49,13 @@ Handlers.add('Get-Completed-Orders', Handlers.utils.hasMatchingTag('Action', 'Ge
 	local ordersArray = {}
 	for _, order in pairs(CancelledOrders) do
 		local orderCopy = utils.deepCopy(order)
+		orderCopy.Status = 'Cancelled'
 		table.insert(ordersArray, orderCopy)
 	end
 
 	for _, order in pairs(ExecutedOrders) do
 		local orderCopy = utils.deepCopy(order)
+		orderCopy.Status = 'Settled'
 		table.insert(ordersArray, orderCopy)
 	end
 
@@ -64,6 +66,7 @@ Handlers.add('Get-Completed-Orders', Handlers.utils.hasMatchingTag('Action', 'Ge
 			local expirationTime = bint(order.ExpirationTime)
 			if currentTimestamp >= expirationTime then
 				local orderCopy = utils.deepCopy(order)
+				orderCopy.Status = 'Expired'
 				table.insert(ordersArray, orderCopy)
 			end
 		end
@@ -351,29 +354,19 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			return
 		end
 
+		-- Search for the order in ListedOrders
+		local foundOrder = nil
 		-- Find the order in ListedOrders and remove it
 		for i, order in ipairs(ListedOrders) do
 			if order.OrderId == data.Order.Id then
+				foundOrder = order
 				table.remove(ListedOrders, i)
 				break
 			end
 		end
 
-		table.insert(ExecutedOrders, {
-			OrderId = data.Order.Id,
-			DominantToken = data.Order.DominantToken,
-			SwapToken = data.Order.SwapToken,
-			Sender = data.Order.Sender,
-			Receiver = data.Order.Receiver,
-			Quantity = data.Order.Quantity,
-			Price = data.Order.Price,
-			CreatedAt = data.Order.CreatedAt,
-			Domain = data.Order.Domain,
-			OrderType = data.Order.OrderType,
-			OwnershipType = data.Order.OwnershipType,
-			LeaseStartTimestamp = data.Order.LeaseStartTimestamp,
-			LeaseEndTimestamp = data.Order.LeaseEndTimestamp
-		})
+		-- Add the order to ExecutedOrders
+		table.insert(ExecutedOrders, foundOrder)
 
 		if not SalesByAddress[data.Order.Sender] then
 			SalesByAddress[data.Order.Sender] = 0
@@ -431,28 +424,20 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			return
 		end
 
+		-- Search for the order in ListedOrders
+		local foundOrder = nil
+
 		-- Find the order in ListedOrders and remove it
 		for i, order in ipairs(ListedOrders) do
 			if order.OrderId == data.Order.Id then
+				foundOrder = order
 				table.remove(ListedOrders, i)
 				break
 			end
 		end
 		
-		table.insert(CancelledOrders, {
-			OrderId = data.Order.Id,
-			DominantToken = data.Order.DominantToken,
-			SwapToken = data.Order.SwapToken,
-			Sender = data.Order.Sender,
-			Receiver = nil,
-			Quantity = data.Order.Quantity,
-			CreatedAt = data.Order.CreatedAt,
-			Domain = data.Order.Domain,
-			OrderType = data.Order.OrderType,
-			OwnershipType = data.Order.OwnershipType,
-			LeaseStartTimestamp = data.Order.LeaseStartTimestamp,
-			LeaseEndTimestamp = data.Order.LeaseEndTimestamp
-		})
+		-- Add the order to CancelledOrders
+		table.insert(CancelledOrders, foundOrder)
 	end)
 
 Handlers.add('Update-Auction-Bids', Handlers.utils.hasMatchingTag('Action', 'Update-Auction-Bids'),

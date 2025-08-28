@@ -90,7 +90,7 @@ utils.test('should execute immediate trade when selling ARIO to buy ANT with mat
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-seller',
 			quantity = 500000000000, -- Send exactly the ARIO amount that matches the ANT sell order price
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -152,7 +152,7 @@ utils.test('should add ANT sell order to orderbook when selling ANT to buy ARIO'
 			sender = 'ant-seller',
 			quantity = 1,
 			price = '500000000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -773,7 +773,7 @@ utils.test('should not match expired ANT orders',
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer',
 			quantity = 500000000000, -- Send exactly the ARIO amount that matches the ANT sell order price
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -875,7 +875,7 @@ utils.test('should allow different ANT tokens to be sold simultaneously',
 			sender = 'ant-seller-2',
 			quantity = 1,
 			price = '600000000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -928,7 +928,7 @@ utils.test('Should reject order with quantity 0 while selling ANT',
 			sender = 'ant-seller',
 			quantity = 0, 
 			price = '500000000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group'
@@ -962,7 +962,7 @@ utils.test('Should reject order with quantity 0 while buying ANT',
 )
 
 -- Expiration Time Tests
-utils.test('should reject order without expiration time',
+utils.test('should allow order without expiration time',
 	function()
 		Orderbook = {}
 		
@@ -973,7 +973,7 @@ utils.test('should reject order without expiration time',
 			sender = 'test-seller',
 			quantity = 1,
 			price = '500000000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group'
@@ -983,6 +983,21 @@ utils.test('should reject order without expiration time',
 		return Orderbook
 	end,
 	{
+		{
+			Pair = {'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'},
+			Orders = {
+				{
+					Price = '500000000000',
+					Id = 'no-expiration-order',
+					OriginalQuantity = '1',
+					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+					Creator = 'test-seller',
+					Quantity = '1',
+					Type = 'fixed',
+					DateCreated = '1722535710966'
+				}
+			}
+		}
 	}
 )
 
@@ -997,7 +1012,7 @@ utils.test('should reject order with expiration time equal to timestamp',
 			sender = 'test-seller',
 			quantity = 1,
 			price = '500000000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -1045,7 +1060,7 @@ utils.test('should reject order with invalid expiration time',
 			sender = 'test-seller',
 			quantity = 1,
 			price = '500000000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -1069,7 +1084,7 @@ utils.test('should accept order with valid expiration time greater than timestam
 			sender = 'ant-seller',
 			quantity = 1,
 			price = '500000000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -1123,7 +1138,7 @@ utils.test('should execute immediate trade with valid expiration time when selli
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-seller',
 			quantity = 500000000000, -- Send exactly the ARIO amount that matches the ANT sell order price
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -1164,7 +1179,7 @@ utils.test('should reject order with zero expiration time',
 			sender = 'test-seller',
 			quantity = 1,
 			price = '500000000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -1212,7 +1227,7 @@ utils.test('should reject order with invalid expiration time',
 			sender = 'test-seller',
 			quantity = 1,
 			price = '500000000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -1235,7 +1250,7 @@ utils.test('should reject order with no price specified',
 			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO
 			sender = 'test-seller',
 			quantity = 1,
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -1260,7 +1275,7 @@ utils.test('should reject order with negative price',
 			sender = 'test-seller',
 			quantity = 1,
 			price = '-500000000000', -- Negative price
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -1284,7 +1299,7 @@ utils.test('should reject order with zero price',
 			sender = 'test-seller',
 			quantity = 1,
 			price = '0', -- Zero price
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',
@@ -1309,7 +1324,7 @@ utils.test('should reject ARIO dominant order without requestedOrderId',
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-seller',
 			quantity = 500000000000, -- Send ARIO amount
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group'
@@ -1363,7 +1378,7 @@ utils.test('should reject ANT purchase when user sends different ARIO quantity t
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-seller',
 			quantity = 400000000000, -- Send different ARIO amount than the ANT sell order price
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			orderType = 'fixed',
 			orderGroupId = 'test-group',

@@ -205,7 +205,8 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			Receiver = data.Order.Receiver,
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp
+			Timestamp = data.Order.Timestamp,
+			Domain = data.Order.Domain
 		})
 
 		if not SalesByAddress[data.Order.Sender] then
@@ -239,7 +240,8 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 			Receiver = nil,
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp
+			Timestamp = data.Order.Timestamp,
+			Domain = data.Order.Domain
 		})
 	end)
 
@@ -262,8 +264,8 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			Sender = data.Order.Sender,
 			Receiver = nil,
 			Quantity = data.Order.Quantity,
-			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp
+			Timestamp = data.Order.Timestamp,
+			Domain = data.Order.Domain
 		})
 	end)
 

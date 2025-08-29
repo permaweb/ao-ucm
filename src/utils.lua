@@ -386,8 +386,11 @@ function utils.paginateTableWithCursor(tableArray, cursor, cursorField, limit, s
 	if cursor then
 		-- Find the position where cursor should be inserted
 		for i, obj in ipairs(sortedArray) do
-			local cursorValue = cursor
-			local objValue = obj.OrderId
+			local cursorValue = bint(cursor)
+			local objValue = obj.CreatedAt
+			if objValue == nil then
+				objValue = 0
+			end
 			
 			if sortOrder == "desc" then
 				if objValue < cursorValue then

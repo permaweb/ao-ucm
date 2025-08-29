@@ -365,6 +365,7 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			end
 		end
 
+		foundOrder.EndedAt = data.Order.ExecutionTime
 		-- Add the order to ExecutedOrders
 		table.insert(ExecutedOrders, foundOrder)
 
@@ -435,6 +436,8 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 				break
 			end
 		end
+
+		foundOrder.EndedAt = data.Order.CancellationTime
 		
 		-- Add the order to CancelledOrders
 		table.insert(CancelledOrders, foundOrder)

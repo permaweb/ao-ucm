@@ -291,7 +291,8 @@ function utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmo
 				Receiver = args.sender,
 				Quantity = calculatedFillAmount,
 				Price = tostring(currentOrderEntry.Price),
-				CreatedAt = args.createdAt
+				CreatedAt = args.createdAt,
+				ExecutionTime = args.createdAt
 			}
 		})
 	end)
@@ -386,7 +387,7 @@ function utils.paginateTableWithCursor(tableArray, cursor, cursorField, limit, s
 		-- Find the position where cursor should be inserted
 		for i, obj in ipairs(sortedArray) do
 			local cursorValue = cursor
-			local objValue = obj.CreatedAt or obj.Id or obj.OrderId
+			local objValue = obj.OrderId
 			
 			if sortOrder == "desc" then
 				if objValue < cursorValue then

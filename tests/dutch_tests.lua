@@ -76,7 +76,7 @@ utils.test('should add ANT sell order to orderbook when selling ANT to buy ARIO 
 			sender = 'ant-seller',
 			quantity = 1, -- 1 ANT token
 			price = '500000000000',
-			timestamp = '1735689600000',
+			createdAt = '1735689600000',
 			blockheight = '123456789',
 			orderType = 'dutch',
 			orderGroupId = 'test-group',
@@ -130,7 +130,7 @@ utils.test('should handle fractional decrease steps correctly in Dutch auction',
 			sender = 'fractional-seller',
 			quantity = 1,
 			price = '100000000000', -- 100 tokens
-			timestamp = '1735689600000',
+			createdAt = '1735689600000',
 			blockheight = '123456789',
 			orderType = 'dutch',
 			orderGroupId = 'test-group',
@@ -386,7 +386,7 @@ utils.test('[ANT purchase] should match dutch orders after time passes and price
 			sender = 'ant-seller',
 			quantity = 1, -- 1 ANT token
 			price = '500000000000',
-			timestamp = '1735689600000',
+			createdAt = '1735689600000',
 			blockheight = '123456789',
 			orderType = 'dutch',
 			orderGroupId = 'test-group',
@@ -401,7 +401,7 @@ utils.test('[ANT purchase] should match dutch orders after time passes and price
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-seller',
 			quantity = 400000000000, -- Send the current Dutch auction price (500000000000 - 100000000000)
-			timestamp = '1735776001000', -- 1 and 1s day after the ant-sell-order timestamp
+			createdAt = '1735776001000', -- 1 and 1s day after the ant-sell-order timestamp
 			blockheight = '123456790',
 			orderType = 'dutch',
 			requestedOrderId = 'ant-sell-order' -- Specify which ANT order to buy
@@ -471,7 +471,7 @@ utils.test('[ANT purchase] should refund excess ARIO when buyer sends more than 
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer-excess',
 			quantity = 500000000000, -- Send more than the current price of 400_000_000_000
-			timestamp = '1735776001000', -- 1 and 1s day after the ant-sell-order timestamp
+			createdAt = '1735776001000', -- 1 and 1s day after the ant-sell-order timestamp
 			blockheight = '123456790',
 			orderType = 'dutch',
 			requestedOrderId = 'ant-sell-order' -- Specify which ANT order to buy
@@ -547,7 +547,7 @@ utils.test('[ANT purchase] should reject order when buyer sends insufficient ARI
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
 			sender = 'ario-buyer-insufficient',
 			quantity = 300000000000, -- Send less than the current price of 400000000000
-			timestamp = '1735776001000', -- 1 and 1s day after the ant-sell-order timestamp
+			createdAt = '1735776001000', -- 1 and 1s day after the ant-sell-order timestamp
 			blockheight = '123456790',
 			orderType = 'dutch',
 			requestedOrderId = 'ant-sell-order' -- Specify which ANT order to buy

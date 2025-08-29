@@ -27,7 +27,7 @@ utils.test('Create listing',
 			quantity = 1,
 			price = '500000000000',
 			orderType = 'fixed',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
 			expirationTime = '1722535720966' -- Valid expiration time
 		})
@@ -497,7 +497,7 @@ utils.test('Multi order partially matched (denominated) - invalid quantity',
 -- FIXME
 utils.test('New listing adds to CurrentListings',
 	function()
-		local json = require('JSON')
+		local json = require('json')
 		Orderbook = {}
 		CurrentListings = {}
 		ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
@@ -662,7 +662,7 @@ utils.test('Full execution removes from CurrentListings',
 
 utils.test('Cancel order removes from CurrentListings',
 	function()
-		local json = require('JSON')
+		local json = require('json')
 		Orderbook = {
 			{
 				Pair = { 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },

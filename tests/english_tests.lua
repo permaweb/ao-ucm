@@ -720,14 +720,14 @@ utils.test('[ENGLISH AUCTION] should fail bid lower than current highest',
 			expirationTime = '1736035200000',
 		})
 		
-		-- Place first bid
+		-- Place first bid (above minimum starting price)
 		ucm.createOrder({
 			orderId = 'bid-1',
 			targetAuctionId = 'english-auction-1',
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (buying ANT)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
 			sender = 'bidder-1',
-			quantity = 2000000000,
+			quantity = 600000000000, -- Above minimum starting price (500000000000)
 			createdAt = '1735689700000',
 			orderType = 'english',
 			orderGroupId = 'test-group',
@@ -741,18 +741,18 @@ utils.test('[ENGLISH AUCTION] should fail bid lower than current highest',
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (buying ANT)
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
 			sender = 'bidder-2',
-			quantity = 1000000000, -- Lower than current highest bid
+			quantity = 500000000000, -- Lower than current highest bid (600000000000) but above minimum
 			createdAt = '1735689800000',
 			orderType = 'english',
 			orderGroupId = 'test-group',
 			requestedOrderId = 'english-auction-1'
 		})
 		
-		-- Validate that no transfers occurred (lower bid should be rejected)
+		-- Validate that only the rejected bid transfer occurred (lower bid should be rejected)
 		local expectedTransfers = {
 			{
 				action = 'Transfer',
-				quantity = '1000000000',
+				quantity = '500000000000',
 				recipient = 'bidder-2',
 				target = ARIO_TOKEN_PROCESS_ID
 			}
@@ -788,12 +788,12 @@ utils.test('[ENGLISH AUCTION] should fail bid lower than current highest',
 				Bids = {
 					{
 						Bidder = 'bidder-1',
-						Amount = '2000000000',
+						Amount = '600000000000',
 						Timestamp = '1735689700000',
 						OrderId = 'english-auction-1'
 					}
 				},
-				HighestBid = '2000000000',
+				HighestBid = '600000000000',
 				HighestBidder = 'bidder-1'
 			}
 		}
@@ -833,12 +833,12 @@ utils.test('[ENGLISH AUCTION] should settle auction successfully after expiratio
 					},
 					{
 						Bidder = 'bidder-2',
-						Amount = '2000000000',
+						Amount = '600000000000',
 						Timestamp = '1735689800000',
 						OrderId = 'english-auction-1'
 					}
 				},
-				HighestBid = '2000000000',
+				HighestBid = '600000000000',
 				HighestBidder = 'bidder-2'
 			}
 		}
@@ -854,7 +854,7 @@ utils.test('[ENGLISH AUCTION] should settle auction successfully after expiratio
 		local expectedTransfers = {
 			{
 				action = 'Transfer',
-				quantity = '1990000000', -- After fees (2000000000 * 0.995)
+				quantity = '597000000000', -- After fees (600000000000 * 0.995)
 				recipient = 'ant-seller',
 				target = ARIO_TOKEN_PROCESS_ID
 			},
@@ -910,12 +910,12 @@ utils.test('[ENGLISH AUCTION] should fail settlement before expiration',
 				Bids = {
 					{
 						Bidder = 'bidder-1',
-						Amount = '2000000000',
+						Amount = '600000000000',
 						Timestamp = '1735689700000',
 						OrderId = 'english-auction-1'
 					}
 				},
-				HighestBid = '2000000000',
+				HighestBid = '600000000000',
 				HighestBidder = 'bidder-1'
 			}
 		}
@@ -960,12 +960,12 @@ utils.test('[ENGLISH AUCTION] should fail settlement before expiration',
 				Bids = {
 					{
 						Bidder = 'bidder-1',
-						Amount = '2000000000',
+						Amount = '600000000000',
 						Timestamp = '1735689700000',
 						OrderId = 'english-auction-1'
 					}
 				},
-				HighestBid = '2000000000',
+				HighestBid = '600000000000',
 				HighestBidder = 'bidder-1'
 			}
 		}
@@ -1025,6 +1025,80 @@ utils.test('[ENGLISH AUCTION] should fail settlement with no bids',
 						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 						DateCreated = '1735689600000',
 						ExpirationTime = '1735689700000',
+						Price = '500000000000',
+						Type = 'english',
+					}
+				}
+			}
+		},
+		EnglishAuctionBids = {}
+	}
+)
+
+utils.test('[ENGLISH AUCTION] should fail first bid below minimum price',
+	function()
+		resetTransfers()
+
+		Orderbook = {}
+
+		-- Create the English auction order first
+		ucm.createOrder({
+			orderId = 'english-auction-1',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (selling ANT)
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'ant-seller',
+			quantity = 1,
+			price = '500000000000',
+			createdAt = '1735689600000',
+			blockheight = '123456789',
+			orderType = 'english',
+			orderGroupId = 'test-group',
+			expirationTime = '1736035200000',
+		})
+
+		-- Place first bid lower than minimum starting price
+		ucm.createOrder({
+			orderId = 'bid-1',
+			targetAuctionId = 'english-auction-1',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (buying ANT)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
+			sender = 'bidder-1',
+			quantity = 1000000000, -- Below minimum starting price
+			createdAt = '1735689700000',
+			orderType = 'english',
+			orderGroupId = 'test-group',
+			requestedOrderId = 'english-auction-1'
+		})
+
+		-- Validate refund occurred
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '1000000000',
+				recipient = 'bidder-1',
+				target = ARIO_TOKEN_PROCESS_ID
+			}
+		}
+
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
+
+		return {Orderbook = Orderbook, EnglishAuctionBids = EnglishAuctionBids}
+	end,
+	{
+		Orderbook = {
+			{
+				Pair = {'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'},
+				Orders = {
+					{
+						Id = 'english-auction-1',
+						Quantity = '1',
+						OriginalQuantity = '1',
+						Creator = 'ant-seller',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						DateCreated = '1735689600000',
+						ExpirationTime = '1736035200000',
 						Price = '500000000000',
 						Type = 'english',
 					}

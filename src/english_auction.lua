@@ -33,16 +33,23 @@ local function isAuctionActive(expirationTime, currentTimestamp)
 	return bint(expirationTime) > bint(currentTimestamp)
 end
 
--- Helper function to validate bid amount
-local function validateBidAmount(bidAmount, currentHighestBid)
+local function validateBidAmount(bidAmount, currentHighestBid, minimumBid)
 	if not utils.checkValidAmount(bidAmount) then
 		return false, 'Bid amount must be a positive integer'
 	end
-	
-	if currentHighestBid and bint(bidAmount) <= bint(currentHighestBid) then
-		return false, 'Bid must be higher than current highest bid'
+
+	-- If there is a current highest bid, the new bid must be strictly higher
+	if currentHighestBid then
+		if bint(bidAmount) <= bint(currentHighestBid) then
+			return false, 'Bid must be higher than current highest bid'
+		end
+	else
+		-- No current bids yet: enforce minimum starting price if provided
+		if minimumBid and bint(bidAmount) < bint(minimumBid) then
+			return false, 'Bid must be at least the minimum starting price'
+		end
 	end
-	
+
 	return true, nil
 end
 
@@ -131,9 +138,16 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 	
 	-- Validate bid amount - use args.quantity for ARIO-dominant orders (buying ANT)
 	local bidAmount = args.quantity -- The amount of ARIO tokens sent by the user
-	
-	local isValidBid, bidError = validateBidAmount(bidAmount, existingBids and existingBids.HighestBid or nil)
-	
+
+	-- Determine minimum starting price from the target order for first bid validation
+	local minimumStartingPrice = targetOrder.Price
+
+	local isValidBid, bidError = validateBidAmount(
+		bidAmount,
+		existingBids and existingBids.HighestBid or nil,
+		minimumStartingPrice
+	)
+
 	if not isValidBid then
 		utils.handleError({
 			Target = args.sender,

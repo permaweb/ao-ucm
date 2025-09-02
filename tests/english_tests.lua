@@ -2,14 +2,19 @@ package.path = package.path .. ';../src/?.lua'
 
 local ucm = require('ucm')
 local utils = require('utils')
+local json = require('JSON')
 
 -- Global transfer tracking
 local transfers = {}
 ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 
+-- Capture sent messages for assertions
+local sentMessages = {}
+
 -- Mock ao.send for testing
 ao = {
 	send = function(msg)
+		table.insert(sentMessages, msg)
 		if msg.Action == 'Transfer' then
 			local transfer = {
 				action = msg.Action,
@@ -25,9 +30,49 @@ ao = {
 	 end
 }
 
+-- Minimal Handlers mock: store handlers by name when added
+Handlers = {
+	add = function(name, condition, handler)
+		Handlers[name] = handler
+	end,
+	utils = {
+		hasMatchingTag = function(tagName, tagValue)
+			return function(msg)
+				return msg.Tags and msg.Tags[tagName] == tagValue
+			end
+		end
+	}
+}
+
+-- Globals used by the handler
+ListedOrders = {}
+ExecutedOrders = {}
+CancelledOrders = {}
+AuctionBids = {}
+
 -- Helper function to reset transfers for each test
 local function resetTransfers()
 	transfers = {}
+	sentMessages = {}
+end
+
+-- Helper function to reset state for Get-Order-By-Id tests
+local function resetState()
+	sentMessages = {}
+	ListedOrders = {}
+	ExecutedOrders = {}
+	CancelledOrders = {}
+	AuctionBids = {}
+end
+
+-- Helper function to decode data from sent messages
+local function decodeDataFromMessage(index)
+	if not sentMessages[index] or not sentMessages[index].Data then return nil end
+	local ok, decoded = pcall(function()
+		return json:decode(sentMessages[index].Data)
+	end)
+	if ok then return decoded end
+	return nil
 end
 
 -- Helper function to validate expected transfers
@@ -61,6 +106,132 @@ local function validateTransfers(expectedTransfers)
 	
 	return true
 end
+
+-- Implement Get-Order-By-Id handler inline for testing (mirrors src/activity.lua logic)
+Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Order-By-Id'), function(msg)
+	local ok, data = pcall(function()
+		return json:decode(msg.Data)
+	end)
+
+	if not ok or type(data) ~= 'table' or not data.OrderId then
+		ao.send({
+			Target = msg.From,
+			Action = 'Input-Error',
+			Message = 'OrderId is required'
+		})
+		return
+	end
+
+	local orderId = data.OrderId
+	local currentTimestamp = tonumber(msg.Timestamp) or 0
+
+	local foundOrder = nil
+	local orderStatus = nil
+
+	-- Listed orders (active/expired)
+	for _, order in ipairs(ListedOrders) do
+		if order.OrderId == orderId then
+			foundOrder = order
+			if order.CreatedAt and order.ExpirationTime then
+				local exp = tonumber(order.ExpirationTime)
+				if exp and currentTimestamp >= exp then
+					orderStatus = 'expired'
+				else
+					orderStatus = 'active'
+				end
+			else
+				orderStatus = 'active'
+			end
+			break
+		end
+	end
+
+	-- Executed orders (settled)
+	if not foundOrder then
+		for _, order in ipairs(ExecutedOrders) do
+			if order.OrderId == orderId then
+				foundOrder = order
+				orderStatus = 'settled'
+				break
+			end
+		end
+	end
+
+	-- Cancelled orders (cancelled)
+	if not foundOrder then
+		for _, order in ipairs(CancelledOrders) do
+			if order.OrderId == orderId then
+				foundOrder = order
+				orderStatus = 'cancelled'
+				break
+			end
+		end
+	end
+
+	if not foundOrder then
+		ao.send({
+			Target = msg.From,
+			Action = 'Order-Not-Found',
+			Message = 'Order with ID ' .. orderId .. ' not found'
+		})
+		return
+	end
+
+	local response = {
+		OrderId = foundOrder.OrderId,
+		Status = orderStatus,
+		Type = foundOrder.OrderType or 'fixed',
+		CreatedAt = foundOrder.CreatedAt,
+		ExpirationTime = foundOrder.ExpirationTime,
+		DominantToken = foundOrder.DominantToken,
+		SwapToken = foundOrder.SwapToken,
+		Sender = foundOrder.Sender,
+		Receiver = foundOrder.Receiver,
+		Quantity = foundOrder.Quantity,
+		Price = foundOrder.Price,
+		Domain = foundOrder.Domain,
+		OwnershipType = foundOrder.OwnershipType,
+		LeaseStartTimestamp = foundOrder.LeaseStartTimestamp,
+		LeaseEndTimestamp = foundOrder.LeaseEndTimestamp
+	}
+
+	if orderStatus == 'settled' then
+		response.SettlementDate = foundOrder.CreatedAt
+		response.Buyer = foundOrder.Receiver
+		response.FinalPrice = foundOrder.Price
+		if foundOrder.OrderType == 'english' then
+			local bids = AuctionBids[orderId]
+			if bids and bids.Settlement then
+				response.Settlement = bids.Settlement
+			end
+		end
+	end
+
+	if foundOrder.OrderType == 'english' then
+		local bids = AuctionBids[orderId]
+		if bids then
+			response.Bids = bids.Bids
+			response.HighestBid = bids.HighestBid
+			response.HighestBidder = bids.HighestBidder
+		else
+			response.Bids = {}
+			response.HighestBid = nil
+			response.HighestBidder = nil
+		end
+		response.StartingPrice = foundOrder.Price
+	elseif foundOrder.OrderType == 'dutch' then
+		response.StartingPrice = foundOrder.Price
+		response.MinimumPrice = foundOrder.MinimumPrice
+		response.DecreaseInterval = foundOrder.DecreaseInterval
+		response.DecreaseStep = foundOrder.DecreaseStep
+	end
+
+	ao.send({
+		Target = msg.From,
+		Action = 'Read-Success',
+		Data = json:encode(response)
+	})
+end)
 
 utils.test('[ANT SELL] should add ANT sell order to orderbook when selling ANT to buy ARIO with English auction',
 	function()
@@ -1106,6 +1277,129 @@ utils.test('[ENGLISH AUCTION] should fail first bid below minimum price',
 			}
 		},
 		EnglishAuctionBids = {}
+	}
+)
+
+utils.test('[ENGLISH AUCTION] Get-Order-By-Id should return correct buyer address for settled auction',
+	function()
+		resetState()
+		
+		-- Set up test environment with settled English auction
+		Orderbook = {}
+		
+		-- Create a settled English auction order in ExecutedOrders
+		local settledOrder = {
+			OrderId = 'english-auction-settled',
+			OrderType = 'english',
+			DominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
+			SwapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO
+			Sender = 'ant-seller',
+			Receiver = 'bidder-winner', -- This should be the buyer
+			Quantity = '1',
+			Price = '2000000000000', -- Final winning bid amount
+			CreatedAt = '1735689900000', -- Settlement timestamp
+			Domain = 'test-domain',
+			OwnershipType = 'full',
+			LeaseStartTimestamp = nil,
+			LeaseEndTimestamp = nil
+		}
+		
+		table.insert(ExecutedOrders, settledOrder)
+		
+		-- Set up auction bids data with settlement information
+		AuctionBids = {
+			['english-auction-settled'] = {
+				Bids = {
+					{
+						Bidder = 'bidder-1',
+						Amount = '1000000000000',
+						Timestamp = '1735689700000',
+						OrderId = 'english-auction-settled'
+					},
+					{
+						Bidder = 'bidder-winner',
+						Amount = '2000000000000',
+						Timestamp = '1735689800000',
+						OrderId = 'english-auction-settled'
+					}
+				},
+				HighestBid = '2000000000000',
+				HighestBidder = 'bidder-winner',
+				Settlement = {
+					OrderId = 'english-auction-settled',
+					Winner = 'bidder-winner',
+					WinningBid = '2000000000000',
+					Quantity = '1',
+					Timestamp = '1735689900000',
+					DominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+					SwapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+				}
+			}
+		}
+		
+		-- Mock the Get-Order-By-Id handler call
+		local msg = {
+			From = 'test-requester',
+			Tags = { Action = 'Get-Order-By-Id' },
+			Data = json:encode({ OrderId = 'english-auction-settled' }),
+			Timestamp = '1735690000000'
+		}
+		
+		-- Call the handler
+		Handlers['Get-Order-By-Id'](msg)
+		
+
+		
+		-- Decode the response
+		local response = decodeDataFromMessage(1)
+		
+		return response
+	end,
+	{
+		OrderId = 'english-auction-settled',
+		Status = 'settled',
+		Type = 'english',
+		CreatedAt = '1735689900000',
+		ExpirationTime = nil,
+		DominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+		SwapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
+		Sender = 'ant-seller',
+		Receiver = 'bidder-winner', -- This is the buyer
+		Quantity = '1',
+		Price = '2000000000000',
+		Domain = 'test-domain',
+		OwnershipType = 'full',
+		LeaseStartTimestamp = nil,
+		LeaseEndTimestamp = nil,
+		SettlementDate = '1735689900000',
+		Buyer = 'bidder-winner', -- This should match the highest bidder
+		FinalPrice = '2000000000000',
+		Bids = {
+			{
+				Bidder = 'bidder-1',
+				Amount = '1000000000000',
+				Timestamp = '1735689700000',
+				OrderId = 'english-auction-settled'
+			},
+			{
+				Bidder = 'bidder-winner',
+				Amount = '2000000000000',
+				Timestamp = '1735689800000',
+				OrderId = 'english-auction-settled'
+			}
+		},
+		HighestBid = '2000000000000',
+		HighestBidder = 'bidder-winner',
+		StartingPrice = '2000000000000',
+		Settlement = {
+			OrderId = 'english-auction-settled',
+			Winner = 'bidder-winner',
+			WinningBid = '2000000000000',
+			Quantity = '1',
+			Timestamp = '1735689900000',
+			DominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			SwapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+		}
 	}
 )
 

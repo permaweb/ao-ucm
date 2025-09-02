@@ -1,5 +1,5 @@
 local bint = require('.bint')(256)
-local json = require('JSON')
+local json = require('json')
 
 local utils = require('utils')
 
@@ -28,7 +28,15 @@ Handlers.add('Get-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-L
 		if order.ExpirationTime then
 			local expirationTime = bint(order.ExpirationTime)
 			if currentTimestamp >= expirationTime then
-				ordersArray[order.OrderId] = nil
+				-- For English auctions with bids, keep them visible as ready-for-settlement
+				if order.OrderType == 'english' then
+					local auctionBids = AuctionBids[order.OrderId]
+					if not (auctionBids and auctionBids.HighestBidder) then
+						ordersArray[order.OrderId] = nil
+					end
+				else
+					ordersArray[order.OrderId] = nil
+				end
 			end
 		end
 	end
@@ -49,13 +57,13 @@ Handlers.add('Get-Completed-Orders', Handlers.utils.hasMatchingTag('Action', 'Ge
 	local ordersArray = {}
 	for _, order in pairs(CancelledOrders) do
 		local orderCopy = utils.deepCopy(order)
-		orderCopy.Status = 'Cancelled'
+		orderCopy.Status = 'cancelled'
 		table.insert(ordersArray, orderCopy)
 	end
 
 	for _, order in pairs(ExecutedOrders) do
 		local orderCopy = utils.deepCopy(order)
-		orderCopy.Status = 'Settled'
+		orderCopy.Status = 'settled'
 		table.insert(ordersArray, orderCopy)
 	end
 
@@ -66,7 +74,17 @@ Handlers.add('Get-Completed-Orders', Handlers.utils.hasMatchingTag('Action', 'Ge
 			local expirationTime = bint(order.ExpirationTime)
 			if currentTimestamp >= expirationTime then
 				local orderCopy = utils.deepCopy(order)
-				orderCopy.Status = 'Expired'
+				-- Check if it's an English auction with bids (ready-for-settlement)
+				if order.OrderType == 'english' then
+					local auctionBids = AuctionBids[order.OrderId]
+					if auctionBids and auctionBids.HighestBidder then
+						orderCopy.Status = 'ready-for-settlement'
+					else
+						orderCopy.Status = 'expired'
+					end
+				else
+					orderCopy.Status = 'expired'
+				end
 				table.insert(ordersArray, orderCopy)
 			end
 		end
@@ -114,7 +132,17 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 				local currentTime = bint(currentTimestamp)
 				
 				if currentTime >= expirationTime then
-					orderStatus = 'expired'
+					-- Check if it's an English auction with bids
+					if order.OrderType == 'english' then
+						local auctionBids = AuctionBids[orderId]
+						if auctionBids and auctionBids.HighestBidder then
+							orderStatus = 'ready-for-settlement'
+						else
+							orderStatus = 'expired'
+						end
+					else
+						orderStatus = 'expired'
+					end
 				else
 					orderStatus = 'active'
 				end
@@ -192,6 +220,14 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 		end
 	elseif orderStatus == 'expired' then
 		-- No specific fields for expired orders
+	elseif orderStatus == 'ready-for-settlement' then
+		-- Add settlement-ready specific fields
+		local auctionBids = AuctionBids[orderId]
+		if auctionBids then
+			response.HighestBid = auctionBids.HighestBid
+			response.HighestBidder = auctionBids.HighestBidder
+			response.CanSettle = true
+		end
 	elseif orderStatus == 'active' then
 		-- No specific fields for active orders
 	end

@@ -1,4 +1,4 @@
-local json = require('JSON')
+local json = require('json')
 local bint = require('.bint')(256)
 
 if Name ~= 'ANT Marketplace' then Name = 'ANT Marketplace' end

@@ -10,7 +10,7 @@ if Name ~= 'ANT Marketplace' then
 end
 
 -- CHANGEME
-ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
+ACTIVITY_PROCESS = '_D13aXApOAgs-GlyKzmy4kbwU_z6P3ugv1z437uhmbw'
 
 -- Orderbook {
 -- 	Pair [TokenId, TokenId],

@@ -4,7 +4,7 @@ local bint = require('.bint')(256)
 local utils = {}
 
 -- CHANGEME
-ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+ARIO_TOKEN_PROCESS_ID = 'agYcCFJtrMG6cqMuZfskIkFTGvUPddICmtQSBIoPdiA'
 
 function utils.checkValidAddress(address)
 	if not address or type(address) ~= 'string' then

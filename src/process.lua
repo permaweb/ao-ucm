@@ -1,4 +1,4 @@
-local json = require('json')
+local json = require('JSON')
 
 local ucm = require('ucm')
 local utils = require('utils')

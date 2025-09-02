@@ -1,10 +1,10 @@
-local json = require('JSON')
+local json = require('json')
 
 local ucm = require('ucm')
 local utils = require('utils')
 
 -- CHANGEME
-ACTIVITY_PROCESS = 'Zz5S_0uDj9CWOrwz9uwmguelVyJVBOfKX3QT7j98Aws'
+ACTIVITY_PROCESS = '_D13aXApOAgs-GlyKzmy4kbwU_z6P3ugv1z437uhmbw'
 ARIO_TOKEN_PROCESS_ID = 'agYcCFJtrMG6cqMuZfskIkFTGvUPddICmtQSBIoPdiA'
 
 function Trusted(msg)
@@ -303,6 +303,31 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 			})
 		})
 	end
+end)
+
+Handlers.add('Settle-Auction', Handlers.utils.hasMatchingTag('Action', 'Settle-Auction'), function(msg)
+	print('Settling auction')
+	local decodeCheck, data = utils.decodeMessageData(msg.Data)
+	
+	if not decodeCheck or not data.OrderId then
+		ao.send({
+			Target = msg.From,
+			Action = 'Input-Error',
+			Tags = { Status = 'Error', Message = 'OrderId is required' }
+		})
+		return
+	end
+	
+	local settleArgs = {
+		orderId = data.OrderId,
+		sender = msg.From,
+		timestamp = msg.Timestamp,
+		orderGroupId = msg.Tags['X-Group-ID'] or 'None',
+		dominantToken = data.DominantToken,
+		swapToken = data.SwapToken
+	}
+	
+	ucm.settleAuction(settleArgs)
 end)
 
 Handlers.add('Debit-Notice', Handlers.utils.hasMatchingTag('Action', 'Debit-Notice'), function(msg) end)

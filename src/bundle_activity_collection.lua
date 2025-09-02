@@ -1,4 +1,4 @@
-local json = require('JSON')
+local json = require('json')
 local bint = require('.bint')(256)
 
 MAX_ORDERS = 1000

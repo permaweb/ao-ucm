@@ -327,6 +327,29 @@ function english_auction.settleAuction(args)
 		Data = settlementDataSuccess and settlementData or ''
 	})
 
+	-- Also mark order as executed/completed in activity so it appears in completed orders
+	local executedDataSuccess, executedData = pcall(function()
+		return json.encode({
+			Order = {
+				Id = orderId,
+				DominantToken = validPair[2],
+				SwapToken = validPair[1],
+				Sender = targetOrder.Creator,
+				Receiver = auctionBids.HighestBidder,
+				Quantity = tostring(quantity),
+				Price = tostring(auctionBids.HighestBid),
+				CreatedAt = targetOrder.DateCreated,
+				ExecutionTime = args.timestamp
+			}
+		})
+	end)
+
+	ao.send({
+		Target = ACTIVITY_PROCESS,
+		Action = 'Update-Executed-Orders',
+		Data = executedDataSuccess and executedData or ''
+	})
+
 	-- Remove the auction from orderbook
 	table.remove(Orderbook[targetPairIndex].Orders, targetOrderIndex)
 

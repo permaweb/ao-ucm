@@ -1,10 +1,10 @@
-local json = require('JSON')
+local json = require('json')
 
 local ucm = require('ucm')
 local utils = require('utils')
 
 -- CHANGEME
-ACTIVITY_PROCESS = '_D13aXApOAgs-GlyKzmy4kbwU_z6P3ugv1z437uhmbw'
+ACTIVITY_PROCESS = 'Jj8LhgFLmCE_BAMys_zoTDRx8eYXsSl3-BMBIov8n9E'
 ARIO_TOKEN_PROCESS_ID = 'agYcCFJtrMG6cqMuZfskIkFTGvUPddICmtQSBIoPdiA'
 
 function Trusted(msg)
@@ -108,7 +108,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			createdAt = msg.Timestamp,
 			blockheight = msg['Block-Height'],
 			orderType = msg.Tags['X-Order-Type'] or 'fixed',
-			expirationTime = msg.Tags['X-Expiration-Time'],
+			expirationTime = msg.Tags['X-Expiration-Time'] and tonumber(msg.Tags['X-Expiration-Time']),
 			minimumPrice = msg.Tags['X-Minimum-Price'],
 			decreaseInterval = msg.Tags['X-Decrease-Interval'],
 			requestedOrderId = msg.Tags['X-Requested-Order-Id'],
@@ -306,7 +306,7 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 end)
 
 Handlers.add('Settle-Auction', Handlers.utils.hasMatchingTag('Action', 'Settle-Auction'), function(msg)
-	print('Settling auction')
+	print('Settling auctionXXX')
 	local decodeCheck, data = utils.decodeMessageData(msg.Data)
 	
 	if not decodeCheck or not data.OrderId then
@@ -314,6 +314,43 @@ Handlers.add('Settle-Auction', Handlers.utils.hasMatchingTag('Action', 'Settle-A
 			Target = msg.From,
 			Action = 'Input-Error',
 			Tags = { Status = 'Error', Message = 'OrderId is required' }
+		})
+		return
+	end
+	
+	-- Check if order is ready for settlement by querying activity process
+	local activityQuery = ao.send({
+		Target = ACTIVITY_PROCESS,
+		Action = 'Get-Order-By-Id',
+		Tags = {
+			Action = 'Get-Order-By-Id',
+			OrderId = data.OrderId,
+			Functioninvoke = "true"
+		}
+	}).receive()
+	
+	local activityDecodeCheck, activityData = utils.decodeMessageData(activityQuery.Data)
+	if not activityDecodeCheck or not activityData then
+		ao.send({
+			Target = msg.From,
+			Action = 'Settlement-Error',
+			Tags = { Status = 'Error', Message = 'Failed to query order status' }
+		})
+		return
+	end
+	
+	-- Check if order is ready for settlement
+	print('Activity data: ')
+	print(activityData)
+	if activityData.Status ~= 'ready-for-settlement' then
+		ao.send({
+			Target = msg.From,
+			Action = 'Settlement-Error',
+			Tags = { 
+				Status = 'Error', 
+				Message = 'Order is not ready for settlement. Status: ' .. tostring(activityData.Status),
+				CurrentStatus = tostring(activityData.Status)
+			}
 		})
 		return
 	end
@@ -328,6 +365,32 @@ Handlers.add('Settle-Auction', Handlers.utils.hasMatchingTag('Action', 'Settle-A
 	}
 	
 	ucm.settleAuction(settleArgs)
+	print('Settled auction')
 end)
 
 Handlers.add('Debit-Notice', Handlers.utils.hasMatchingTag('Action', 'Debit-Notice'), function(msg) end)
+
+Handlers.add('Withdraw-Fees', Handlers.utils.hasMatchingTag('Action', 'Withdraw-Fees'), function(msg)
+	-- Only the process owner can withdraw fees
+	if msg.From ~= msg.Owner then
+		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Unauthorized: only process owner can withdraw fees' } })
+		return
+	end
+
+	local amount = AccruedFeesAmount
+	if not amount or amount == 0 then
+		return
+	end
+
+	-- transfer fees to requester
+	ao.send({
+		Target = ARIO_TOKEN_PROCESS_ID,
+		Action = 'Transfer',
+		Tags = {
+			Recipient = msg.From,
+			Quantity = tostring(amount)
+		}
+	})
+
+	AccruedFeesAmount = 0
+end)

@@ -42,7 +42,7 @@ Handlers['Get-Executed-Orders'] = function(msg)
 	ao.send({
 		Target = msg.From,
 		Action = 'Read-Success',
-		Data = json:encode(paginatedOrders)
+		Data = json.encode(paginatedOrders)
 	})
 end
 
@@ -67,7 +67,7 @@ local function decodeSentMessageData(index)
 		return nil
 	end
 	
-	local success, decoded = pcall(function() return json:decode(sentMessages[index].Data) end)
+	local success, decoded = pcall(function() return json.decode(sentMessages[index].Data) end)
 	if success then
 		return decoded
 	end

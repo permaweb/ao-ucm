@@ -1,6 +1,6 @@
 local utils = require('utils')
 local bint = require('.bint')(256)
-local json = require('JSON')
+local json = require('json')
 
 local dutch_auction = {}
 
@@ -21,8 +21,8 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 		Token = args.dominantToken,
 		DateCreated = args.createdAt,
 		Price = args.price and tostring(args.price),
-		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
-		Type = 'dutch',
+		ExpirationTime = args.expirationTime,
+		OrderType = 'dutch',
 		MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),
 		DecreaseInterval = args.decreaseInterval and tostring(args.decreaseInterval),
 		DecreaseStep = tostring(decreaseStep),
@@ -43,7 +43,7 @@ function dutch_auction.handleArioOrder(args, validPair, pairIndex)
 				Receiver = nil,
 				Quantity = tostring(args.quantity),
 				Price = args.price and tostring(args.price),
-				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+				ExpirationTime = args.expirationTime,
 				CreatedAt = args.createdAt,
 				OrderType = 'dutch',
 				MinimumPrice = args.minimumPrice and tostring(args.minimumPrice),

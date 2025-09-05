@@ -1,5 +1,5 @@
 local bint = require('.bint')(256)
-local json = require('JSON')
+local json = require('json')
 
 local utils = require('utils')
 
@@ -39,10 +39,9 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 		Token = args.dominantToken,
 		DateCreated = args.createdAt,
 		Price = args.price and tostring(args.price),
-		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
-		Type = 'fixed',
+		ExpirationTime = args.expirationTime,
+		OrderType = 'fixed',
 		Domain = args.domain,
-		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
 		OwnershipType = args.ownershipType,
 		LeaseStartTimestamp = args.leaseStartTimestamp,
 		LeaseEndTimestamp = args.leaseEndTimestamp
@@ -62,7 +61,7 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 				CreatedAt = args.createdAt,
 				OrderType = 'fixed',
 				Domain = args.domain,
-				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+				ExpirationTime = args.expirationTime,
 				OwnershipType = args.ownershipType,
 				LeaseStartTimestamp = args.leaseStartTimestamp,
 				LeaseEndTimestamp = args.leaseEndTimestamp
@@ -92,7 +91,7 @@ function fixed_price.handleArioOrder(args, validPair, pairIndex)
 			['X-Group-ID'] = args.orderGroupId,
 			OrderType = 'fixed',
 			Domain = args.domain,
-			ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+			ExpirationTime = args.expirationTime,
 			OwnershipType = args.ownershipType,
 			LeaseStartTimestamp = args.leaseStartTimestamp,
 			LeaseEndTimestamp = args.leaseEndTimestamp

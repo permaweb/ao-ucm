@@ -69,7 +69,7 @@ end
 local function decodeDataFromMessage(index)
 	if not sentMessages[index] or not sentMessages[index].Data then return nil end
 	local ok, decoded = pcall(function()
-		return json:decode(sentMessages[index].Data)
+		return json.decode(sentMessages[index].Data)
 	end)
 	if ok then return decoded end
 	return nil
@@ -110,7 +110,7 @@ end
 -- Implement Get-Order-By-Id handler inline for testing (mirrors src/activity.lua logic)
 Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Order-By-Id'), function(msg)
 	local ok, data = pcall(function()
-		return json:decode(msg.Data)
+		return json.decode(msg.Data)
 	end)
 
 	if not ok or type(data) ~= 'table' or not data.OrderId then
@@ -229,7 +229,7 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 	ao.send({
 		Target = msg.From,
 		Action = 'Read-Success',
-		Data = json:encode(response)
+		Data = json.encode(response)
 	})
 end)
 
@@ -1341,7 +1341,7 @@ utils.test('[ENGLISH AUCTION] Get-Order-By-Id should return correct buyer addres
 		local msg = {
 			From = 'test-requester',
 			Tags = { Action = 'Get-Order-By-Id' },
-			Data = json:encode({ OrderId = 'english-auction-settled' }),
+			Data = json.encode({ OrderId = 'english-auction-settled' }),
 			Timestamp = '1735690000000'
 		}
 		

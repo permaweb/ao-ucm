@@ -1,5 +1,5 @@
 local bint = require('.bint')(256)
-local json = require('JSON')
+local json = require('json')
 
 local utils = require('utils')
 
@@ -100,7 +100,7 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 
 	-- Find the English auction order to bid on
 	for i, order in ipairs(currentOrders) do
-		if order.Type == 'english' and order.Id == (args.requestedOrderId or args.orderId) then
+		if order.OrderType == 'english' and order.Id == (args.requestedOrderId or args.orderId) then
 			targetOrder = order
 			break
 		end
@@ -112,6 +112,30 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'English auction not found',
+			Quantity = args.quantity,
+			TransferToken = args.dominantToken,
+			OrderGroupId = args.orderGroupId
+		})
+		return
+	end
+
+	-- Ensure bidding is allowed only on active orders (via Activity status)
+	local activityQuery = ao.send({
+		Target = ACTIVITY_PROCESS,
+		Action = 'Get-Order-By-Id',
+		Data = json.encode({ OrderId = targetOrder.Id }),
+		Tags = {
+			Action = 'Get-Order-By-Id',
+			OrderId = targetOrder.Id
+		}
+	}).receive()
+
+	local activityDecodeCheck, activityData = utils.decodeMessageData(activityQuery.Data)
+	if not activityDecodeCheck or not activityData or activityData.Status ~= 'active' then
+		utils.handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = 'Bidding allowed only on active orders',
 			Quantity = args.quantity,
 			TransferToken = args.dominantToken,
 			OrderGroupId = args.orderGroupId
@@ -246,7 +270,7 @@ function english_auction.settleAuction(args)
 
 	for pairIndex, pairData in ipairs(Orderbook) do
 		for orderIndex, order in ipairs(pairData.Orders) do
-			if order.Type == 'english' and order.Id == orderId then
+			if order.OrderType == 'english' and order.Id == orderId then
 				targetOrder = order
 				targetOrderIndex = orderIndex
 				targetPairIndex = pairIndex
@@ -298,6 +322,7 @@ function english_auction.settleAuction(args)
 		sender = auctionBids.HighestBidder,
 		quantity = tostring(quantity),
 		price = auctionBids.HighestBid,
+		originalSendAmount = winningBidAmount, -- to compute and accrue fee
 		orderId = orderId,
 		orderGroupId = args.orderGroupId,
 		swapToken = targetOrder.Token -- ANT token process for the second transfer
@@ -414,9 +439,9 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 		Token = args.dominantToken,
 		DateCreated = args.createdAt,
 		Price = args.price and tostring(args.price),
-		Type = 'english',
+		ExpirationTime = args.expirationTime,
+		OrderType = 'english',
 		Domain = args.domain,
-		ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
 		OwnershipType = args.ownershipType,
 		LeaseStartTimestamp = args.leaseStartTimestamp,
 		LeaseEndTimestamp = args.leaseEndTimestamp
@@ -436,7 +461,7 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 				CreatedAt = args.createdAt,
 				OrderType = 'english',
 				Domain = args.domain,
-				ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+				ExpirationTime = args.expirationTime,
 				OwnershipType = args.ownershipType,
 				LeaseStartTimestamp = args.leaseStartTimestamp,
 				LeaseEndTimestamp = args.leaseEndTimestamp
@@ -466,7 +491,7 @@ function english_auction.handleArioOrder(args, validPair, pairIndex)
 			['X-Group-ID'] = args.orderGroupId,
 			OrderType = 'english',
 			Domain = args.domain,
-			ExpirationTime = args.expirationTime and tostring(args.expirationTime) or nil,
+			ExpirationTime = args.expirationTime,
 			OwnershipType = args.ownershipType,
 			LeaseStartTimestamp = args.leaseStartTimestamp,
 			LeaseEndTimestamp = args.leaseEndTimestamp

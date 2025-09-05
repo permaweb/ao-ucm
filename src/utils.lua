@@ -1,7 +1,8 @@
-local json = require('JSON')
+local json = require('json')
 local bint = require('.bint')(256)
 
 local utils = {}
+if not AccruedFeesAmount then AccruedFeesAmount = 0 end
 
 -- CHANGEME
 ARIO_TOKEN_PROCESS_ID = 'agYcCFJtrMG6cqMuZfskIkFTGvUPddICmtQSBIoPdiA'
@@ -249,6 +250,16 @@ end
 
 -- Helper function to execute token transfers
 function utils.executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
+	-- Optionally record fee (difference between original send amount and calculated amount)
+	if args and args.originalSendAmount then
+		local ok1, orig = pcall(function() return bint(args.originalSendAmount) end)
+		local ok2, calc = pcall(function() return bint(calculatedSendAmount) end)
+		if ok1 and ok2 and orig > calc then
+			local fee = orig - calc
+			AccruedFeesAmount = AccruedFeesAmount + tonumber(tostring(fee))
+		end
+	end
+
 	-- Transfer tokens to the seller (order creator)
 	ao.send({
 		Target = validPair[1],
@@ -385,23 +396,11 @@ function utils.paginateTableWithCursor(tableArray, cursor, cursorField, limit, s
 
 	if cursor then
 		-- Find the position where cursor should be inserted
+		-- Cursor is OrderId string, find the exact position
 		for i, obj in ipairs(sortedArray) do
-			local cursorValue = bint(cursor)
-			local objValue = obj.CreatedAt
-			if objValue == nil then
-				objValue = 0
-			end
-			
-			if sortOrder == "desc" then
-				if objValue < cursorValue then
-					startIndex = i
-					break
-				end
-			else
-				if objValue > cursorValue then
-					startIndex = i
-					break
-				end
+			if obj.OrderId == cursor then
+				startIndex = i + 1  -- Start after the cursor position
+				break
 			end
 		end
 	end
@@ -415,12 +414,8 @@ function utils.paginateTableWithCursor(tableArray, cursor, cursorField, limit, s
 
 	local nextCursor = nil
 	if endIndex < #sortedArray then
-		if cursorField then
-			nextCursor = sortedArray[endIndex][cursorField]
-		else
-			-- If no cursorField specified, return the entire object
-			nextCursor = sortedArray[endIndex]
-		end
+		-- Return CreatedAt timestamp as cursor for pagination
+		nextCursor = tostring(sortedArray[endIndex]['CreatedAt'])
 	end
 
 	return {

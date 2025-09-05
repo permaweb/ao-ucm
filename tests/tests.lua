@@ -516,7 +516,7 @@ utils.test('New listing adds to CurrentListings',
 		ao.send({
 			Target = ACTIVITY_PROCESS,
 			Action = 'Update-Listed-Orders',
-			Data = json:encode({
+			Data = json.encode({
 				Order = {
 					Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
 					DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
@@ -693,7 +693,7 @@ utils.test('Cancel order removes from CurrentListings',
 
 		ao.send({
 			Action = 'Cancel-Order',
-			Data = json:encode({
+			Data = json.encode({
 				Pair = { 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
 				OrderTxId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'
 			})

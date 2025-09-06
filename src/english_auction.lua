@@ -82,7 +82,7 @@ end
 
 -- Helper function to handle ANT token orders: we are buying ANT token, so we need to place bids on English auctions
 function english_auction.handleAntOrder(args, validPair, pairIndex)
-	-- Check if orderId is provided (required for bid identification)
+		-- Check if orderId is provided (required for bid identification)
 	if not args.orderId then
 		utils.handleError({
 			Target = args.sender,
@@ -100,15 +100,15 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 
 	-- Find the English auction order to bid on
 	for i, order in ipairs(currentOrders) do
-		if order.OrderType == 'english' and order.Id == (args.requestedOrderId or args.orderId) then
+				if order.OrderType == 'english' and order.Id == (args.requestedOrderId or args.orderId) then
 			targetOrder = order
-			break
+						break
 		end
 	end
 
 	-- Check if the auction exists
 	if not targetOrder then
-		utils.handleError({
+				utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'English auction not found',
@@ -120,19 +120,20 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 	end
 
 	-- Ensure bidding is allowed only on active orders (via Activity status)
-	local activityQuery = ao.send({
+		local activityQuery = ao.send({
 		Target = ACTIVITY_PROCESS,
 		Action = 'Get-Order-By-Id',
 		Data = json.encode({ OrderId = targetOrder.Id }),
 		Tags = {
 			Action = 'Get-Order-By-Id',
-			OrderId = targetOrder.Id
+			OrderId = targetOrder.Id,
+			Functioninvoke = "true"
 		}
 	}).receive()
 
 	local activityDecodeCheck, activityData = utils.decodeMessageData(activityQuery.Data)
 	if not activityDecodeCheck or not activityData or activityData.Status ~= 'active' then
-		utils.handleError({
+				utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'Bidding allowed only on active orders',
@@ -145,7 +146,7 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 
 	-- Check if auction has expired
 	if not isAuctionActive(targetOrder.ExpirationTime, args.createdAt) then
-		utils.handleError({
+				utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'Auction has expired',
@@ -159,7 +160,7 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 	-- Get existing auction bids for validation
 	local targetAuctionId = args.requestedOrderId or args.orderId
 	local existingBids = getExistingAuctionBids(targetAuctionId)
-	
+		
 	-- Validate bid amount - use args.quantity for ARIO-dominant orders (buying ANT)
 	local bidAmount = args.quantity -- The amount of ARIO tokens sent by the user
 
@@ -171,7 +172,7 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 		existingBids and existingBids.HighestBid or nil,
 		minimumStartingPrice
 	)
-
+	
 	if not isValidBid then
 		utils.handleError({
 			Target = args.sender,
@@ -186,10 +187,10 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 
 	-- Get auction bids (only after validation passes)
 	local auctionBids = getAuctionBids(targetAuctionId)
-	
+		
 	-- Return previous highest bid if it exists
 	if auctionBids.HighestBidder and auctionBids.HighestBid then
-		returnPreviousBid(targetAuctionId, auctionBids.HighestBidder, auctionBids.HighestBid, args.dominantToken)
+				returnPreviousBid(targetAuctionId, auctionBids.HighestBidder, auctionBids.HighestBid, args.dominantToken)
 	end
 
 	-- Store the new bid
@@ -201,11 +202,11 @@ function english_auction.handleAntOrder(args, validPair, pairIndex)
 	}
 	
 	table.insert(auctionBids.Bids, newBid)
-	
+		
 	-- Update highest bid
 	auctionBids.HighestBid = tostring(bidAmount) -- Use the quantity sent by user
 	auctionBids.HighestBidder = args.sender
-
+	
 	-- Send bid data to activity tracking process
 	local bidDataSuccess, bidData = pcall(function()
 		return json.encode({
@@ -364,7 +365,8 @@ function english_auction.settleAuction(args)
 				Quantity = tostring(quantity),
 				Price = tostring(auctionBids.HighestBid),
 				CreatedAt = targetOrder.DateCreated,
-				EndedAt = args.timestamp
+				EndedAt = args.timestamp,
+				ExecutionTime = args.timestamp
 			}
 		})
 	end)

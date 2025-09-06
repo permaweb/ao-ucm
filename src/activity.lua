@@ -13,6 +13,64 @@ if not SalesByAddress then SalesByAddress = {} end
 if not PurchasesByAddress then PurchasesByAddress = {} end
 if not AuctionBids then AuctionBids = {} end
 
+-- Normalize timestamp fields for a single order copy
+local function normalizeOrderTimestamps(oc)
+	if oc.CreatedAt then
+		oc.CreatedAt = math.floor(tonumber(oc.CreatedAt))
+	end
+	if oc.ExpirationTime then
+		oc.ExpirationTime = math.floor(tonumber(oc.ExpirationTime))
+	end
+	if oc.LeaseStartTimestamp then
+		oc.LeaseStartTimestamp = math.floor(tonumber(oc.LeaseStartTimestamp))
+	end
+	if oc.LeaseEndTimestamp then
+		oc.LeaseEndTimestamp = math.floor(tonumber(oc.LeaseEndTimestamp))
+	end
+	if oc.EndedAt then
+		oc.EndedAt = math.floor(tonumber(oc.EndedAt))
+	else
+		if oc.ExpirationTime then
+			oc.EndedAt = oc.ExpirationTime
+		end
+	end
+	return oc
+end
+
+-- Helper: attach english-auction fields onto a single order-like table
+local function applyEnglishAuctionFields(orderCopy)
+	if orderCopy and orderCopy.OrderType == 'english' then
+		local auctionBids = AuctionBids[orderCopy.OrderId]
+		orderCopy.StartingPrice = orderCopy.StartingPrice or orderCopy.Price
+		if auctionBids then
+			orderCopy.Bids = auctionBids.Bids
+			orderCopy.HighestBid = auctionBids.HighestBid
+			orderCopy.HighestBidder = auctionBids.HighestBidder
+			if auctionBids.Settlement then
+				orderCopy.Settlement = auctionBids.Settlement
+			end
+		else
+			orderCopy.Bids = {}
+			orderCopy.HighestBid = orderCopy.HighestBid or nil
+			orderCopy.HighestBidder = orderCopy.HighestBidder or nil
+		end
+	end
+	return orderCopy
+end
+
+
+-- Build a normalized order response with optional status and english auction fields
+local function buildOrderResponse(order, status)
+	local oc = utils.deepCopy(order)
+	if status then
+		oc.Status = status
+	end
+	oc = normalizeOrderTimestamps(oc)
+	oc = applyEnglishAuctionFields(oc)
+	return oc
+end
+
+
 -- Reusable state updater to move expired orders from Listed to Expired
 local function updateOrderStates(currentTimestamp)
 	local currentTime = math.floor(tonumber(currentTimestamp))
@@ -64,37 +122,8 @@ Handlers.add('Get-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-L
 	for _, order in pairs(ListedOrders) do
 		local orderCopy = utils.deepCopy(order)
 		local status = order.Status or 'active'  -- Use the status set by updateOrderStates
-
 		if status == 'active' or status == 'ready-for-settlement' then
-			orderCopy.Status = status
-			-- Normalize all timestamp fields to integers for output
-			if orderCopy.CreatedAt then
-				orderCopy.CreatedAt = math.floor(tonumber(orderCopy.CreatedAt))
-			end
-			if orderCopy.ExpirationTime then
-				orderCopy.ExpirationTime = math.floor(tonumber(orderCopy.ExpirationTime))
-			end
-			if orderCopy.LeaseStartTimestamp then
-				orderCopy.LeaseStartTimestamp = math.floor(tonumber(orderCopy.LeaseStartTimestamp))
-			end
-			if orderCopy.LeaseEndTimestamp then
-				orderCopy.LeaseEndTimestamp = math.floor(tonumber(orderCopy.LeaseEndTimestamp))
-			end
-			-- Attach english auction fields regardless of status
-			if orderCopy.OrderType == 'english' then
-				local auctionBids = AuctionBids[orderCopy.OrderId]
-				orderCopy.StartingPrice = orderCopy.Price
-				if auctionBids then
-					orderCopy.Bids = auctionBids.Bids
-					orderCopy.HighestBid = auctionBids.HighestBid
-					orderCopy.HighestBidder = auctionBids.HighestBidder
-				else
-					orderCopy.Bids = {}
-					orderCopy.HighestBid = nil
-					orderCopy.HighestBidder = nil
-					
-				end
-			end
+			orderCopy = buildOrderResponse(order, status)
 			table.insert(ordersArray, orderCopy)
 		end
 	end
@@ -118,108 +147,18 @@ Handlers.add('Get-Completed-Orders', Handlers.utils.hasMatchingTag('Action', 'Ge
 
 	local ordersArray = {}
 	for _, order in pairs(CancelledOrders) do
-		local orderCopy = utils.deepCopy(order)
-		orderCopy.Status = 'cancelled'
-		-- Normalize all timestamp fields to integers for output
-		if orderCopy.CreatedAt then
-			orderCopy.CreatedAt = math.floor(tonumber(orderCopy.CreatedAt))
-		end
-		if orderCopy.ExpirationTime then
-			orderCopy.ExpirationTime = math.floor(tonumber(orderCopy.ExpirationTime))
-		end
-		if orderCopy.LeaseStartTimestamp then
-			orderCopy.LeaseStartTimestamp = math.floor(tonumber(orderCopy.LeaseStartTimestamp))
-		end
-		if orderCopy.LeaseEndTimestamp then
-			orderCopy.LeaseEndTimestamp = math.floor(tonumber(orderCopy.LeaseEndTimestamp))
-		end
-		if orderCopy.EndedAt then
-			orderCopy.EndedAt = math.floor(tonumber(orderCopy.EndedAt))
-		end
-		-- Include english auction bids/settlement if available
-		if orderCopy.OrderType == 'english' then
-			local auctionBids = AuctionBids[orderCopy.OrderId]
-			if auctionBids then
-				orderCopy.Bids = auctionBids.Bids
-				orderCopy.HighestBid = auctionBids.HighestBid
-				orderCopy.HighestBidder = auctionBids.HighestBidder
-				if auctionBids.Settlement then
-					orderCopy.Settlement = auctionBids.Settlement
-				end
-			else
-				orderCopy.Bids = {}
-				orderCopy.HighestBid = nil
-				orderCopy.HighestBidder = nil
-			end
-		end
+		local orderCopy = buildOrderResponse(order, 'cancelled')
 		table.insert(ordersArray, orderCopy)
 	end
 
 	for _, order in pairs(ExecutedOrders) do
-		local orderCopy = utils.deepCopy(order)
-		orderCopy.Status = 'settled'
-		-- Normalize all timestamp fields to integers for output
-		if orderCopy.CreatedAt then
-			orderCopy.CreatedAt = math.floor(tonumber(orderCopy.CreatedAt))
-		end
-		if orderCopy.ExpirationTime then
-			orderCopy.ExpirationTime = math.floor(tonumber(orderCopy.ExpirationTime))
-		end
-		if orderCopy.LeaseStartTimestamp then
-			orderCopy.LeaseStartTimestamp = math.floor(tonumber(orderCopy.LeaseStartTimestamp))
-		end
-		if orderCopy.LeaseEndTimestamp then
-			orderCopy.LeaseEndTimestamp = math.floor(tonumber(orderCopy.LeaseEndTimestamp))
-		end
-		if orderCopy.EndedAt then
-			orderCopy.EndedAt = math.floor(tonumber(orderCopy.EndedAt))
-		end
-		-- Include english auction bids/settlement if available
-		if orderCopy.OrderType == 'english' then
-			local auctionBids = AuctionBids[orderCopy.OrderId]
-			if auctionBids then
-				orderCopy.Bids = auctionBids.Bids
-				orderCopy.HighestBid = auctionBids.HighestBid
-				orderCopy.HighestBidder = auctionBids.HighestBidder
-				orderCopy.StartingPrice = orderCopy.Price
-				if auctionBids.Settlement then
-					orderCopy.Settlement = auctionBids.Settlement
-				end
-			else
-				orderCopy.Bids = {}
-				orderCopy.HighestBid = nil
-				orderCopy.HighestBidder = nil
-			end
-		end
+		local orderCopy = buildOrderResponse(order, 'settled')
 		table.insert(ordersArray, orderCopy)
 	end
 
 	-- Include expired orders
 	for _, order in pairs(ExpiredOrders) do
-		local orderCopy = utils.deepCopy(order)
-		orderCopy.Status = 'expired'
-		-- Normalize timestamps
-		if orderCopy.CreatedAt then
-			orderCopy.CreatedAt = math.floor(tonumber(orderCopy.CreatedAt))
-		end
-		if orderCopy.ExpirationTime then
-			orderCopy.ExpirationTime = math.floor(tonumber(orderCopy.ExpirationTime))
-		end
-		if orderCopy.LeaseStartTimestamp then
-			orderCopy.LeaseStartTimestamp = math.floor(tonumber(orderCopy.LeaseStartTimestamp))
-		end
-		if orderCopy.LeaseEndTimestamp then
-			orderCopy.LeaseEndTimestamp = math.floor(tonumber(orderCopy.LeaseEndTimestamp))
-		end
-		if orderCopy.EndedAt then
-			orderCopy.EndedAt = math.floor(tonumber(orderCopy.EndedAt))
-		else
-			-- Fallback to expiration time if EndedAt not set
-			if orderCopy.ExpirationTime then
-				orderCopy.EndedAt = orderCopy.ExpirationTime
-			end
-		end
-		
+		local orderCopy = buildOrderResponse(order, 'expired')
 		table.insert(ordersArray, orderCopy)
 	end
 
@@ -366,18 +305,12 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 
 	-- Add type-specific fields
 	if foundOrder.OrderType == 'english' then
-		-- Get bid information for English auctions
-		local auctionBids = AuctionBids[orderId]
-		if auctionBids then
-			response.Bids = auctionBids.Bids
-			response.HighestBid = auctionBids.HighestBid
-			response.HighestBidder = auctionBids.HighestBidder
-		else
-			response.Bids = {}
-			response.HighestBid = nil
-			response.HighestBidder = nil
-		end
-		response.StartingPrice = foundOrder.Price
+		-- Apply unified English auction augmentation to ensure consistent fields
+		local tmp = applyEnglishAuctionFields(utils.deepCopy(foundOrder))
+		response.Bids = tmp.Bids or {}
+		response.HighestBid = tmp.HighestBid
+		response.HighestBidder = tmp.HighestBidder
+		response.StartingPrice = tmp.StartingPrice
 	elseif foundOrder.OrderType == 'dutch' then
 		response.StartingPrice = foundOrder.Price
 		response.MinimumPrice = foundOrder.MinimumPrice
@@ -496,21 +429,7 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 		local withFields = {}
 		for _, o in ipairs(orders) do
 			local oc = utils.deepCopy(o)
-			if oc.OrderType == 'english' then
-				local auctionBids = AuctionBids[oc.OrderId]
-				if auctionBids then
-					oc.Bids = auctionBids.Bids
-					oc.HighestBid = auctionBids.HighestBid
-					oc.HighestBidder = auctionBids.HighestBidder
-					if auctionBids.Settlement then
-						oc.Settlement = auctionBids.Settlement
-					end
-				else
-					oc.Bids = {}
-					oc.HighestBid = nil
-					oc.HighestBidder = nil
-				end
-			end
+			oc = applyEnglishAuctionFields(oc)
 			table.insert(withFields, oc)
 		end
 		return withFields
@@ -523,6 +442,8 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 	-- Add status/type specific fields
 	local listedWithFields = attachAuctionFields(filteredListedOrders)
 	local executedWithFields = attachAuctionFields(filteredExecutedOrders)
+	local cancelledWithFields = attachAuctionFields(filteredCancelledOrders)
+	local expiredWithFields = attachAuctionFields(normalizeTimestamps(ExpiredOrders))
 
 	ao.send({
 		Target = msg.From,
@@ -530,12 +451,12 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 		Data = json.encode({
 			ListedOrders = listedWithFields,
 			ExecutedOrders = executedWithFields,
-			CancelledOrders = filteredCancelledOrders,
-			ExpiredOrders = normalizeTimestamps(ExpiredOrders),
+			CancelledOrders = cancelledWithFields,
+			ExpiredOrders = expiredWithFields,
 			ActiveOrders = listedWithFields,
 			SettledOrders = executedWithFields,
-			CancelledOrdersList = filteredCancelledOrders,
-			ExpiredOrdersList = normalizeTimestamps(ExpiredOrders)
+			CancelledOrdersList = cancelledWithFields,
+			ExpiredOrdersList = expiredWithFields
 		})
 	})
 end)

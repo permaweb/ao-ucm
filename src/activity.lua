@@ -263,24 +263,10 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 	end
 
 	-- Build the response with common fields
-	local response = {
-		OrderId = foundOrder.OrderId,
-		Status = orderStatus,
-		OrderType = foundOrder.OrderType or 'fixed', -- Default to fixed if not specified
-		CreatedAt = foundOrder.CreatedAt and math.floor(tonumber(foundOrder.CreatedAt)) or nil,
-		TIMESTAMP = msg.Timestamp,
-		ExpirationTime = foundOrder.ExpirationTime and math.floor(tonumber(foundOrder.ExpirationTime)) or nil,
-		DominantToken = foundOrder.DominantToken,
-		SwapToken = foundOrder.SwapToken,
-		Sender = foundOrder.Sender,
-		Receiver = foundOrder.Receiver,
-		Quantity = foundOrder.Quantity,
-		Price = foundOrder.Price,
-		Domain = foundOrder.Domain,
-		OwnershipType = foundOrder.OwnershipType,
-		LeaseStartTimestamp = foundOrder.LeaseStartTimestamp and math.floor(tonumber(foundOrder.LeaseStartTimestamp)) or nil,
-		LeaseEndTimestamp = foundOrder.LeaseEndTimestamp and math.floor(tonumber(foundOrder.LeaseEndTimestamp)) or nil
-	}
+	local response =  foundOrder
+
+	response = applyEnglishAuctionFields(response)
+	response = normalizeOrderTimestamps(response)
 
 	-- Add status-specific fields
 	if orderStatus == 'settled' then
@@ -301,17 +287,7 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 	elseif orderStatus == 'cancelled' then
 		response.EndedAt = foundOrder.EndedAt and math.floor(tonumber(foundOrder.EndedAt)) or nil
 	end
-
-
-	-- Add type-specific fields
-	if foundOrder.OrderType == 'english' then
-		-- Apply unified English auction augmentation to ensure consistent fields
-		local tmp = applyEnglishAuctionFields(utils.deepCopy(foundOrder))
-		response.Bids = tmp.Bids or {}
-		response.HighestBid = tmp.HighestBid
-		response.HighestBidder = tmp.HighestBidder
-		response.StartingPrice = tmp.StartingPrice
-	elseif foundOrder.OrderType == 'dutch' then
+	if foundOrder.OrderType == 'dutch' then
 		response.StartingPrice = foundOrder.Price
 		response.MinimumPrice = foundOrder.MinimumPrice
 		response.DecreaseInterval = foundOrder.DecreaseInterval
@@ -682,7 +658,6 @@ Handlers.add('Update-Auction-Settlement', Handlers.utils.hasMatchingTag('Action'
 		if AuctionBids[orderId] then
 			AuctionBids[orderId].Settlement = {
 				Winner = data.Settlement.Winner,
-				WinningBid = data.Settlement.WinningBid,
 				Quantity = data.Settlement.Quantity,
 				Timestamp = data.Settlement.Timestamp
 			}

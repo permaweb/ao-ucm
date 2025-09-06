@@ -395,13 +395,17 @@ function utils.paginateTableWithCursor(tableArray, cursor, cursorField, limit, s
 	local startIndex = 1
 
 	if cursor then
-		-- Find the position where cursor should be inserted
-		-- Cursor is OrderId string, find the exact position
+		-- Advance using consistent cursor field
+		local cursorKey = cursorField or sortBy or "CreatedAt"
+		local lastIndex = nil
 		for i, obj in ipairs(sortedArray) do
-			if obj.OrderId == cursor then
-				startIndex = i + 1  -- Start after the cursor position
-				break
+			local value = cursorKey and obj[cursorKey] or obj
+			if tostring(value) == tostring(cursor) then
+				lastIndex = i
 			end
+		end
+		if lastIndex then
+			startIndex = lastIndex + 1
 		end
 	end
 
@@ -414,8 +418,8 @@ function utils.paginateTableWithCursor(tableArray, cursor, cursorField, limit, s
 
 	local nextCursor = nil
 	if endIndex < #sortedArray then
-		-- Return CreatedAt timestamp as cursor for pagination
-		nextCursor = tostring(sortedArray[endIndex]['CreatedAt'])
+		local cursorKey = cursorField or sortBy or 'CreatedAt'
+		nextCursor = tostring(sortedArray[endIndex][cursorKey])
 	end
 
 	return {

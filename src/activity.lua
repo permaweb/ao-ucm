@@ -267,6 +267,7 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 
 	response = applyEnglishAuctionFields(response)
 	response = normalizeOrderTimestamps(response)
+	response.Status = orderStatus
 
 	-- Add status-specific fields
 	if orderStatus == 'settled' then

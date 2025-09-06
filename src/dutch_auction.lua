@@ -101,7 +101,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 		end
 
 		-- Check if the order is a Dutch auction order
-		if currentOrderEntry.Type ~= 'dutch' then
+		if currentOrderEntry.OrderType ~= 'dutch' then
 			goto continue
 		end
 
@@ -114,11 +114,11 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 		-- Calculate current price based on time passed since order creation
 		local timePassed = bint(args.createdAt) - bint(currentOrderEntry.DateCreated)
 		print("timePassed", timePassed)
-		local intervalsPassed = math.floor(timePassed / bint(currentOrderEntry.DecreaseInterval))
+		local intervalsPassed = math.floor((timePassed) / bint(currentOrderEntry.DecreaseInterval))
 		local intervalsBint = bint(intervalsPassed)
 		local decreaseStepBint = bint(currentOrderEntry.DecreaseStep)
 		local priceReduction = intervalsBint * decreaseStepBint
-		local currentPrice = (currentOrderEntry.Price) - priceReduction
+		local currentPrice = bint(currentOrderEntry.Price) - priceReduction
 		print("CP2")
 		-- Ensure price doesn't go below minimum
 		if currentPrice < bint(currentOrderEntry.MinimumPrice) then
@@ -223,7 +223,7 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 		utils.handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
-			Message = 'No matching Dutch auction orders found for immediate ANT trade - exact quantity match required',
+			Message = 'No matching Dutch auction order found for immediate ANT trade',
 			Quantity = args.quantity,
 			TransferToken = args.dominantToken,
 			OrderGroupId = args.orderGroupId

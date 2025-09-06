@@ -114,7 +114,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 		end
 
 		-- Check if the order is a fixed order
-		if currentOrderEntry.Type ~= 'fixed' then
+		if currentOrderEntry.OrderType ~= 'fixed' then
 			goto continue
 		end
 
@@ -128,12 +128,12 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 			-- For ANT tokens, only allow complete trades - no partial amounts
 			local fillAmount, sendAmount
 
-			-- Check if the user's ARIO amount matches the ANT sell order price exactly
-			if bint(args.quantity) == bint(currentOrderEntry.Price) then
-				-- User wants to buy 1 ANT token
-				fillAmount = bint(1) -- 1 ANT token (always 1 for ANT orders)
-				-- User pays the exact amount of ARIO specified in the ANT sell order
-				sendAmount = bint(args.quantity)
+			-- Accept sent amount >= listed price; refund any excess
+			local requiredAmount = bint(currentOrderEntry.Price)
+			local sentAmount = bint(args.quantity)
+			if sentAmount >= requiredAmount then
+				-- User buys 1 ANT token
+				fillAmount = bint(1) -- always 1 for ANT orders
 
 				-- Validate we have a valid fill amount
 				if fillAmount <= bint(0) then
@@ -148,12 +148,25 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 					return
 				end
 
-				-- Apply fees and calculate final amounts
-				local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
+				-- Apply fees and calculate final amounts based on required amount
+				local calculatedSendAmount = utils.calculateSendAmount(requiredAmount)
 				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
 				-- Execute token transfers
 				utils.executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
+
+				-- Refund any excess ARIO sent over the required amount
+				if sentAmount > requiredAmount then
+					local refundAmount = sentAmount - requiredAmount
+					ao.send({
+						Target = args.dominantToken,
+						Action = 'Transfer',
+						Tags = {
+							Recipient = args.sender,
+							Quantity = tostring(refundAmount)
+						}
+					})
+				end
 
 				-- Record the match
 				local match = utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmount)
@@ -163,7 +176,7 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 				matchedOrderIndex = i
 				break -- Only match with one order, no partial matching
 			end
-			-- If ARIO amount doesn't match ANT sell order price exactly, skip this order and continue searching
+			-- If ARIO amount is less than price, skip and continue searching
 		end
 
 		::continue::

@@ -364,7 +364,7 @@ function english_auction.settleAuction(args)
 				Quantity = tostring(quantity),
 				Price = tostring(auctionBids.HighestBid),
 				CreatedAt = targetOrder.DateCreated,
-				ExecutionTime = args.timestamp
+				EndedAt = args.timestamp
 			}
 		})
 	end)

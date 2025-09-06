@@ -230,7 +230,7 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 							Quantity = tostring(order.Quantity),
 							Price = tostring(order.Price),
 							CreatedAt = msg.Timestamp,
-							CancellationTime = msg.Timestamp
+							EndedAt = msg.Timestamp
 						}
 					})
 				end)

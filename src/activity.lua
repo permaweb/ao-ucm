@@ -108,6 +108,21 @@ local function decorateOrder(order, status)
 	return oc
 end
 
+-- Filter orders by domain name substring
+local function filterOrdersByName(ordersArray, nameFilter)
+	if not nameFilter or nameFilter == '' then
+		return ordersArray
+	end
+	
+	local needle = string.lower(nameFilter)
+	return utils.filterArray(ordersArray, function(_, oc)
+		if not oc.Domain or type(oc.Domain) ~= 'string' then 
+			return false 
+		end
+		return string.find(string.lower(oc.Domain), needle, 1, true) ~= nil
+	end)
+end
+
 -- Build a unified, pure snapshot of all orders at a given time without mutating globals
 local function getListedSnapshot(now)
 	local active, ready, expired = {}, {}, {}
@@ -157,6 +172,9 @@ Handlers.add('Get-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-L
 	for _, oc in ipairs(active) do table.insert(ordersArray, oc) end
 	for _, oc in ipairs(ready) do table.insert(ordersArray, oc) end
 
+	-- Apply name filter if provided
+	ordersArray = filterOrdersByName(ordersArray, msg.Tags.Namefilter)
+
 	local paginatedOrders = utils.paginateTableWithCursor(ordersArray, page.cursor, 'CreatedAt', page.limit, page.sortBy, page.sortOrder, page.filters)
 
 	ao.send({
@@ -178,6 +196,9 @@ Handlers.add('Get-Completed-Orders', Handlers.utils.hasMatchingTag('Action', 'Ge
 	for _, oc in ipairs(cancelled) do table.insert(ordersArray, oc) end
 	for _, oc in ipairs(settled) do table.insert(ordersArray, oc) end
 	for _, oc in ipairs(expired) do table.insert(ordersArray, oc) end
+
+	-- Apply name filter if provided
+	ordersArray = filterOrdersByName(ordersArray, msg.Tags.Namefilter)
 
 	local paginatedOrders = utils.paginateTableWithCursor(ordersArray, page.cursor, 'CreatedAt', page.limit, page.sortBy, page.sortOrder, page.filters)
 

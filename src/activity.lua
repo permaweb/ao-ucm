@@ -28,10 +28,6 @@ local function normalizeOrderTimestamps(oc)
 	end
 	if oc.EndedAt then
 		oc.EndedAt = math.floor(tonumber(oc.EndedAt))
-	else
-		if oc.ExpirationTime then
-			oc.EndedAt = oc.ExpirationTime
-		end
 	end
 	return oc
 end

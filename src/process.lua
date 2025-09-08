@@ -154,128 +154,131 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 	local decodeCheck, data = utils.decodeMessageData(msg.Data)
 
 	if decodeCheck and data then
-		if not data.Pair or not data.OrderTxId then
+		if not data.OrderId then
 			ao.send({
 				Target = msg.From,
 				Action = 'Input-Error',
-				Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [TokenId, TokenId], OrderTxId }' }
+				Tags = { Status = 'Error', Message = 'Invalid arguments, required { OrderId }' }
 			})
 			return
 		end
-		-- Check if Pair and OrderTxId are valid
-		local validPair, pairError = utils.validatePairData(data.Pair)
-		local validOrderTxId = utils.checkValidAddress(data.OrderTxId)
 
-		if not validPair or not validOrderTxId then
-			local message = nil
+		-- Get order info from activity process
+		local activityQuery = ao.send({
+			Target = ACTIVITY_PROCESS,
+			Action = 'Get-Order-By-Id',
+			Data = json.encode({ OrderId = data.OrderId }),
+			Tags = {
+				Action = 'Get-Order-By-Id',
+				OrderId = data.OrderId,
+				Functioninvoke = "true"
+			}
+		}).receive()
 
-			if not validOrderTxId then message = 'OrderTxId is not a valid address' end
-			if not validPair then message = pairError or 'Error validating pair' end
-
-			ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = message or 'Error validating order cancel input' } })
+		local activityDecodeCheck, activityData = utils.decodeMessageData(activityQuery.Data)
+		if not activityDecodeCheck or not activityData then
+			ao.send({
+				Target = msg.From,
+				Action = 'Action-Response',
+				Tags = { Status = 'Error', Message = 'Order not found', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' }
+			})
 			return
 		end
 
-		-- Ensure the pair exists
-		local pairIndex = ucm.getPairIndex(validPair)
+		-- Check if the sender is the order creator
+		if msg.From ~= activityData.Sender then
+			ao.send({
+				Target = msg.From,
+				Action = 'Action-Response',
+				Tags = { Status = 'Error', Message = 'Unauthorized to cancel this order', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' }
+			})
+			return
+		end
 
-		-- If the pair exists then search for the order based on OrderTxId
-		if pairIndex > -1 then
-			local order = nil
-			local orderIndex = nil
+		-- Block cancellation of English auctions that have bids
+		if activityData.OrderType == 'english' and activityData.Bids and #activityData.Bids > 0 then
+			ao.send({
+				Target = msg.From,
+				Action = 'Action-Response',
+				Tags = {
+					Status = 'Error',
+					Message = 'You cannot cancel an English auction that has bids',
+					['X-Group-ID'] = data['X-Group-ID'] or 'None',
+					Handler = 'Cancel-Order'
+				}
+			})
+			return
+		end
 
-			for i, currentOrderEntry in ipairs(Orderbook[pairIndex].Orders) do
-				if data.OrderTxId == currentOrderEntry.Id then
-					order = currentOrderEntry
-					orderIndex = i
-				end
-			end
+		if activityData.Status ~= 'active' and activityData.Status ~= 'expired' then
+			ao.send({
+				Target = msg.From,
+				Action = 'Action-Response',
+				Tags = { Status = 'Error', Message = 'Order cannot be cancelled because it is not active or expired', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' }
+			})
+			return
+		end
 
-			-- The order is not found
-			if not order then
-				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Order not found', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
-				return
-			end
-
-			-- Check if the sender is the order creator
-			if msg.From ~= order.Creator then
-				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Unauthorized to cancel this order', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
-				return
-			end
-
-			-- Block cancellation of English auctions that have bids
-			if order.OrderType == 'english' then
-				-- Query the activity process to check if auction has bids
-				local activityQuery = ao.send({
-					Target = ACTIVITY_PROCESS,
-					Action = 'Get-Order-By-Id',
-					Data = json.encode({ OrderId = order.Id }),
-					Tags = {
-						Action = 'Get-Order-By-Id',
-						OrderId = order.Id,
-						Functioninvoke = "true"
-					}
-				}).receive()
-
-				local activityDecodeCheck, activityData = utils.decodeMessageData(activityQuery.Data)
-				if activityDecodeCheck and activityData and activityData.Bids and #activityData.Bids > 0 then
-					ao.send({ 
-						Target = msg.From, 
-						Action = 'Action-Response', 
-						Tags = { 
-							Status = 'Error', 
-							Message = 'You cannot cancel an English auction that has bids', 
-							['X-Group-ID'] = data['X-Group-ID'] or 'None', 
-							Handler = 'Cancel-Order' 
-						} 
-					})
-					return
-				end
-			end
-
-			if order and orderIndex > -1 then
-				-- Return funds to the creator
-				ao.send({
-					Target = order.Token,
-					Action = 'Transfer',
-					Tags = {
-						Recipient = order.Creator,
-						Quantity = order.Quantity
-					}
-				})
-
-				-- Remove the order from the current table
-				table.remove(Orderbook[pairIndex].Orders, orderIndex)
-
-				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order cancelled', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
-
-				local cancelledDataSuccess, cancelledData = pcall(function()
-					return json.encode({
-						Order = {
-							Id = data.OrderTxId,
-							DominantToken = validPair[1],
-							SwapToken = validPair[2],
-							Sender = msg.From,
-							Receiver = nil,
-							Quantity = tostring(order.Quantity),
-							Price = tostring(order.Price),
-							CreatedAt = msg.Timestamp,
-							EndedAt = msg.Timestamp,
-							CancellationTime = msg.Timestamp
+		-- Find and remove order from orderbook
+		local orderFound = false
+		for pairIdx, pairData in ipairs(Orderbook) do
+			for orderIdx, currentOrderEntry in ipairs(pairData.Orders) do
+				if data.OrderId == currentOrderEntry.Id then
+					-- Return funds to the creator
+					ao.send({
+						Target = currentOrderEntry.Token,
+						Action = 'Transfer',
+						Tags = {
+							Recipient = currentOrderEntry.Creator,
+							Quantity = currentOrderEntry.Quantity
 						}
 					})
-				end)
 
-				ao.send({
-					Target = ACTIVITY_PROCESS,
-					Action = 'Update-Cancelled-Orders',
-					Data = cancelledDataSuccess and cancelledData or ''
-				})
-			else
-				ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Error cancelling order', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
+					-- Remove the order from the orderbook
+					table.remove(Orderbook[pairIdx].Orders, orderIdx)
+					orderFound = true
+					break
+				end
 			end
+			if orderFound then break end
+		end
+
+		if orderFound then
+			ao.send({
+				Target = msg.From,
+				Action = 'Action-Response',
+				Tags = { Status = 'Success', Message = 'Order cancelled', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' }
+			})
+
+			-- Notify activity process of cancellation
+			local cancelledDataSuccess, cancelledData = pcall(function()
+				return json.encode({
+					Order = {
+						Id = data.OrderId,
+						DominantToken = activityData.DominantToken,
+						SwapToken = activityData.SwapToken,
+						Sender = msg.From,
+						Receiver = nil,
+						Quantity = tostring(activityData.Quantity),
+						Price = tostring(activityData.Price),
+						CreatedAt = msg.Timestamp,
+						EndedAt = msg.Timestamp,
+						CancellationTime = msg.Timestamp
+					}
+				})
+			end)
+
+			ao.send({
+				Target = ACTIVITY_PROCESS,
+				Action = 'Update-Cancelled-Orders',
+				Data = cancelledDataSuccess and cancelledData or ''
+			})
 		else
-			ao.send({ Target = msg.From, Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Pair not found', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
+			ao.send({
+				Target = msg.From,
+				Action = 'Action-Response',
+				Tags = { Status = 'Error', Message = 'Order not found in orderbook', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' }
+			})
 		end
 	else
 		ao.send({
@@ -285,7 +288,7 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 				Status = 'Error',
 				Message = string.format('Failed to parse data, received: %s. %s',
 					msg.Data,
-					'Data must be an object - { Pair: [TokenId, TokenId], OrderTxId }')
+					'Data must be an object - { OrderId }')
 			}
 		})
 	end

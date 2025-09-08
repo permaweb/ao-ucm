@@ -38,10 +38,17 @@ local function validateBidAmount(bidAmount, currentHighestBid, minimumBid)
 		return false, 'Bid amount must be a positive integer'
 	end
 
-	-- If there is a current highest bid, the new bid must be strictly higher
+	-- If there is a current highest bid, enforce bidding rules
 	if currentHighestBid then
+		-- General Bidding Rules: Each new bid must be higher than the current highest bid
 		if bint(bidAmount) <= bint(currentHighestBid) then
-			return false, 'Bid must be higher than current highest bid'
+			return false, 'Bids equal to or lower than the current bid are not allowed'
+		end
+		
+		-- Minimum Bid Increment: The next bid must be at least 1 ARIO higher than the current highest bid
+		local minimumIncrement = bint(1)
+		if bint(bidAmount) < bint(currentHighestBid) + minimumIncrement then
+			return false, 'The next bid must be at least 1 ARIO higher than the current highest bid'
 		end
 	else
 		-- No current bids yet: enforce minimum starting price if provided

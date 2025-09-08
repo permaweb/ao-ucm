@@ -1280,6 +1280,220 @@ utils.test('[ENGLISH AUCTION] should fail first bid below minimum price',
 	}
 )
 
+utils.test('[ENGLISH AUCTION] should fail bid that does not meet minimum 1 ARIO increment',
+	function()
+		resetTransfers()
+
+		Orderbook = {}
+
+		-- Create the English auction order first
+		ucm.createOrder({
+			orderId = 'english-auction-1',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (selling ANT)
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'ant-seller',
+			quantity = 1,
+			price = '500000000000',
+			createdAt = '1735689600000',
+			blockheight = '123456789',
+			orderType = 'english',
+			orderGroupId = 'test-group',
+			expirationTime = '1736035200000',
+		})
+
+		-- Place first bid (above minimum starting price)
+		ucm.createOrder({
+			orderId = 'bid-1',
+			targetAuctionId = 'english-auction-1',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (buying ANT)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
+			sender = 'bidder-1',
+			quantity = 600000000000, -- Above minimum starting price
+			createdAt = '1735689700000',
+			orderType = 'english',
+			orderGroupId = 'test-group',
+			requestedOrderId = 'english-auction-1'
+		})
+
+		-- Reset transfers for second bid
+		resetTransfers()
+
+		-- Try to place bid that's only 1 unit higher (should fail - needs to be at least 1 ARIO higher)
+		ucm.createOrder({
+			orderId = 'bid-2',
+			targetAuctionId = 'english-auction-1',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (buying ANT)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
+			sender = 'bidder-2',
+			quantity = 600000000001, -- Only 1 unit higher than current bid (600000000000)
+			createdAt = '1735689800000',
+			orderType = 'english',
+			orderGroupId = 'test-group',
+			requestedOrderId = 'english-auction-1'
+		})
+
+		-- Validate that only the rejected bid transfer occurred (bid should be rejected for not meeting minimum increment)
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '600000000001',
+				recipient = 'bidder-2',
+				target = ARIO_TOKEN_PROCESS_ID
+			}
+		}
+
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
+
+		return {Orderbook = Orderbook, EnglishAuctionBids = EnglishAuctionBids}
+	end,
+	{
+		Orderbook = {
+			{
+				Pair = {'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'},
+				Orders = {
+					{
+						Id = 'english-auction-1',
+						Quantity = '1',
+						OriginalQuantity = '1',
+						Creator = 'ant-seller',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						DateCreated = '1735689600000',
+						ExpirationTime = '1736035200000',
+						Price = '500000000000',
+						Type = 'english',
+					}
+				}
+			}
+		},
+		EnglishAuctionBids = {
+			['english-auction-1'] = {
+				Bids = {
+					{
+						Bidder = 'bidder-1',
+						Amount = '600000000000',
+						Timestamp = '1735689700000',
+						OrderId = 'english-auction-1'
+					}
+				},
+				HighestBid = '600000000000',
+				HighestBidder = 'bidder-1'
+			}
+		}
+	}
+)
+
+utils.test('[ENGLISH AUCTION] should allow bid that meets minimum 1 ARIO increment',
+	function()
+		resetTransfers()
+
+		Orderbook = {}
+
+		-- Create the English auction order first
+		ucm.createOrder({
+			orderId = 'english-auction-1',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (selling ANT)
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (wanting ARIO)
+			sender = 'ant-seller',
+			quantity = 1,
+			price = '500000000000',
+			createdAt = '1735689600000',
+			blockheight = '123456789',
+			orderType = 'english',
+			orderGroupId = 'test-group',
+			expirationTime = '1736035200000',
+		})
+
+		-- Place first bid (above minimum starting price)
+		ucm.createOrder({
+			orderId = 'bid-1',
+			targetAuctionId = 'english-auction-1',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (buying ANT)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
+			sender = 'bidder-1',
+			quantity = 600000000000, -- Above minimum starting price
+			createdAt = '1735689700000',
+			orderType = 'english',
+			orderGroupId = 'test-group',
+			requestedOrderId = 'english-auction-1'
+		})
+
+		-- Reset transfers for second bid
+		resetTransfers()
+
+		-- Place bid that meets minimum 1 ARIO increment (exactly 1 ARIO higher)
+		ucm.createOrder({
+			orderId = 'bid-2',
+			targetAuctionId = 'english-auction-1',
+			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (buying ANT)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT
+			sender = 'bidder-2',
+			quantity = 600000001000, -- Exactly 1 ARIO (1000 units) higher than current bid
+			createdAt = '1735689800000',
+			orderType = 'english',
+			orderGroupId = 'test-group',
+			requestedOrderId = 'english-auction-1'
+		})
+
+		-- Validate expected transfers (refund to first bidder)
+		local expectedTransfers = {
+			{
+				action = 'Transfer',
+				quantity = '600000000000', -- Refund to first bidder
+				recipient = 'bidder-1',
+				target = ARIO_TOKEN_PROCESS_ID
+			}
+		}
+
+		if not validateTransfers(expectedTransfers) then
+			return nil -- Test failed due to transfer mismatch
+		end
+
+		return {Orderbook = Orderbook, EnglishAuctionBids = EnglishAuctionBids}
+	end,
+	{
+		Orderbook = {
+			{
+				Pair = {'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'},
+				Orders = {
+					{
+						Id = 'english-auction-1',
+						Quantity = '1',
+						OriginalQuantity = '1',
+						Creator = 'ant-seller',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						DateCreated = '1735689600000',
+						ExpirationTime = '1736035200000',
+						Price = '500000000000',
+						Type = 'english',
+					}
+				}
+			}
+		},
+		EnglishAuctionBids = {
+			['english-auction-1'] = {
+				Bids = {
+					{
+						Bidder = 'bidder-1',
+						Amount = '600000000000',
+						Timestamp = '1735689700000',
+						OrderId = 'english-auction-1'
+					},
+					{
+						Bidder = 'bidder-2',
+						Amount = '600000001000',
+						Timestamp = '1735689800000',
+						OrderId = 'english-auction-1'
+					}
+				},
+				HighestBid = '600000001000',
+				HighestBidder = 'bidder-2'
+			}
+		}
+	}
+)
+
 utils.test('[ENGLISH AUCTION] Get-Order-By-Id should return correct buyer address for settled auction',
 	function()
 		resetState()

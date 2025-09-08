@@ -8,7 +8,6 @@ UCM_PROCESS = 'a3jqBgXGAqefY4EHqkMwXhkBSFxZfzVdLU1oMUTQ-1M'
 if not ListedOrders then ListedOrders = {} end
 if not ExecutedOrders then ExecutedOrders = {} end
 if not CancelledOrders then CancelledOrders = {} end
-if not ExpiredOrders then ExpiredOrders = {} end
 if not SalesByAddress then SalesByAddress = {} end
 if not PurchasesByAddress then PurchasesByAddress = {} end
 if not AuctionBids then AuctionBids = {} end
@@ -71,63 +70,96 @@ local function buildOrderResponse(order, status)
 end
 
 
--- Reusable state updater to move expired orders from Listed to Expired
-local function updateOrderStates(currentTimestamp)
-	local currentTime = math.floor(tonumber(currentTimestamp))
-	local remainingListed = {}
-	local remainingExpired = ExpiredOrders
-	for _, order in ipairs(ListedOrders) do
-		local isExpired = false
-		if order.ExpirationTime then
-			local expirationTime = math.floor(tonumber(order.ExpirationTime))
-			-- print('expirationTime')
-			-- print(expirationTime)
-			-- print(currentTime)
-			-- print('--------------------------------')
-			if currentTime >= expirationTime then
-				if order.OrderType == 'english' then
-					local auctionBids = AuctionBids[order.OrderId]
-					if (auctionBids and auctionBids.HighestBidder) then
-						order.Status = 'ready-for-settlement'
-					else
-						isExpired = true
-						order.Status = 'expired'
-					end
+-- Pure status computation for orders currently in ListedOrders
+local function computeListedStatus(order, now)
+	local status = 'active'
+	local endedAt = nil
+	if order.ExpirationTime then
+		local expirationTime = math.floor(tonumber(order.ExpirationTime))
+		if now >= expirationTime then
+			if order.OrderType == 'english' then
+				local auctionBids = AuctionBids[order.OrderId]
+				if auctionBids and auctionBids.HighestBidder then
+					status = 'ready-for-settlement'
 				else
-					isExpired = true
-					order.Status = 'expired'
+					status = 'expired'
+					endedAt = expirationTime
 				end
+			else
+				status = 'expired'
+				endedAt = expirationTime
 			end
 		end
+	end
+	return status, endedAt
+end
 
-		if isExpired then
-			order.EndedAt = order.ExpirationTime
-			table.insert(remainingExpired, order)
-		else
-			table.insert(remainingListed, order)
+-- Decorate orders with normalized timestamps, auction fields, and type-specific extras
+local function decorateOrder(order, status)
+	local oc = utils.deepCopy(order)
+	if status then oc.Status = status end
+	oc = normalizeOrderTimestamps(oc)
+	oc = applyEnglishAuctionFields(oc)
+	if status == 'settled' then
+		oc.Buyer = oc.Receiver
+		if order.OrderType == 'dutch' or order.OrderType == 'fixed' then
+			oc.FinalPrice = oc.Price
+		end
+	elseif status == 'expired' and oc.ExpirationTime and not oc.EndedAt then
+		oc.EndedAt = oc.ExpirationTime
+	end
+	
+	return oc
+end
+
+-- Build a unified, pure snapshot of all orders at a given time without mutating globals
+local function getListedSnapshot(now)
+	local active, ready, expired = {}, {}, {}
+	for _, order in ipairs(ListedOrders) do
+		local status, endedAt = computeListedStatus(order, now)
+		local oc = decorateOrder(order, status)
+		if endedAt then oc.EndedAt = endedAt end
+		if status == 'active' then table.insert(active, oc)
+		elseif status == 'ready-for-settlement' then table.insert(ready, oc)
+		elseif status == 'expired' then table.insert(expired, oc)
 		end
 	end
-	ListedOrders = remainingListed
-	ExpiredOrders = remainingExpired
+	return active, ready, expired
 end
+
+local function getExecutedSnapshot()
+	local executed = {}
+	for _, order in ipairs(ExecutedOrders) do
+		local oc = decorateOrder(order, 'settled')
+		oc.EndedAt = oc.EndedAt or order.EndedAt or order.ExecutionTime
+		table.insert(executed, oc)
+	end
+	return executed
+end
+
+local function getCancelledSnapshot()
+	local cancelled = {}
+	for _, order in ipairs(CancelledOrders) do
+		local oc = decorateOrder(order, 'cancelled')
+		oc.EndedAt = oc.EndedAt or order.EndedAt or order.CancellationTime
+		table.insert(cancelled, oc)
+	end
+	return cancelled
+end
+
+
+-- Reusable state updater to move expired orders from Listed to Expired
+-- updateOrderStates removed: we compute status on the fly for reads
 
 -- Get listed orders
 Handlers.add('Get-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-Listed-Orders'), function(msg)
 	local page = utils.parsePaginationTags(msg)
 
-	-- Build listed orders with proper status, and keep expired English auctions with winner
-	local currentTimestamp = msg.Timestamp
-	updateOrderStates(currentTimestamp)
+	local now = math.floor(tonumber(msg.Timestamp))
+	local active, ready = getListedSnapshot(now)
 	local ordersArray = {}
-	for _, order in pairs(ListedOrders) do
-		local orderCopy = utils.deepCopy(order)
-		local status = order.Status or 'active'  -- Use the status set by updateOrderStates
-		if status == 'active' or status == 'ready-for-settlement' then
-			orderCopy = buildOrderResponse(order, status)
-			table.insert(ordersArray, orderCopy)
-		end
-	end
-
+	for _, oc in ipairs(active) do table.insert(ordersArray, oc) end
+	for _, oc in ipairs(ready) do table.insert(ordersArray, oc) end
 
 	local paginatedOrders = utils.paginateTableWithCursor(ordersArray, page.cursor, 'CreatedAt', page.limit, page.sortBy, page.sortOrder, page.filters)
 
@@ -142,26 +174,14 @@ end)
 Handlers.add('Get-Completed-Orders', Handlers.utils.hasMatchingTag('Action', 'Get-Completed-Orders'), function(msg)
 	local page = utils.parsePaginationTags(msg)
 
-	-- Ensure expired orders are moved first
-	updateOrderStates(msg.Timestamp)
-
+	local now = math.floor(tonumber(msg.Timestamp))
+	local cancelled = getCancelledSnapshot()
+	local settled = getExecutedSnapshot()
+	local _, _, expired = getListedSnapshot(now)
 	local ordersArray = {}
-	for _, order in pairs(CancelledOrders) do
-		local orderCopy = buildOrderResponse(order, 'cancelled')
-		table.insert(ordersArray, orderCopy)
-	end
-
-	for _, order in pairs(ExecutedOrders) do
-		local orderCopy = buildOrderResponse(order, 'settled')
-		table.insert(ordersArray, orderCopy)
-	end
-
-	-- Include expired orders
-	for _, order in pairs(ExpiredOrders) do
-		local orderCopy = buildOrderResponse(order, 'expired')
-		table.insert(ordersArray, orderCopy)
-	end
-
+	for _, oc in ipairs(cancelled) do table.insert(ordersArray, oc) end
+	for _, oc in ipairs(settled) do table.insert(ordersArray, oc) end
+	for _, oc in ipairs(expired) do table.insert(ordersArray, oc) end
 
 	local paginatedOrders = utils.paginateTableWithCursor(ordersArray, page.cursor, 'CreatedAt', page.limit, page.sortBy, page.sortOrder, page.filters)
 
@@ -199,59 +219,21 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 		return
 	end
 
-	-- Ensure expired orders are moved first
-	updateOrderStates(msg.Timestamp)
-	
-	-- Search for the order in all order tables
-	local foundOrder = nil
-	local orderStatus = nil
-	local orderSource = nil
+	local now = math.floor(tonumber(msg.Timestamp))
+	local active, ready, expired = getListedSnapshot(now)
+	local listedById = {}
+	for _, oc in ipairs(active) do listedById[oc.OrderId] = oc end
+	for _, oc in ipairs(ready) do listedById[oc.OrderId] = oc end
+	for _, oc in ipairs(expired) do listedById[oc.OrderId] = oc end
 
-	-- Check ListedOrders (active orders)
-	for _, order in ipairs(ListedOrders) do
-		if order.OrderId == orderId then
-			foundOrder = order
-			orderSource = 'ListedOrders'
-			orderStatus = order.Status or 'active'  -- Use the status set by updateOrderStates
-			break
-		end
-	end
+	local executed = getExecutedSnapshot()
+	local cancelled = getCancelledSnapshot()
+	local executedById, cancelledById = {}, {}
+	for _, oc in ipairs(executed) do executedById[oc.OrderId] = oc end
+	for _, oc in ipairs(cancelled) do cancelledById[oc.OrderId] = oc end
 
-	-- Check ExecutedOrders (settled orders)
-	if not foundOrder then
-		for _, order in ipairs(ExecutedOrders) do
-			if order.OrderId == orderId then
-				foundOrder = order
-				orderStatus = 'settled'
-				orderSource = 'ExecutedOrders'
-				break
-			end
-		end
-	end
-
-	-- Check CancelledOrders (cancelled orders)
-	if not foundOrder then
-		for _, order in ipairs(CancelledOrders) do
-			if order.OrderId == orderId then
-				foundOrder = order
-				orderStatus = 'cancelled'
-				orderSource = 'CancelledOrders'
-				break
-			end
-		end
-	end
-
-	-- Check ExpiredOrders (expired orders)
-	if not foundOrder then
-		for _, order in ipairs(ExpiredOrders) do
-			if order.OrderId == orderId then
-				foundOrder = order
-				orderStatus = 'expired'
-				orderSource = 'ExpiredOrders'
-				break
-			end
-		end
-	end
+	local foundOrder = cancelledById[orderId] or executedById[orderId] or listedById[orderId]
+	local orderStatus = foundOrder and foundOrder.Status or nil
 
 	if not foundOrder then
 		ao.send({
@@ -262,39 +244,13 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 		return
 	end
 
-	-- Build the response with common fields
-	local response =  foundOrder
+	-- foundOrder is already decorated by snapshot
+	local response = foundOrder
 
-	response = applyEnglishAuctionFields(response)
-	response = normalizeOrderTimestamps(response)
-	response.Status = orderStatus
-
-	-- Add status-specific fields
-	if orderStatus == 'settled' then
-		response.EndedAt = foundOrder.EndedAt and math.floor(tonumber(foundOrder.EndedAt)) or nil
-		response.Buyer = foundOrder.Receiver
-	elseif orderStatus == 'expired' then
-		response.EndedAt = foundOrder.ExpirationTime and math.floor(tonumber(foundOrder.ExpirationTime)) or nil
-	elseif orderStatus == 'ready-for-settlement' then
-		-- Add settlement-ready specific fields
-		local auctionBids = AuctionBids[orderId]
-		if auctionBids then
-			response.HighestBid = auctionBids.HighestBid
-			response.HighestBidder = auctionBids.HighestBidder
-			response.CanSettle = true
-		end
-	elseif orderStatus == 'active' then
-		-- No specific fields for active orders
-	elseif orderStatus == 'cancelled' then
-		response.EndedAt = foundOrder.EndedAt and math.floor(tonumber(foundOrder.EndedAt)) or nil
-	end
-	if foundOrder.OrderType == 'dutch' then
-		response.StartingPrice = foundOrder.Price
-		response.MinimumPrice = foundOrder.MinimumPrice
-		response.DecreaseInterval = foundOrder.DecreaseInterval
-		response.DecreaseStep = foundOrder.DecreaseStep
-	elseif foundOrder.OrderType == 'fixed' then
-		-- Fixed price orders don't have additional type-specific fields
+	-- Debugging:
+	response.CURRENT_TIMESTAMP = msg.Timestamp
+	if response.ExpirationTime then
+		response.TIMESTAMP_DELTA = response.ExpirationTime - now
 	end
 
 	if msg.Tags.Functioninvoke or msg.Tags.FunctionInvoke then
@@ -321,8 +277,10 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 		return
 	end
 
-	-- Ensure latest state before reads
-	updateOrderStates(msg.Timestamp)
+	local now = math.floor(tonumber(msg.Timestamp))
+	local active, ready, expired = getListedSnapshot(now)
+	local executed = getExecutedSnapshot()
+	local cancelled = getCancelledSnapshot()
 
 	local filteredListedOrders = {}
 	local filteredExecutedOrders = {}
@@ -369,58 +327,20 @@ Handlers.add('Get-Activity', Handlers.utils.hasMatchingTag('Action', 'Get-Activi
 	if data.StartDate then startDate = data.StartDate end
 	if data.EndDate then endDate = data.EndDate end
 
-	filteredListedOrders = filterOrders(ListedOrders, assetIdsSet, data.Address, startDate, endDate)
-	filteredExecutedOrders = filterOrders(ExecutedOrders, assetIdsSet, data.Address, startDate, endDate)
-	filteredCancelledOrders = filterOrders(CancelledOrders, assetIdsSet, data.Address, startDate, endDate)
+	local baseListed = {}
+	for _, oc in ipairs(active) do table.insert(baseListed, oc) end
+	for _, oc in ipairs(ready) do table.insert(baseListed, oc) end
+	filteredListedOrders = filterOrders(baseListed, assetIdsSet, data.Address, startDate, endDate)
+	filteredExecutedOrders = filterOrders(executed, assetIdsSet, data.Address, startDate, endDate)
+	filteredCancelledOrders = filterOrders(cancelled, assetIdsSet, data.Address, startDate, endDate)
 
-	local function normalizeTimestamps(orders)
-		local normalized = {}
-		for _, o in ipairs(orders) do
-			local oc = utils.deepCopy(o)
-			-- Coerce all timestamp fields to integers
-			if oc.CreatedAt then
-				oc.CreatedAt = math.floor(tonumber(oc.CreatedAt))
-			end
-			if oc.ExpirationTime then
-				oc.ExpirationTime = math.floor(tonumber(oc.ExpirationTime))
-			end
-			if oc.LeaseStartTimestamp then
-				oc.LeaseStartTimestamp = math.floor(tonumber(oc.LeaseStartTimestamp))
-			end
-			if oc.LeaseEndTimestamp then
-				oc.LeaseEndTimestamp = math.floor(tonumber(oc.LeaseEndTimestamp))
-			end
-			if oc.EndedAt then
-				oc.EndedAt = math.floor(tonumber(oc.EndedAt))
-			else
-				if oc.ExpirationTime then
-					oc.EndedAt = oc.ExpirationTime
-				end
-			end
-			table.insert(normalized, oc)
-		end
-		return normalized
-	end
-
-	local function attachAuctionFields(orders)
-		local withFields = {}
-		for _, o in ipairs(orders) do
-			local oc = utils.deepCopy(o)
-			oc = applyEnglishAuctionFields(oc)
-			table.insert(withFields, oc)
-		end
-		return withFields
-	end
-
-	filteredListedOrders = normalizeTimestamps(filteredListedOrders)
-	filteredExecutedOrders = normalizeTimestamps(filteredExecutedOrders)
-	filteredCancelledOrders = normalizeTimestamps(filteredCancelledOrders)
-
-	-- Add status/type specific fields
-	local listedWithFields = attachAuctionFields(filteredListedOrders)
-	local executedWithFields = attachAuctionFields(filteredExecutedOrders)
-	local cancelledWithFields = attachAuctionFields(filteredCancelledOrders)
-	local expiredWithFields = attachAuctionFields(normalizeTimestamps(ExpiredOrders))
+	-- All orders already decorated/normalized by snapshot
+	local listedWithFields = filteredListedOrders
+	local executedWithFields = filteredExecutedOrders
+	local cancelledWithFields = filteredCancelledOrders
+	-- Expired are from snapshot as well (no filter applied previously); apply filters if provided
+	local expiredBase = expired
+	local expiredWithFields = filterOrders(expiredBase, assetIdsSet, data.Address, startDate, endDate)
 
 	ao.send({
 		Target = msg.From,

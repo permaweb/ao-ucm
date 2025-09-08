@@ -247,12 +247,6 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 	-- foundOrder is already decorated by snapshot
 	local response = foundOrder
 
-	-- Debugging:
-	response.CURRENT_TIMESTAMP = msg.Timestamp
-	if response.ExpirationTime then
-		response.TIMESTAMP_DELTA = response.ExpirationTime - now
-	end
-
 	if msg.Tags.Functioninvoke or msg.Tags.FunctionInvoke then
 		msg.reply({Data = json.encode(response)})
 	else

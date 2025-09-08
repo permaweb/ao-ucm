@@ -203,6 +203,36 @@ Handlers.add('Cancel-Order', Handlers.utils.hasMatchingTag('Action', 'Cancel-Ord
 				return
 			end
 
+			-- Block cancellation of English auctions that have bids
+			if order.OrderType == 'english' then
+				-- Query the activity process to check if auction has bids
+				local activityQuery = ao.send({
+					Target = ACTIVITY_PROCESS,
+					Action = 'Get-Order-By-Id',
+					Data = json.encode({ OrderId = order.Id }),
+					Tags = {
+						Action = 'Get-Order-By-Id',
+						OrderId = order.Id,
+						Functioninvoke = "true"
+					}
+				}).receive()
+
+				local activityDecodeCheck, activityData = utils.decodeMessageData(activityQuery.Data)
+				if activityDecodeCheck and activityData and activityData.Bids and #activityData.Bids > 0 then
+					ao.send({ 
+						Target = msg.From, 
+						Action = 'Action-Response', 
+						Tags = { 
+							Status = 'Error', 
+							Message = 'You cannot cancel an English auction that has bids', 
+							['X-Group-ID'] = data['X-Group-ID'] or 'None', 
+							Handler = 'Cancel-Order' 
+						} 
+					})
+					return
+				end
+			end
+
 			if order and orderIndex > -1 then
 				-- Return funds to the creator
 				ao.send({

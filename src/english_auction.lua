@@ -325,6 +325,8 @@ function english_auction.settleAuction(args)
 	local calculatedSendAmount = utils.calculateSendAmount(winningBidAmount)
 	local calculatedFillAmount = utils.calculateFillAmount(quantity)
 
+	utils.sendFeeToTreasury(winningBidAmount, calculatedSendAmount, validPair[1])
+
 	-- Execute token transfers
 	utils.executeTokenTransfers({
 		sender = auctionBids.HighestBidder,

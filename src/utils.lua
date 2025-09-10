@@ -7,6 +7,8 @@ if not AccruedFeesAmount then AccruedFeesAmount = 0 end
 -- CHANGEME
 ARIO_TOKEN_PROCESS_ID = 'agYcCFJtrMG6cqMuZfskIkFTGvUPddICmtQSBIoPdiA'
 
+TREASURY_ADDRESS = 'cqnFNTEDGuWOOpnrrdoQZ262Be8e_kGT2na-BlGFyks'
+
 function utils.checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
 		return false
@@ -681,5 +683,25 @@ function utils.filterArray(array, filterFn)
 	end
 	return result
 end
+
+function utils.sendFeeToTreasury(originalAmount, calculatedAmount, feeToken)
+    if not TREASURY_ADDRESS or TREASURY_ADDRESS == 'cqnFNTEDGuWOOpnrrdoQZ262Be8e_kGT2na-BlGFyks' then
+        return
+    end
+
+    local feeAmount = bint(originalAmount) - bint(calculatedAmount)
+
+    if feeAmount > bint(0) then
+        ao.send({
+            Target = feeToken,
+            Action = 'Transfer',
+            Tags = {
+                Recipient = TREASURY_ADDRESS,
+                Quantity = tostring(feeAmount)
+            }
+        })
+    end
+end
+
 
 return utils

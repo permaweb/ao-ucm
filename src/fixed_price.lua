@@ -152,6 +152,8 @@ function fixed_price.handleAntOrder(args, validPair, pairIndex)
 				local calculatedSendAmount = utils.calculateSendAmount(requiredAmount)
 				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
 
+				utils.sendFeeToTreasury(sendAmount, calculatedSendAmount, args.dominantToken)
+
 				-- Execute token transfers
 				utils.executeTokenTransfers(args, currentOrderEntry, validPair, calculatedSendAmount, calculatedFillAmount)
 

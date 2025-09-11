@@ -444,6 +444,10 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			end
 		end
 
+		if foundOrder and foundOrder.OrderType == 'english' then
+            foundOrder.StartingPrice = foundOrder.Price
+        end
+
 		foundOrder.EndedAt = data.Order.EndedAt or data.Order.ExecutionTime
 		-- Merge execution payload fields to ensure buyer/price are recorded
 		foundOrder.DominantToken = data.Order.DominantToken or foundOrder.DominantToken

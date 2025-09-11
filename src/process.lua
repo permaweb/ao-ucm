@@ -135,6 +135,14 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			}).receive()
 			
 			local decodeCheck, domainData = utils.decodeMessageData(domainPaginatedRecords.Data)
+			if not decodeCheck or not domainData then
+				ao.send({
+					Target = msg.From,
+					Action = 'Validation-Error',
+					Tags = { Status = 'Error', Message = 'Failed to fetch domain' }
+				})
+				return
+			end
 			local domain = domainData.items[1].name
 			local ownershipType = domainData.items[1].type
 

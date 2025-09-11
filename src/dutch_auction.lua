@@ -163,6 +163,8 @@ function dutch_auction.handleAntOrder(args, validPair, pairIndex)
 				return
 			end
 
+			args.executionPrice = tostring(currentPrice)
+			
 			-- Apply fees and calculate final amounts
 			local calculatedSendAmount = utils.calculateSendAmount(requiredAmount)
 			local calculatedFillAmount = utils.calculateFillAmount(fillAmount)

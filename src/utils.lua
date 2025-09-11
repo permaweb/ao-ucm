@@ -303,7 +303,8 @@ function utils.recordMatch(args, currentOrderEntry, validPair, calculatedFillAmo
 				Sender = currentOrderEntry.Creator,
 				Receiver = args.sender,
 				Quantity = calculatedFillAmount,
-				Price = tostring(currentOrderEntry.Price),
+				--Use executionPrice if it exists for dutch order, otherwise original price.
+				Price = args.executionPrice or tostring(currentOrderEntry.Price),
 				CreatedAt = args.createdAt,
 				EndedAt = args.createdAt,
 				ExecutionTime = args.createdAt

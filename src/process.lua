@@ -59,29 +59,33 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 		Quantity = msg.Tags.Quantity
 	}
 
+	-- Ensure we refund deposits on early validation failures
+	local function refundAndError(message, action)
+		utils.handleError({
+			Target = data.Sender,
+			Action = action or 'Validation-Error',
+			Message = message,
+			Quantity = msg.Tags.Quantity,
+			TransferToken = msg.From,
+			OrderGroupId = msg.Tags['X-Group-ID'] or 'None'
+		})
+	end
+
 	-- Check if sender is a valid address
 	if not utils.checkValidAddress(data.Sender) then
-		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Sender must be a valid address' } })
+		refundAndError('Sender must be a valid address')
 		return
 	end
 
 	-- Check if quantity is a valid integer greater than zero
 	if not utils.checkValidAmount(data.Quantity) then
-		ao.send({ Target = msg.From, Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
+		refundAndError('Quantity must be an integer greater than zero')
 		return
 	end
 
 	-- Check if all required fields are present
 	if not data.Sender or not data.Quantity then
-		ao.send({
-			Target = msg.From,
-			Action = 'Input-Error',
-			Tags = {
-				Status = 'Error',
-				Message =
-				'Invalid arguments, required { Sender, Quantity }'
-			}
-		})
+		refundAndError('Invalid arguments, required { Sender, Quantity }', 'Input-Error')
 		return
 	end
 
@@ -111,8 +115,7 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			expirationTime = msg.Tags['X-Expiration-Time'] and tonumber(msg.Tags['X-Expiration-Time']),
 			minimumPrice = msg.Tags['X-Minimum-Price'],
 			decreaseInterval = msg.Tags['X-Decrease-Interval'],
-			requestedOrderId = msg.Tags['X-Requested-Order-Id'],
-			domain = domain
+			requestedOrderId = msg.Tags['X-Requested-Order-Id']
 		}
 
 		if msg.Tags['X-Price'] then
@@ -135,26 +138,31 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
 			}).receive()
 			
 			local decodeCheck, domainData = utils.decodeMessageData(domainPaginatedRecords.Data)
-			if not decodeCheck or not domainData then
-				ao.send({
-					Target = msg.From,
-					Action = 'Validation-Error',
-					Tags = { Status = 'Error', Message = 'Failed to fetch domain' }
-				})
+			local items = (decodeCheck and domainData and domainData.items) or nil
+			if not items or type(items) ~= 'table' or not items[1] or not items[1].name or not items[1].type then
+				refundAndError('Failed to fetch domain')
 				return
 			end
-			local domain = domainData.items[1].name
-			local ownershipType = domainData.items[1].type
+			local first = items[1]
+			local domain = first.name
+			local ownershipType = first.type
 
 			if ownershipType == "lease" then
-				orderArgs.leaseStartTimestamp = domainData.items[1].startTimestamp
-				orderArgs.leaseEndTimestamp = domainData.items[1].endTimestamp
+				orderArgs.leaseStartTimestamp = first.startTimestamp
+				orderArgs.leaseEndTimestamp = first.endTimestamp
 			end
 			orderArgs.domain = domain
 			orderArgs.ownershipType = ownershipType
 		end
 
-		ucm.createOrder(orderArgs)
+		-- Protect order creation to refund on unexpected runtime errors
+		local ok, err = pcall(function()
+			ucm.createOrder(orderArgs)
+		end)
+		if not ok then
+			refundAndError('Order creation failed: ' .. tostring(err), 'Order-Error')
+			return
+		end
 	end
 end)
 

@@ -78,7 +78,7 @@ utils.test('should execute immediate trade when selling ARIO to buy ANT with mat
 						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 						DateCreated = '1722535710966',
 						ExpirationTime = '1722535720966',
-						Type = 'fixed'
+						OrderType = 'fixed'
 					}
 				}
 			}
@@ -181,7 +181,7 @@ utils.test('should add ANT sell order to orderbook when selling ANT to buy ARIO'
 					DateCreated = '1722535710966',
 					ExpirationTime = '1722535720966',
 					Price = '500000000000',
-					Type = 'fixed'
+					OrderType = 'fixed'
 				}
 			}
 		}
@@ -611,7 +611,7 @@ utils.test('should apply correct fees to successful ANT trades when buying with 
 						Price = '1000000000000', -- 1000 ARIO per ANT
 						Creator = 'ant-seller',
 						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-						Type = 'fixed' -- ANT sell order
+						OrderType = 'fixed' -- ANT sell order
 					}
 				}
 			}
@@ -659,9 +659,9 @@ utils.test('should apply correct fees to successful ANT trades when buying with 
 			PriceData = {
 				MatchLogs = {
 					{
-						Id = 'existing-ant-order',
-						Quantity = '1',
-						Price = '1000000000000'
+					 Id = 'existing-ant-order',
+					 Quantity = '1',
+					 Price = '1000000000000'
 					}
 				},
 				Vwap = '1000000000000',
@@ -686,7 +686,7 @@ utils.test('should handle fee calculation with very small amounts when buying AN
 						Price = '1000', -- Very small price
 						Creator = 'ant-seller',
 						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-						Type = 'fixed' -- ANT sell order
+						OrderType = 'fixed' -- ANT sell order
 					}
 				}
 			}
@@ -862,7 +862,7 @@ utils.test('should allow different ANT tokens to be sold simultaneously',
 						Price = '500000000000',
 						Creator = 'ant-seller-1',
 						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-						Type = 'fixed' -- First ANT token
+						OrderType = 'fixed' -- First ANT token
 					}
 				}
 			}
@@ -894,7 +894,7 @@ utils.test('should allow different ANT tokens to be sold simultaneously',
 					Price = '500000000000',
 					Creator = 'ant-seller-1',
 					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-					Type = 'fixed' -- First ANT token
+					OrderType = 'fixed' -- First ANT token
 				}
 			}
 		},
@@ -910,7 +910,7 @@ utils.test('should allow different ANT tokens to be sold simultaneously',
 					DateCreated = '1722535710966',
 					ExpirationTime = '1753860134000',
 					Price = '600000000000',
-					Type = 'fixed'
+					OrderType = 'fixed'
 				}
 			}
 		}
@@ -993,7 +993,7 @@ utils.test('should allow order without expiration time',
 					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 					Creator = 'test-seller',
 					Quantity = '1',
-					Type = 'fixed',
+					OrderType = 'fixed',
 					DateCreated = '1722535710966'
 				}
 			}
@@ -1106,7 +1106,7 @@ utils.test('should accept order with valid expiration time greater than timestam
 					DateCreated = '1722535710966',
 					Price = '500000000000',
 					ExpirationTime = '1722535720966',
-					Type = 'fixed'
+					OrderType = 'fixed'
 				}
 			}
 		}
@@ -1126,7 +1126,7 @@ utils.test('should execute immediate trade with valid expiration time when selli
 						Creator = 'ant-seller',
 						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT sell order
 						ExpirationTime = '1722535720966',
-						Type = 'fixed'
+						OrderType = 'fixed'
 					}
 				}
 			}
@@ -1188,8 +1188,7 @@ utils.test('should reject order with zero expiration time',
 		
 		return Orderbook
 	end,
-	{
-	}
+	{}
 )
 
 utils.test('should reject order with negative expiration time',
@@ -1212,8 +1211,7 @@ utils.test('should reject order with negative expiration time',
 		
 		return Orderbook
 	end,
-	{
-	}
+	{}
 )
 
 utils.test('should reject order with invalid expiration time',
@@ -1236,8 +1234,7 @@ utils.test('should reject order with invalid expiration time',
 		
 		return Orderbook
 	end,
-	{
-	}
+	{}
 )
 
 utils.test('should reject order with no price specified',
@@ -1260,8 +1257,7 @@ utils.test('should reject order with no price specified',
 		
 		return Orderbook
 	end,
-	{
-	}
+	{}
 )
 
 utils.test('should reject order with negative price',
@@ -1284,8 +1280,7 @@ utils.test('should reject order with negative price',
 		
 		return Orderbook
 	end,
-	{
-	}
+	{}
 )
 
 utils.test('should reject order with zero price',
@@ -1308,8 +1303,7 @@ utils.test('should reject order with zero price',
 		
 		return Orderbook
 	end,
-	{
-	}
+	{}
 )
 
 utils.test('should reject ARIO dominant order without requestedOrderId',
@@ -1321,7 +1315,7 @@ utils.test('should reject ARIO dominant order without requestedOrderId',
 		ucm.createOrder({
 			orderId = 'ario-order-no-requested-id',
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', -- ARIO (selling ARIO)
-			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ANT)
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', -- ANT (wanting ARIO)
 			sender = 'ario-seller',
 			quantity = 500000000000, -- Send ARIO amount
 			createdAt = '1722535710966',
@@ -1366,7 +1360,7 @@ utils.test('should reject ANT purchase when user sends different ARIO quantity t
 						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 						DateCreated = '1722535710966',
 						ExpirationTime = '1722535720966',
-						Type = 'fixed'
+						OrderType = 'fixed'
 					}
 				}
 			}
@@ -1413,11 +1407,11 @@ utils.test('should reject ANT purchase when user sends different ARIO quantity t
 					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 					DateCreated = '1722535710966',
 					ExpirationTime = '1722535720966',
-					Type = 'fixed'
+					OrderType = 'fixed'
 				}
 			}
 		}
 	}
 )
 
-utils.testSummary() 
+utils.testSummary()

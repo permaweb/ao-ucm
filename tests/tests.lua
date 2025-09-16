@@ -2,8 +2,12 @@ package.path = package.path .. ';../src/?.lua'
 
 local ucm = require('ucm')
 local utils = require('utils')
+local JSON = require('JSON')
 
 -- PIXL PROCESS: DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo
+
+
+ARIO_TOKEN_PROCESS_ID = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
 
 ao = {
 	send = function(msg)
@@ -15,9 +19,28 @@ ao = {
 	end
 }
 
+Handlers = {
+	-- A simple mock `add` function that stores the handler by name.
+	add = function(name, condition, handler)
+		Handlers[name] = handler
+	end,
+	-- A mock `prepend` function. For testing, it can behave the same as `add`.
+	prepend = function(name, condition, handler)
+		Handlers[name] = handler
+	end,
+	utils = {
+		hasMatchingTag = function(tagName, tagValue)
+			return function(msg)
+				return msg.Tags and msg.Tags[tagName] == tagValue
+			end
+		end
+	}
+}
+
 utils.test('Create listing',
 	function()
 		Orderbook = {}
+		ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
 
 		ucm.createOrder({
 			orderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE', -- Sell order ID
@@ -46,11 +69,11 @@ utils.test('Create listing',
 					Price = '500000000000',
 					Quantity = '1',
 					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-					Type = 'fixed',
+					OrderType = 'fixed',
 					ExpirationTime = '1722535720966',
 				}
-			},
-		},
+			}
+		}
 	}
 )
 
@@ -59,14 +82,16 @@ utils.test('Create listing (invalid quantity)',
 		Orderbook = {}
 
 		ucm.createOrder({
-			orderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+			orderId = 'some-order-id',
 			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
 			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
 			sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
 			quantity = 0,
 			price = '99000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
 			blockheight = '123456789',
+			orderType = 'fixed',
+			requestedOrderId = 'some-order-id'
 		})
 
 		return Orderbook
@@ -464,7 +489,6 @@ utils.test('Multi order partially matched (denominated) - invalid quantity',
 			transferDenomination = '1000000'
 		})
 
-		-- We expect no change in the order book as the made order should be rejected by our validation
 		return Orderbook
 	end,
 	{
@@ -494,62 +518,50 @@ utils.test('Multi order partially matched (denominated) - invalid quantity',
 	}
 )
 
--- FIXME
 utils.test('New listing adds to CurrentListings',
 	function()
-		local json = require('json')
 		Orderbook = {}
 		CurrentListings = {}
 		ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
 
 		ucm.createOrder({
 			orderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-			dominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
-			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			swapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
 			sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
-			quantity = '1000',
+			quantity = 1,
 			price = '500000000000',
-			timestamp = '1722535710966',
+			createdAt = '1722535710966',
+			orderType = 'fixed',
+			expirationTime = '1722535720966',
 			blockheight = '123456789'
 		})
 
-		ao.send({
-			Target = ACTIVITY_PROCESS,
-			Action = 'Update-Listed-Orders',
-			Data = json.encode({
-				Order = {
-					Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-					DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
-					SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-					Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
-					Quantity = '1000',
-					Price = '500000000000',
-					Timestamp = '1722535710966'
-				}
-			})
-		})
-
 		CurrentListings['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
-			OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-			DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
-			SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+			DominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			SwapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
 			Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
-			Quantity = '1000',
+			Quantity = '1',
 			Price = '500000000000',
-			Timestamp = '1722535710966'
+			Timestamp = '1722535710966',
+			OrderType = 'fixed',
+			ExpirationTime = '1722535720966'
 		}
 
 		return CurrentListings
 	end,
 	{
 		['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
-			OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-			DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
-			SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
+			DominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			SwapToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
 			Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
-			Quantity = '1000',
+			Quantity = '1',
 			Price = '500000000000',
-			Timestamp = '1722535710966'
+			Timestamp = '1722535710966',
+			OrderType = 'fixed',
+			ExpirationTime = '1722535720966'
 		}
 	}
 )
@@ -591,7 +603,7 @@ utils.test('Partial execution updates CurrentListings quantity',
 			sender = 'match-buyer-1',
 			quantity = '500',
 			price = '500000000000',
-			timestamp = '1722535710967',
+			createdAt = '1722535710967',
 			blockheight = '123456789'
 		})
 
@@ -649,7 +661,7 @@ utils.test('Full execution removes from CurrentListings',
 			sender = 'match-buyer-1',
 			quantity = '1000',
 			price = '500000000000',
-			timestamp = '1722535710967',
+			createdAt = '1722535710967',
 			blockheight = '123456789'
 		})
 
@@ -662,42 +674,46 @@ utils.test('Full execution removes from CurrentListings',
 
 utils.test('Cancel order removes from CurrentListings',
 	function()
-		local json = require('json')
+
+		local JSON_Module = require('JSON')
+		package.loaded['json'] = JSON_Module
+
+
+		require('process')
+
+		ACTIVITY_PROCESS = '7_psKu3QHwzc2PFCJk2lEwyitLJbz6Vj7hOcltOulj4'
 		Orderbook = {
 			{
-				Pair = { 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+				Pair = { 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8' },
 				Orders = {
 					{
 						Creator = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
 						DateCreated = '1722535710966',
 						Id = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-						OriginalQuantity = '1000',
-						Price = '500000000000',
-						Quantity = '1000',
-						Token = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8'
+						Quantity = '1',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 					}
 				}
 			}
 		}
-		CurrentListings = {
-			['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {
-				OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
-				DominantToken = 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8',
-				SwapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-				Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
-				Quantity = '1000',
-				Price = '500000000000',
-				Timestamp = '1722535710966'
-			}
-		}
+		CurrentListings = { ['N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'] = {} }
 
-		ao.send({
-			Action = 'Cancel-Order',
-			Data = json.encode({
-				Pair = { 'cSCcuYOpk8ZKym2ZmKu_hUnuondBeIw57Y_cBJzmXV8', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
-				OrderTxId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE'
-			})
+		local original_ao_send = ao.send
+		ao.send = function(msg)
+			if msg.Action == 'Get-Order-By-Id' then
+				return { receive = function() return { Data = JSON:encode({ Sender = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M', Status = 'active' }) } end }
+			else
+				original_ao_send(msg)
+			end
+		end
+
+		Handlers['Cancel-Order']({
+			From = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
+			Tags = { Action = 'Cancel-Order' },
+			Data = JSON:encode({ OrderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE' })
 		})
+
+		ao.send = original_ao_send
 
 		CurrentListings = {}
 

@@ -180,7 +180,7 @@ Handlers.add('Get-Order-By-Id', Handlers.utils.hasMatchingTag('Action', 'Get-Ord
 	local response = {
 		OrderId = foundOrder.OrderId,
 		Status = orderStatus,
-		Type = foundOrder.OrderType or 'fixed',
+		OrderType = foundOrder.OrderType or 'fixed',
 		CreatedAt = foundOrder.CreatedAt,
 		ExpirationTime = foundOrder.ExpirationTime,
 		DominantToken = foundOrder.DominantToken,
@@ -275,7 +275,7 @@ utils.test('[ANT SELL] should add ANT sell order to orderbook when selling ANT t
 					DateCreated = '1735689600000',
 					ExpirationTime = '1736035200000',
 					Price = '500000000000',
-					Type = 'english',
+					OrderType = 'english'
 				}
 			}
 		}
@@ -314,7 +314,7 @@ utils.test('[ANT SELL] should pass if expiration time is not provided',
 					DateCreated = '1735689600000',
 					ExpirationTime = nil,
 					Price = '500000000000',
-					Type = 'english',
+					OrderType = 'english'
 				}
 			}
 		}
@@ -498,13 +498,11 @@ utils.test('[ENGLISH AUCTION] should fail bid with invalid bid amount (negative)
 			createdAt = '1735689700000',
 			orderType = 'english',
 			orderGroupId = 'test-group',
-			requestedOrderId = 'english-auction-1'
+					requestedOrderId = 'english-auction-1'
 		})
 		
 		-- Validate that no transfers occurred (invalid bid should be rejected)
-		local expectedTransfers = {}
-		
-		if not validateTransfers(expectedTransfers) then
+		local expectedTransfers = {}		if not validateTransfers(expectedTransfers) then
 			return nil -- Test failed due to transfer mismatch
 		end
 		
@@ -1617,4 +1615,4 @@ utils.test('[ENGLISH AUCTION] Get-Order-By-Id should return correct buyer addres
 	}
 )
 
-utils.testSummary() 
+utils.testSummary()

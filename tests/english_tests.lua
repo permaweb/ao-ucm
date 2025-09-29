@@ -2,7 +2,7 @@ package.path = package.path .. ';../src/?.lua'
 
 local ucm = require('ucm')
 local utils = require('utils')
-local json = require('JSON')
+local json = require('json')
 
 -- Global transfer tracking
 local transfers = {}

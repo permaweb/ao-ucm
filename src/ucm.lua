@@ -1,5 +1,5 @@
 local bint = require('.bint')(256)
-local json = require('JSON')
+local json = require('json')
 
 local utils = require('utils')
 local fixed_price = require('fixed_price')

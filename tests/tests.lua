@@ -2,7 +2,7 @@ package.path = package.path .. ';../src/?.lua'
 
 local ucm = require('ucm')
 local utils = require('utils')
-local JSON = require('JSON')
+local JSON = require('json')
 
 -- PIXL PROCESS: DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo
 
@@ -675,7 +675,7 @@ utils.test('Full execution removes from CurrentListings',
 utils.test('Cancel order removes from CurrentListings',
 	function()
 
-		local JSON_Module = require('JSON')
+		local JSON_Module = require('json')
 		package.loaded['json'] = JSON_Module
 
 

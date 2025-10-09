@@ -128,6 +128,15 @@ local function patchReply(msg)
 	end
 end
 
+local calculateSupply = function()
+	local bint = require('.bint')(256)
+	local supply = bint(0)
+	for k, v in pairs(Balances) do
+		supply = supply + bint(v)
+	end
+	return tostring(supply)
+end
+
 Handlers.prepend('_patch_reply', function(msg) return 'continue' end, patchReply)
 
 -- Read process state
@@ -155,6 +164,18 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		Recipient = msg.Tags.Recipient,
 		Quantity = msg.Tags.Quantity
 	}
+
+	if not Balances[msg.From] or bint(Balances[msg.From]) <= bint(0) then
+		ao.send({
+			Target = msg.From,
+			Action = 'Input-Error',
+			Tags = {
+				Status = 'Error',
+				Message = 'Insufficient balance'
+			}
+		})
+		return
+	end
 
 	if checkValidAddress(data.Recipient) and checkValidAmount(data.Quantity) and bint(data.Quantity) <= bint(Balances[msg.From]) then
 		-- Transfer is valid, calculate balances
@@ -195,7 +216,7 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		end
 
 		-- Send a debit notice to the sender
-		msg.reply({
+		Send({
 			Target = msg.From,
 			Action = 'Debit-Notice',
 			Tags = debitNoticeTags,
@@ -206,7 +227,7 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		})
 
 		-- Send a credit notice to the recipient
-		msg.reply({
+		Send({
 			Target = data.Recipient,
 			Action = 'Credit-Notice',
 			Tags = creditNoticeTags,
@@ -214,6 +235,14 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 				Sender = msg.From,
 				Quantity = tostring(data.Quantity)
 			})
+		})
+
+		Send({
+			device = 'patch@1.0',
+			balances = {
+				[msg.From] = Balances[msg.From],
+				[data.Recipient] = Balances[data.Recipient]
+			}
 		})
 	end
 end)
@@ -333,11 +362,14 @@ Handlers.add('Run-Rewards', Handlers.utils.hasMatchingTag('Action', 'Run-Rewards
 		local allocation = getAllocation(msg['Block-Height'])
 
 		if allocation then
-			print(allocation)
+			for k, v in pairs(allocation) do
+				Balances[k] = tostring(bint(Balances[k] or '0') + bint(v))
+			end
 
-			-- for k, v in pairs(allocation) do
-			-- 	Balances[k] = tostring(bint(Balances[k] or '0') + bint(v))
-			-- end
+			Send({
+				device = 'patch@1.0',
+				['token-info'] = { supply = calculateSupply() }
+			})
 
 			msg.reply({ Action = 'Rewards-Dispersed' })
 		else
@@ -368,4 +400,15 @@ Handlers.add('Total-Supply', Handlers.utils.hasMatchingTag('Action', 'Total-Supp
 		Data = tostring(TOTAL_SUPPLY),
 		Ticker = Ticker
 	})
+end)
+
+Handlers.add('Streak-Batch', Handlers.utils.hasMatchingTag('Action', 'Streak-Batch'), function(msg)
+	if msg.From ~= Owner then return end
+
+	local data = json.decode(msg.Data)
+
+	for k, v in pairs(data) do
+		print('Updating ' .. k)
+		Streaks[k] = v
+	end
 end)

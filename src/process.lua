@@ -293,3 +293,27 @@ Handlers.add('Order-Success', Handlers.utils.hasMatchingTag('Action', 'Order-Suc
 end)
 
 Handlers.add('Debit-Notice', Handlers.utils.hasMatchingTag('Action', 'Debit-Notice'), function(msg) end)
+
+Handlers.add('Get-Active-Pairs', Handlers.utils.hasMatchingTag('Action', 'Get-Active-Pairs'), function(msg)
+	local activePairs = {}
+
+	for _, pair in ipairs(Orderbook) do
+		if #pair.Orders > 0 then
+			table.insert(activePairs, {
+				DominantToken = pair.DominantToken,
+				SwapToken = pair.SwapToken,
+				OrderCount = #pair.Orders
+			})
+
+			-- print(pair.Orders)
+		end
+	end
+
+	print(#activePairs .. ' active pairs found')
+
+	ao.send({
+		Target = msg.From,
+		Action = 'Read-Success',
+		Data = json.encode({ ActivePairs = activePairs })
+	})
+end)

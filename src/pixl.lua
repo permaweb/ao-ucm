@@ -319,6 +319,11 @@ Handlers.add('Calculate-Streak', Handlers.utils.hasMatchingTag('Action', 'Calcul
 				}
 			end
 		end
+
+		Send({
+			device = 'patch@1.0',
+			streaks = json.encode(Streaks)
+		})
 	end)
 
 -- Trigger rewards dispersement

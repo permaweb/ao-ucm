@@ -7,11 +7,13 @@ export type DependenciesType = {
 export type OrderbookCreateType = {
 	assetId: string;
 	collectionId?: string;
+	writeToAsset?: boolean;
 }
 
 export type OrderCreateType = {
+	creatorId?: string;
+	walletAddress?: string;
 	orderbookId: string;
-	creatorId: string;
 	dominantToken: string;
 	swapToken: string;
 	quantity: string;

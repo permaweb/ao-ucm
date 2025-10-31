@@ -353,7 +353,10 @@ function ucm.createOrder(args)
 			}
 		end
 
-		Send({ device = 'patch@1.0', [orderbooks[args.dominantToken .. '/' .. args.swapToken]] = json.encode(Orderbook[pairIndex]) })
+		ao.send({
+			device = 'patch@1.0',
+			orderbooks = { [args.dominantToken .. ':' .. args.swapToken] = json.encode(Orderbook[pairIndex]) }
+		})
 
 		if sumVolume > 0 then
 			ao.send({

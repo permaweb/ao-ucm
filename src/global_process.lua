@@ -28,7 +28,7 @@ Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'),
 			Action = 'Read-Success',
 			Data = json.encode({
 				Name = Name,
-				Orderbook = Orderbook
+				['UCM-Type'] = 'Global UCM'
 			})
 		})
 	end)

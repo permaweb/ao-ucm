@@ -22,7 +22,10 @@ export async function createOrderbook(
 		callback({ processing: true, success: false, message: 'Creating asset orderbook process...' });
 		orderbookId = await permaweb.createProcess({
 			evalTxId: UCM_ORDERBOOK_PROCESS,
-			tags: [{ name: 'UCM-Process', value: 'Orderbook' }]
+			tags: [
+				{ name: 'UCM-Process', value: 'Orderbook' },
+				{ name: 'Asset-ID', value: args.assetId },
+			]
 		});
 		globalLog(`Orderbook ID: ${orderbookId}`);
 
@@ -53,7 +56,7 @@ export async function createOrderbook(
 			useRawData: true
 		});
 		globalLog(`UCM Activity Eval: ${ucmActivityEval}`);
-		
+
 		if (args.collectionId) {
 			globalLog('Setting orderbook / activity in collection activity...');
 			callback({ processing: true, success: false, message: 'Setting orderbook in collection activity...' });
@@ -75,16 +78,19 @@ export async function createOrderbook(
 			globalLog(`Collection Activity Eval: ${collectionActivityEval}`);
 		}
 
-		globalLog('Adding orderbook to asset...');
-		callback({ processing: true, success: false, message: 'Adding orderbook to asset...' });
-		const assetEval = await permaweb.sendMessage({
-			processId: args.assetId,
-			action: 'Eval',
-			data: assetOrderbookEval(orderbookId),
-			useRawData: true
-		});
+		if (args.writeToAsset) {
+			globalLog('Adding orderbook to asset...');
+			callback({ processing: true, success: false, message: 'Adding orderbook to asset...' });
+			const assetEval = await permaweb.sendMessage({
+				processId: args.assetId,
+				action: 'Eval',
+				data: assetOrderbookEval(orderbookId),
+				useRawData: true
+			});
 
-		globalLog(`Asset Eval: ${assetEval}`);
+			globalLog(`Asset Eval: ${assetEval}`);
+		}
+
 		callback({ processing: false, success: true, message: 'Orderbook created!' });
 
 		return orderbookId;

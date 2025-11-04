@@ -224,28 +224,33 @@ Handlers.add('Update-Listed-Orders',
 			Quantity      = data.Order.Quantity,
 			Price         = data.Order.Price,
 			Timestamp     = data.Order.Timestamp,
+			Side          = data.Order.Side
 		})
 
-		local assetId            = data.Order.DominantToken
-		local swapToken          = data.Order.SwapToken
-		local qtyB               = bint(data.Order.Quantity)
-		local priceB             = bint(data.Order.Price)
+		-- Only track asks in CurrentListings (for asset collections)
+		-- Asks represent assets being sold, which is what collection activity tracks
+		if data.Order.Side == 'Ask' then
+			local assetId            = data.Order.DominantToken
+			local swapToken          = data.Order.SwapToken
+			local qtyB               = bint(data.Order.Quantity)
+			local priceB             = bint(data.Order.Price)
 
-		CurrentListings[assetId] = CurrentListings[assetId] or {}
-		local entry              = CurrentListings[assetId][swapToken]
+			CurrentListings[assetId] = CurrentListings[assetId] or {}
+			local entry              = CurrentListings[assetId][swapToken]
 
-		if entry then
-			local newQty   = bint(entry.quantity) + qtyB
-			local newFloor = bint(entry.floorPrice)
-			if priceB < newFloor then newFloor = priceB end
+			if entry then
+				local newQty   = bint(entry.quantity) + qtyB
+				local newFloor = bint(entry.floorPrice)
+				if priceB < newFloor then newFloor = priceB end
 
-			entry.quantity   = tostring(newQty)
-			entry.floorPrice = tostring(newFloor)
-		else
-			CurrentListings[assetId][swapToken] = {
-				quantity   = tostring(qtyB),
-				floorPrice = tostring(priceB),
-			}
+				entry.quantity   = tostring(newQty)
+				entry.floorPrice = tostring(newFloor)
+			else
+				CurrentListings[assetId][swapToken] = {
+					quantity   = tostring(qtyB),
+					floorPrice = tostring(priceB),
+				}
+			end
 		end
 
 		utils.capOrders(ListedOrders)
@@ -270,22 +275,27 @@ Handlers.add('Update-Executed-Orders',
 			Quantity      = data.Order.Quantity,
 			Price         = data.Order.Price,
 			Timestamp     = data.Order.Timestamp,
+			Side          = data.Order.Side,
+			IncomingSide  = data.Order.IncomingSide
 		})
 
-		local assetId   = data.Order.DominantToken
-		local swapToken = data.Order.SwapToken
-		local execB     = bint(data.Order.Quantity)
-		local bucket    = CurrentListings[assetId] and CurrentListings[assetId][swapToken]
+		-- Only update CurrentListings if the matched order was an Ask (asset sale)
+		if data.Order.Side == 'Ask' then
+			local assetId   = data.Order.DominantToken
+			local swapToken = data.Order.SwapToken
+			local execB     = bint(data.Order.Quantity)
+			local bucket    = CurrentListings[assetId] and CurrentListings[assetId][swapToken]
 
-		if bucket then
-			local rem = bint(bucket.quantity) - execB
-			if rem <= bint(0) then
-				CurrentListings[assetId][swapToken] = nil
-				if next(CurrentListings[assetId]) == nil then
-					CurrentListings[assetId] = nil
+			if bucket then
+				local rem = bint(bucket.quantity) - execB
+				if rem <= bint(0) then
+					CurrentListings[assetId][swapToken] = nil
+					if next(CurrentListings[assetId]) == nil then
+						CurrentListings[assetId] = nil
+					end
+				else
+					bucket.quantity = tostring(rem)
 				end
-			else
-				bucket.quantity = tostring(rem)
 			end
 		end
 
@@ -298,8 +308,20 @@ Handlers.add('Update-Executed-Orders',
 
 		TotalVolume[swap]                       = tostring(current + delta)
 
-		SalesByAddress[data.Order.Sender]       = (SalesByAddress[data.Order.Sender] or 0) + 1
-		PurchasesByAddress[data.Order.Receiver] = (PurchasesByAddress[data.Order.Receiver] or 0) + 1
+		-- Determine seller and buyer based on the matched order's side
+		local seller, buyer
+		if data.Order.Side == 'Ask' then
+			-- Resting order was an Ask (selling), so Sender is seller, Receiver is buyer
+			seller = data.Order.Sender
+			buyer = data.Order.Receiver
+		else
+			-- Resting order was a Bid (buying), so Sender is buyer, Receiver is seller
+			seller = data.Order.Receiver
+			buyer = data.Order.Sender
+		end
+
+		SalesByAddress[seller]       = (SalesByAddress[seller] or 0) + 1
+		PurchasesByAddress[buyer]    = (PurchasesByAddress[buyer] or 0) + 1
 
 		utils.capOrders(ExecutedOrders)
 
@@ -323,22 +345,26 @@ Handlers.add('Update-Cancelled-Orders',
 			Quantity      = data.Order.Quantity,
 			Price         = data.Order.Price,
 			Timestamp     = data.Order.Timestamp,
+			Side          = data.Order.Side
 		})
 
-		local assetId   = data.Order.DominantToken
-		local swapToken = data.Order.SwapToken
-		local canB      = bint(data.Order.Quantity)
-		local bucket    = CurrentListings[assetId] and CurrentListings[assetId][swapToken]
+		-- Only update CurrentListings if cancelled order was an Ask
+		if data.Order.Side == 'Ask' then
+			local assetId   = data.Order.DominantToken
+			local swapToken = data.Order.SwapToken
+			local canB      = bint(data.Order.Quantity)
+			local bucket    = CurrentListings[assetId] and CurrentListings[assetId][swapToken]
 
-		if bucket then
-			local rem = bint(bucket.quantity) - canB
-			if rem <= bint(0) then
-				CurrentListings[assetId][swapToken] = nil
-				if next(CurrentListings[assetId]) == nil then
-					CurrentListings[assetId] = nil
+			if bucket then
+				local rem = bint(bucket.quantity) - canB
+				if rem <= bint(0) then
+					CurrentListings[assetId][swapToken] = nil
+					if next(CurrentListings[assetId]) == nil then
+						CurrentListings[assetId] = nil
+					end
+				else
+					bucket.quantity = tostring(rem)
 				end
-			else
-				bucket.quantity = tostring(rem)
 			end
 		end
 

@@ -1,7 +1,15 @@
 package.path = package.path .. ';../src/?.lua'
 
-local ucm = require('ucm')
-local utils = require('utils')
+local ucm = {}
+local micro_ucm = require('micro_ucm')
+ucm.createOrder = micro_ucm.createOrder
+
+local utils = {}
+local micro_utils = require('global_utils')
+utils.test = micro_utils.test
+utils.testSummary = micro_utils.testSummary
+utils.printTable = micro_utils.printTable
+utils.checkTables = micro_utils.checkTables
 
 ao = {
 	send = function(msg)
@@ -13,9 +21,10 @@ ao = {
 	 end
 }
 
-utils.test('Create listing',
+utils.test('Create ask (listing)',
 	function()
 		Orderbook = {}
+		ORDERBOOK_MIGRATED = false
 
 		ucm.createOrder({
 			orderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
@@ -33,7 +42,7 @@ utils.test('Create listing',
 	{
 		{
 			Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
-			Orders = {
+			Asks = {
 				{
 					Creator = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',
 					DateCreated = '1722535710966',
@@ -41,9 +50,11 @@ utils.test('Create listing',
 					OriginalQuantity = '1000',
 					Price = '500000000000',
 					Quantity = '1000',
-					Token = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc'
+					Token = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+					Side = 'Ask'
 				}
 			},
+			Bids = {}
 		},
 	}
 )
@@ -51,6 +62,7 @@ utils.test('Create listing',
 utils.test('Create listing (invalid quantity)',
 	function()
 		Orderbook = {}
+		ORDERBOOK_MIGRATED = false
 
 		ucm.createOrder({
 			orderId = 'N5vr71SXaEYsdVoVCEB5qOTjHNwyQVwGvJxBh_kgTbE',
@@ -68,7 +80,8 @@ utils.test('Create listing (invalid quantity)',
 	{
 		{
 			Pair = { 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
-			Orders = {}
+			Asks = {},
+			Bids = {}
 		},
 	}
 )
@@ -703,3 +716,154 @@ utils.test('Cancel order removes from CurrentListings',
     end,
     {}
 )
+utils.test('Create bid order',
+	function()
+		Orderbook = {}
+		ORDERBOOK_MIGRATED = false
+
+		ucm.createOrder({
+			orderId = 'bid-order-1',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			swapToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+			sender = 'buyer-address-1',
+			quantity = '1000000000000',
+			price = '400000000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+		})
+
+		return Orderbook
+	end,
+	{
+		{
+			Pair = { 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10', 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc' },
+			Asks = {},
+			Bids = {
+				{
+					Creator = 'buyer-address-1',
+					DateCreated = '1722535710966',
+					Id = 'bid-order-1',
+					OriginalQuantity = '1000000000000',
+					Price = '400000000000',
+					Quantity = '1000000000000',
+					Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+					Side = 'Bid'
+				}
+			}
+		},
+	}
+)
+
+utils.test('Ask matched against bid',
+	function()
+		Orderbook = {
+			{
+				Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+				Asks = {},
+				Bids = {
+					{
+						Creator = 'buyer-address-1',
+						DateCreated = '1722535710966',
+						Id = 'bid-order-1',
+						OriginalQuantity = '1000',
+						Price = '500000000000',
+						Quantity = '1000',
+						Token = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+						Side = 'Bid'
+					}
+				}
+			}
+		}
+		ORDERBOOK_MIGRATED = true
+
+		-- Seller creates ask that matches the bid
+		ucm.createOrder({
+			orderId = 'ask-order-1',
+			dominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+			swapToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			sender = 'seller-address-1',
+			quantity = '1000',
+			timestamp = '1722535710967',
+			blockheight = '123456790',
+		})
+
+		return Orderbook
+	end,
+	{
+		{
+			Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+			Asks = {},
+			Bids = {},
+			PriceData = {
+				MatchLogs = {
+					{
+						Quantity = '1000',
+						Price = '500000000000',
+						Id = 'bid-order-1'
+					}
+				},
+				Vwap = '500000000000',
+				Block = '123456790',
+				DominantToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc'
+			}
+		}
+	}
+)
+
+utils.test('Bid matched against ask',
+	function()
+		Orderbook = {
+			{
+				Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+				Asks = {
+					{
+						Creator = 'seller-address-1',
+						DateCreated = '1722535710966',
+						Id = 'ask-order-1',
+						OriginalQuantity = '1000',
+						Price = '500000000000',
+						Quantity = '1000',
+						Token = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+						Side = 'Ask'
+					}
+				},
+				Bids = {}
+			}
+		}
+		ORDERBOOK_MIGRATED = true
+
+		-- Buyer creates bid that matches the ask
+		ucm.createOrder({
+			orderId = 'bid-order-1',
+			dominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+			swapToken = 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc',
+			sender = 'buyer-address-1',
+			quantity = '500000000000000',
+			timestamp = '1722535710967',
+			blockheight = '123456790',
+		})
+
+		return Orderbook
+	end,
+	{
+		{
+			Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+			Asks = {},
+			Bids = {},
+			PriceData = {
+				MatchLogs = {
+					{
+						Quantity = '1000',
+						Price = '500000000000',
+						Id = 'ask-order-1'
+					}
+				},
+				Vwap = '500000000000',
+				Block = '123456790',
+				DominantToken = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
+			}
+		}
+	}
+)
+
+utils.testSummary()

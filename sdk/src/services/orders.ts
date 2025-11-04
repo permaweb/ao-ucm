@@ -33,15 +33,18 @@ export async function createOrder(
 
 		const forwardedTags = [
 			{ name: 'X-Order-Action', value: 'Create-Order' },
-			{ name: 'X-Dominant-Token', value: args.dominantToken },
-			{ name: 'X-Swap-Token', value: args.swapToken },
+			{ name: 'X-Dominant-Token', value: args.dominantToken }, // Token being sent (determines side: base=Ask, quote=Bid)
+			{ name: 'X-Swap-Token', value: args.swapToken }, // Token being received
 			{ name: 'X-Group-ID', value: MESSAGE_GROUP_ID },
 		];
 
 		/* Added for legacy profile support */
 		const data = { Target: args.dominantToken, Action: 'Transfer', Input: {} };
 
+		// Optional: Price for limit orders (if not provided, creates market order)
 		if (args.unitPrice) forwardedTags.push({ name: 'X-Price', value: args.unitPrice.toString() });
+
+		// Optional: Denomination of the dominant token (token being sent)
 		if (args.denomination) forwardedTags.push({ name: 'X-Transfer-Denomination', value: args.denomination.toString() });
 
 		tags.push(...forwardedTags);

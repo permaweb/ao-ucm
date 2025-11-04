@@ -229,21 +229,37 @@ Handlers.add('Update-Executed-Orders', Handlers.utils.hasMatchingTag('Action', '
 			Receiver = data.Order.Receiver,
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp
+			Timestamp = data.Order.Timestamp,
+			Side = data.Order.Side,
+			IncomingSide = data.Order.IncomingSide
 		}
 
 		table.insert(ExecutedOrders, orderData)
 		utils.capOrders(ExecutedOrders)
 
-		if not SalesByAddress[data.Order.Sender] then
-			SalesByAddress[data.Order.Sender] = 0
+		-- Determine seller and buyer based on the matched order's side
+		-- Side = the resting order that was matched (Ask or Bid)
+		-- IncomingSide = the incoming order that triggered the match
+		local seller, buyer
+		if data.Order.Side == 'Ask' then
+			-- Resting order was an Ask (selling), so Sender is seller, Receiver is buyer
+			seller = data.Order.Sender
+			buyer = data.Order.Receiver
+		else
+			-- Resting order was a Bid (buying), so Sender is buyer, Receiver is seller
+			seller = data.Order.Receiver
+			buyer = data.Order.Sender
 		end
-		SalesByAddress[data.Order.Sender] = SalesByAddress[data.Order.Sender] + 1
 
-		if not PurchasesByAddress[data.Order.Receiver] then
-			PurchasesByAddress[data.Order.Receiver] = 0
+		if not SalesByAddress[seller] then
+			SalesByAddress[seller] = 0
 		end
-		PurchasesByAddress[data.Order.Receiver] = PurchasesByAddress[data.Order.Receiver] + 1
+		SalesByAddress[seller] = SalesByAddress[seller] + 1
+
+		if not PurchasesByAddress[buyer] then
+			PurchasesByAddress[buyer] = 0
+		end
+		PurchasesByAddress[buyer] = PurchasesByAddress[buyer] + 1
 
 		local swap = data.Order.SwapToken
 		local quantity = bint(data.Order.Quantity)
@@ -286,7 +302,8 @@ Handlers.add('Update-Listed-Orders', Handlers.utils.hasMatchingTag('Action', 'Up
 			Receiver = nil,
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp
+			Timestamp = data.Order.Timestamp,
+			Side = data.Order.Side
 		}
 
 		table.insert(ListedOrders, orderData)
@@ -325,7 +342,8 @@ Handlers.add('Update-Cancelled-Orders', Handlers.utils.hasMatchingTag('Action', 
 			Receiver = nil,
 			Quantity = data.Order.Quantity,
 			Price = data.Order.Price,
-			Timestamp = data.Order.Timestamp
+			Timestamp = data.Order.Timestamp,
+			Side = data.Order.Side
 		}
 
 		table.insert(CancelledOrders, orderData)

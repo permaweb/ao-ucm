@@ -9,34 +9,20 @@ PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 
 -- Orderbook {
--- 	Pair [TokenId, TokenId],   -- [Base, Quote]
--- 	Asks {                     -- Selling Base for Quote
+-- 	Pair [TokenId, TokenId],
+-- 	Orders {
 -- 		Id,
 -- 		Creator,
 -- 		Quantity,
 -- 		OriginalQuantity,
 -- 		Token,
 -- 		DateCreated,
--- 		Price,
--- 		Side
--- 	} []
--- 	Bids {                     -- Buying Base with Quote
--- 		Id,
--- 		Creator,
--- 		Quantity,
--- 		OriginalQuantity,
--- 		Token,
--- 		DateCreated,
--- 		Price,
--- 		Side
+-- 		Price?
 -- 	} []
 -- } []
 
 if not Orderbook then Orderbook = {} end
 if not BuybackCaptures then BuybackCaptures = {} end
-
--- if not ORDERBOOK_MIGRATED then ORDERBOOK_MIGRATED = false end
-ORDERBOOK_MIGRATED = false
 
 local utils = {}
 local ucm = {}
@@ -222,26 +208,6 @@ local function handleError(args) -- Target, TransferToken, Quantity
 	ao.send({ Target = args.Target, Action = args.Action, Tags = { Status = 'Error', Message = args.Message, ['X-Group-ID'] = args.OrderGroupId } })
 end
 
-function ucm.migrateOrderbook(args)
-	for i, pair in ipairs(Orderbook) do
-		if pair.Orders and not pair.Asks then
-			-- Migrate legacy orders to Asks (all existing orders were listings/asks)
-			pair.Asks = {}
-			for _, order in ipairs(pair.Orders) do
-				order.Side = 'Ask'
-				table.insert(pair.Asks, order)
-			end
-			pair.Bids = {}
-			pair.Orders = nil
-
-			print('Migrated pair ' .. i .. ' with ' .. #pair.Asks .. ' orders to Asks')
-		end
-	end
-
-	args.syncState()
-	ORDERBOOK_MIGRATED = true
-end
-
 function ucm.getPairIndex(pair)
 	local pairIndex = -1
 
@@ -255,23 +221,7 @@ function ucm.getPairIndex(pair)
 	return pairIndex
 end
 
-function ucm.determineOrderSide(dominantToken, pair)
-	-- If dominant token matches Pair[1] (base), it's an ASK (selling base)
-	-- If dominant token matches Pair[2] (quote), it's a BID (buying base with quote)
-	if dominantToken == pair[1] then
-		return 'Ask'
-	elseif dominantToken == pair[2] then
-		return 'Bid'
-	end
-	return nil
-end
-
 function ucm.createOrder(args)
-	-- Run migration if not yet done
-	if not ORDERBOOK_MIGRATED then
-		ucm.migrateOrderbook({ syncState = args.syncState })
-	end
-
 	local validPair, pairError = utils.validatePairData({ args.dominantToken, args.swapToken })
 
 	if not validPair then
@@ -290,22 +240,8 @@ function ucm.createOrder(args)
 	local pairIndex = ucm.getPairIndex(validPair)
 
 	if pairIndex == -1 then
-		table.insert(Orderbook, { Pair = validPair, Asks = {}, Bids = {} })
+		table.insert(Orderbook, { Pair = validPair, Orders = {} })
 		pairIndex = ucm.getPairIndex(validPair)
-	end
-
-	-- Determine order side
-	local orderSide = ucm.determineOrderSide(args.dominantToken, validPair)
-	if not orderSide then
-		handleError({
-			Target = args.sender,
-			Action = 'Order-Error',
-			Message = 'Invalid dominant token for pair',
-			Quantity = args.quantity,
-			TransferToken = args.dominantToken,
-			OrderGroupId = args.orderGroupId
-		})
-		return
 	end
 
 	if not utils.checkValidAmount(args.quantity) then
@@ -342,37 +278,25 @@ function ucm.createOrder(args)
 		end
 
 		local remainingQuantity = bint(args.quantity)
-
-		-- Get opposite side for matching
-		local matchingSide = (orderSide == 'Bid') and 'Asks' or 'Bids'
-		local currentOrders = Orderbook[pairIndex][matchingSide]
+		local currentOrders = Orderbook[pairIndex].Orders
 		local updatedOrderbook = {}
 		local matches = {}
 
-		-- Sort order entries based on price and order side
-		if orderSide == 'Bid' then
-			-- For bids, match against lowest asks first
-			table.sort(currentOrders, function(a, b)
-				return bint(a.Price) < bint(b.Price)
-			end)
-		else
-			-- For asks, match against highest bids first
-			table.sort(currentOrders, function(a, b)
-				return bint(a.Price) > bint(b.Price)
-			end)
-		end
+		-- Sort order entries based on price
+		table.sort(currentOrders, function(a, b)
+			return bint(a.Price) < bint(b.Price)
+		end)
 
 		-- If the incoming order is a limit order, add it to the order book
 		if orderType == 'Limit' then
-			table.insert(Orderbook[pairIndex][orderSide .. 's'], {
+			table.insert(currentOrders, {
 				Id = args.orderId,
 				Quantity = tostring(args.quantity),
 				OriginalQuantity = tostring(args.quantity),
 				Creator = args.sender,
-				Token = args.dominantToken,
+				Token = currentToken,
 				DateCreated = args.timestamp,
 				Price = tostring(args.price),
-				Side = orderSide,
 			})
 
 			local limitDataSuccess, limitData = pcall(function()
@@ -385,8 +309,7 @@ function ucm.createOrder(args)
 						Receiver = nil,
 						Quantity = tostring(args.quantity),
 						Price = tostring(args.price),
-						Timestamp = args.timestamp,
-						Side = orderSide
+						Timestamp = args.timestamp
 					}
 				})
 			end)
@@ -488,50 +411,25 @@ function ucm.createOrder(args)
 				-- Gather all fulfillment fees for buyback
 				table.insert(BuybackCaptures, utils.calculateFeeAmount(sendAmount))
 
-				-- Transfer tokens based on order side
-				if orderSide == 'Bid' then
-					-- Incoming bid: buyer sends quote token, gets base token from ask
-					-- Send quote token (from buyer) to the ask order creator
-					ao.send({
-						Target = args.dominantToken,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = currentOrderEntry.Creator,
-							Quantity = tostring(calculatedSendAmount)
-						}
-					})
+				-- Send tokens to the current order creator
+				ao.send({
+					Target = currentToken,
+					Action = 'Transfer',
+					Tags = {
+						Recipient = currentOrderEntry.Creator,
+						Quantity = tostring(calculatedSendAmount)
+					}
+				})
 
-					-- Send base token (from ask) to the buyer
-					ao.send({
-						Target = currentOrderEntry.Token,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = args.sender,
-							Quantity = tostring(calculatedFillAmount)
-						}
-					})
-				else
-					-- Incoming ask: seller sends base token, gets quote token from bid
-					-- Send quote token (from bid) to the ask order creator (seller)
-					ao.send({
-						Target = currentOrderEntry.Token,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = args.sender,
-							Quantity = tostring(calculatedSendAmount)
-						}
-					})
-
-					-- Send base token (from seller) to the bid order creator
-					ao.send({
-						Target = args.dominantToken,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = currentOrderEntry.Creator,
-							Quantity = tostring(calculatedFillAmount)
-						}
-					})
-				end
+				-- Send swap tokens to the input order creator
+				ao.send({
+					Target = args.swapToken,
+					Action = 'Transfer',
+					Tags = {
+						Recipient = args.sender,
+						Quantity = tostring(calculatedFillAmount)
+					}
+				})
 
 				-- Record the match
 				table.insert(matches, {
@@ -551,9 +449,7 @@ function ucm.createOrder(args)
 							Receiver = args.sender,
 							Quantity = calculatedFillAmount,
 							Price = tostring(currentOrderEntry.Price),
-							Timestamp = args.timestamp,
-							Side = currentOrderEntry.Side,
-							IncomingSide = orderSide
+							Timestamp = args.timestamp
 						}
 					})
 				end)
@@ -594,8 +490,8 @@ function ucm.createOrder(args)
 			})
 		end
 
-		-- Update the order book with remaining orders on the matching side
-		Orderbook[pairIndex][matchingSide] = updatedOrderbook
+		-- Update the order book with remaining and new orders
+		Orderbook[pairIndex].Orders = updatedOrderbook
 
 		local sumVolumePrice, sumVolume = 0, 0
 		local vwap = 0
@@ -660,108 +556,12 @@ function ucm.createOrder(args)
 	end
 end
 
-function ucm.cancelOrder(args)
-	-- Validate pair data
-	local validPair, pairError = utils.validatePairData(args.pair)
-	if not validPair then
-		return false, pairError or 'Error validating pair'
-	end
-
-	-- Validate order ID
-	if not utils.checkValidAddress(args.orderId) then
-		return false, 'OrderId is not a valid address'
-	end
-
-	-- Find the pair
-	local pairIndex = ucm.getPairIndex(validPair)
-	if pairIndex == -1 then
-		return false, 'Pair not found'
-	end
-
-	-- Search for the order in both Asks and Bids
-	local order = nil
-	local orderIndex = nil
-	local orderSide = nil
-
-	for i, currentOrderEntry in ipairs(Orderbook[pairIndex].Asks) do
-		if args.orderId == currentOrderEntry.Id then
-			order = currentOrderEntry
-			orderIndex = i
-			orderSide = 'Asks'
-			break
-		end
-	end
-
-	if not order then
-		for i, currentOrderEntry in ipairs(Orderbook[pairIndex].Bids) do
-			if args.orderId == currentOrderEntry.Id then
-				order = currentOrderEntry
-				orderIndex = i
-				orderSide = 'Bids'
-				break
-			end
-		end
-	end
-
-	-- Order not found
-	if not order then
-		return false, 'Order not found'
-	end
-
-	-- Check authorization
-	if args.sender ~= order.Creator then
-		return false, 'Unauthorized to cancel this order'
-	end
-
-	-- Return funds to the creator
-	ao.send({
-		Target = order.Token,
-		Action = 'Transfer',
-		Tags = {
-			Recipient = order.Creator,
-			Quantity = order.Quantity
-		}
-	})
-
-	-- Remove the order from the orderbook
-	table.remove(Orderbook[pairIndex][orderSide], orderIndex)
-
-	-- Notify activity process
-	local cancelledDataSuccess, cancelledData = pcall(function()
-		return json.encode({
-			Order = {
-				Id = args.orderId,
-				DominantToken = validPair[1],
-				SwapToken = validPair[2],
-				Sender = args.sender,
-				Receiver = nil,
-				Quantity = tostring(order.Quantity),
-				Price = tostring(order.Price),
-				Timestamp = args.timestamp,
-				Side = order.Side
-			}
-		})
-	end)
-
-	ao.send({
-		Target = ACTIVITY_PROCESS,
-		Action = 'Update-Cancelled-Orders',
-		Data = cancelledDataSuccess and cancelledData or ''
-	})
-
-	-- Sync state
-	args.syncState()
-
-	return true, 'Order cancelled successfully'
-end
-
 function ucm.executeBuyback(args)
 	local pixlDenomination = 1000000
 	local pixlPairIndex = ucm.getPairIndex({ DEFAULT_SWAP_TOKEN, PIXL_PROCESS })
 
 	if pixlPairIndex > -1 then
-		-- Use Asks side for buyback (buying PIXL tokens from asks)
-		local pixlOrderbook = Orderbook[pixlPairIndex].Asks
+		local pixlOrderbook = Orderbook[pixlPairIndex].Orders
 
 		if pixlOrderbook and #pixlOrderbook > 0 then
 			table.sort(pixlOrderbook, function(a, b)
@@ -815,7 +615,7 @@ function ucm.executeBuyback(args)
 end
 
 local function getState()
-	return {
+    return {
 		Name = Name,
 		Orderbook = Orderbook,
 		ActivityProcess = ACTIVITY_PROCESS
@@ -823,7 +623,7 @@ local function getState()
 end
 
 local function syncState()
-	Send({ device = 'patch@1.0', orderbook = json.encode(getState()) })
+    Send({ device = 'patch@1.0', orderbook = json.encode(getState()) })
 end
 
 function Trusted(msg)
@@ -916,7 +716,99 @@ end)
 Handlers.add('Cancel-Order', 'Cancel-Order', function(msg)
 	local decodeCheck, data = utils.decodeMessageData(msg.Data)
 
-	if not decodeCheck or not data then
+	if decodeCheck and data then
+		if not data.Pair or not data.OrderTxId then
+			msg.reply({
+				Action = 'Input-Error',
+				Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [TokenId, TokenId], OrderTxId }' }
+			})
+			return
+		end
+
+		-- Check if Pair and OrderTxId are valid
+		local validPair, pairError = utils.validatePairData(data.Pair)
+		local validOrderTxId = utils.checkValidAddress(data.OrderTxId)
+
+		if not validPair or not validOrderTxId then
+			local message = nil
+
+			if not validOrderTxId then message = 'OrderTxId is not a valid address' end
+			if not validPair then message = pairError or 'Error validating pair' end
+
+			msg.reply({ Action = 'Validation-Error', Tags = { Status = 'Error', Message = message or 'Error validating order cancel input' } })
+			return
+		end
+
+		-- Ensure the pair exists
+		local pairIndex = ucm.getPairIndex(validPair)
+
+		-- If the pair exists then search for the order based on OrderTxId
+		if pairIndex > -1 then
+			local order = nil
+			local orderIndex = nil
+
+			for i, currentOrderEntry in ipairs(Orderbook[pairIndex].Orders) do
+				if data.OrderTxId == currentOrderEntry.Id then
+					order = currentOrderEntry
+					orderIndex = i
+				end
+			end
+
+			-- The order is not found
+			if not order then
+				msg.reply({ Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Order not found', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
+				return
+			end
+
+			-- Check if the sender is the order creator
+			if msg.From ~= order.Creator then
+				msg.reply({ Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Unauthorized to cancel this order', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
+				return
+			end
+
+			if order and orderIndex > -1 then
+				-- Return funds to the creator
+				ao.send({
+					Target = order.Token,
+					Action = 'Transfer',
+					Tags = {
+						Recipient = order.Creator,
+						Quantity = order.Quantity
+					}
+				})
+
+				-- Remove the order from the current table
+				table.remove(Orderbook[pairIndex].Orders, orderIndex)
+				msg.reply({ Action = 'Action-Response', Tags = { Status = 'Success', Message = 'Order cancelled', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
+				syncState()
+
+				local cancelledDataSuccess, cancelledData = pcall(function()
+					return json.encode({
+						Order = {
+							Id = data.OrderTxId,
+							DominantToken = validPair[1],
+							SwapToken = validPair[2],
+							Sender = msg.From,
+							Receiver = nil,
+							Quantity = tostring(order.Quantity),
+							Price = tostring(order.Price),
+							Timestamp = msg.Timestamp
+						}
+					})
+				end)
+
+				ao.send({
+					Target = ACTIVITY_PROCESS,
+					Action = 'Update-Cancelled-Orders',
+					Data = cancelledDataSuccess and cancelledData or ''
+				})
+			else
+				msg.reply({ Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Error cancelling order', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
+			end
+		else
+			msg.reply({ Action = 'Action-Response', Tags = { Status = 'Error', Message = pairError or 'Pair not found', ['X-Group-ID'] = data['X-Group-ID'] or 'None', Handler = 'Cancel-Order' } })
+		end
+	else
 		msg.reply({
 			Action = 'Input-Error',
 			Tags = {
@@ -924,46 +816,6 @@ Handlers.add('Cancel-Order', 'Cancel-Order', function(msg)
 				Message = string.format('Failed to parse data, received: %s. %s',
 					msg.Data,
 					'Data must be an object - { Pair: [TokenId, TokenId], OrderTxId }')
-			}
-		})
-		return
-	end
-
-	if not data.Pair or not data.OrderTxId then
-		msg.reply({
-			Action = 'Input-Error',
-			Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [TokenId, TokenId], OrderTxId }' }
-		})
-		return
-	end
-
-	-- Call ucm.cancelOrder
-	local success, errorMessage = ucm.cancelOrder({
-		pair = data.Pair,
-		orderId = data.OrderTxId,
-		sender = msg.From,
-		timestamp = msg.Timestamp,
-		syncState = syncState
-	})
-
-	if success then
-		msg.reply({
-			Action = 'Action-Response',
-			Tags = {
-				Status = 'Success',
-				Message = 'Order cancelled',
-				['X-Group-ID'] = data['X-Group-ID'] or 'None',
-				Handler = 'Cancel-Order'
-			}
-		})
-	else
-		msg.reply({
-			Action = 'Action-Response',
-			Tags = {
-				Status = 'Error',
-				Message = errorMessage,
-				['X-Group-ID'] = data['X-Group-ID'] or 'None',
-				Handler = 'Cancel-Order'
 			}
 		})
 	end
@@ -975,8 +827,7 @@ Handlers.add('Read-Orders', 'Read-Orders', function(msg)
 		local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 
 		if pairIndex > -1 then
-			-- Read from both Asks and Bids
-			for i, order in ipairs(Orderbook[pairIndex].Asks) do
+			for i, order in ipairs(Orderbook[pairIndex].Orders) do
 				if not msg.Tags.Creator or order.Creator == msg.Tags.Creator then
 					table.insert(readOrders, {
 						Index = i,
@@ -984,22 +835,7 @@ Handlers.add('Read-Orders', 'Read-Orders', function(msg)
 						Creator = order.Creator,
 						Quantity = order.Quantity,
 						Price = order.Price,
-						Timestamp = order.Timestamp,
-						Side = 'Ask'
-					})
-				end
-			end
-
-			for i, order in ipairs(Orderbook[pairIndex].Bids) do
-				if not msg.Tags.Creator or order.Creator == msg.Tags.Creator then
-					table.insert(readOrders, {
-						Index = i,
-						Id = order.Id,
-						Creator = order.Creator,
-						Quantity = order.Quantity,
-						Price = order.Price,
-						Timestamp = order.Timestamp,
-						Side = 'Bid'
+						Timestamp = order.Timestamp
 					})
 				end
 			end

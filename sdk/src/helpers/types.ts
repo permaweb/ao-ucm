@@ -14,8 +14,12 @@ export type OrderCreateType = {
 	creatorId?: string;
 	walletAddress?: string;
 	orderbookId: string;
-	dominantToken: string; // Token being sent - determines order side (base token = Ask, quote token = Bid)
-	swapToken: string; // Token being received
+	baseToken: string; // Primary token in the pair
+	quoteToken: string; // Secondary token in the pair
+	baseTokenDenomination: string;
+	quoteTokenDenomination: string;
+	dominantToken: string; // Token being sent this order - determines order side (base token = Ask, quote token = Bid)
+	swapToken: string; // Token being received this order
 	quantity: string;
 	action: 'Transfer' | 'Run-Action';
 	unitPrice?: string;

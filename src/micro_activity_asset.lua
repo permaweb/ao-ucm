@@ -202,7 +202,7 @@ local function getState()
 end
 
 local function syncState()
-	Send({ device = 'patch@1.0', activity = json.encode(getState()) })
+	Send({ device = 'patch@1.0', activity = getState() })
 end
 
 Handlers.add('Info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)

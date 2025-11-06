@@ -35,8 +35,7 @@ DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 if not Orderbook then Orderbook = {} end
 if not BuybackCaptures then BuybackCaptures = {} end
 
--- if not ORDERBOOK_MIGRATED then ORDERBOOK_MIGRATED = false end
-ORDERBOOK_MIGRATED = false
+if not ORDERBOOK_MIGRATED then ORDERBOOK_MIGRATED = false end
 
 local utils = {}
 local ucm = {}
@@ -242,17 +241,28 @@ function ucm.migrateOrderbook(args)
 	ORDERBOOK_MIGRATED = true
 end
 
+-- -- Normalize a pair to canonical order (sorted)
+-- function ucm.normalizePair(pair)
+-- 	if pair[1] < pair[2] then
+-- 		return { pair[1], pair[2] }
+-- 	else
+-- 		return { pair[2], pair[1] }
+-- 	end
+-- end
+
 function ucm.getPairIndex(pair)
 	local pairIndex = -1
+	local canonicalPair = nil
 
 	for i, existingOrders in ipairs(Orderbook) do
 		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) or
 			(existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1]) then
 			pairIndex = i
+			canonicalPair = existingOrders.Pair
 		end
 	end
 
-	return pairIndex
+	return pairIndex, canonicalPair
 end
 
 function ucm.determineOrderSide(dominantToken, pair)
@@ -272,7 +282,12 @@ function ucm.createOrder(args)
 		ucm.migrateOrderbook({ syncState = args.syncState })
 	end
 
-	local validPair, pairError = utils.validatePairData({ args.dominantToken, args.swapToken })
+	-- Priotitize baseToken and quoteToken for pair validation / creation
+	-- Fall back to dominantToken and swapToken as they are still valid
+	local validPair, pairError = utils.validatePairData({
+		args.baseToken or args.dominantToken,
+		args.quoteToken or args.swapToken
+	})
 
 	if not validPair then
 		handleError({
@@ -287,15 +302,17 @@ function ucm.createOrder(args)
 	end
 
 	local currentToken = validPair[1]
-	local pairIndex = ucm.getPairIndex(validPair)
+	local pairIndex, canonicalPair = ucm.getPairIndex(validPair)
 
+	-- Use canonical pair from orderbook, or normalize if creating new pair
 	if pairIndex == -1 then
 		table.insert(Orderbook, { Pair = validPair, Asks = {}, Bids = {} })
-		pairIndex = ucm.getPairIndex(validPair)
+		pairIndex, canonicalPair = ucm.getPairIndex(validPair)
 	end
 
-	-- Determine order side
-	local orderSide = ucm.determineOrderSide(args.dominantToken, validPair)
+	-- Determine order side using canonical pair
+	local orderSide = ucm.determineOrderSide(args.dominantToken, canonicalPair)
+
 	if not orderSide then
 		handleError({
 			Target = args.sender,
@@ -379,8 +396,8 @@ function ucm.createOrder(args)
 				return json.encode({
 					Order = {
 						Id = args.orderId,
-						DominantToken = validPair[1],
-						SwapToken = validPair[2],
+						DominantToken = canonicalPair[1],
+						SwapToken = canonicalPair[2],
 						Sender = args.sender,
 						Receiver = nil,
 						Quantity = tostring(args.quantity),
@@ -424,15 +441,29 @@ function ucm.createOrder(args)
 
 				local transferDenomination = args.transferDenomination and bint(args.transferDenomination) > bint(1)
 
-				-- Calculate how many shares can be bought with the remaining quantity
-				if transferDenomination then
-					fillAmount = remainingQuantity // bint(currentOrderEntry.Price)
+				-- Calculate fillAmount and sendAmount based on matching side
+				if matchingSide == 'Asks' then
+					-- Matching against asks: remainingQuantity is quote token, fillAmount is base token
+					-- fillAmount = how much base token to receive
+					-- sendAmount = how much quote token to send
+					if transferDenomination then
+						fillAmount = remainingQuantity // bint(currentOrderEntry.Price)
+					else
+						fillAmount = math.floor(remainingQuantity / bint(currentOrderEntry.Price))
+					end
+					sendAmount = fillAmount * bint(currentOrderEntry.Price)
 				else
-					fillAmount = math.floor(remainingQuantity / bint(currentOrderEntry.Price))
+					-- Matching against bids: remainingQuantity is base token, fillAmount is quote token
+					-- fillAmount = how much quote token to receive (from bid)
+					-- sendAmount = how much base token to send
+					if transferDenomination then
+						fillAmount = (remainingQuantity * bint(currentOrderEntry.Price)) // bint(args.transferDenomination)
+						sendAmount = (fillAmount * bint(args.transferDenomination)) // bint(currentOrderEntry.Price)
+					else
+						fillAmount = remainingQuantity * bint(currentOrderEntry.Price)
+						sendAmount = fillAmount // bint(currentOrderEntry.Price)
+					end
 				end
-
-				-- Calculate the total cost for the fill amount
-				sendAmount = fillAmount * bint(currentOrderEntry.Price)
 
 				-- Adjust the fill amount to not exceed the order's available quantity
 				local quantityCheck = bint(currentOrderEntry.Quantity)
@@ -448,21 +479,31 @@ function ucm.createOrder(args)
 				end
 
 				-- Handle tokens with a denominated value
-				if transferDenomination then
-					if fillAmount > bint(0) then fillAmount = fillAmount * bint(args.transferDenomination) end
+				if matchingSide == 'Asks' then
+					-- For asks: fillAmount is in display units, convert to raw by multiplying
+					if transferDenomination then
+						if fillAmount > bint(0) then fillAmount = fillAmount * bint(args.transferDenomination) end
+					end
 				end
+				-- For bids: fillAmount is already in raw quote tokens, no conversion needed
 
 				-- Ensure the fill amount does not exceed the available quantity in the order
 				if fillAmount > bint(currentOrderEntry.Quantity) then
 					fillAmount = bint(currentOrderEntry.Quantity)
 				end
 
-				-- Subtract the used quantity from the buyer's remaining quantity
-				if transferDenomination then
-					remainingQuantity = remainingQuantity -
-						(fillAmount // bint(args.transferDenomination) * bint(currentOrderEntry.Price))
+				-- Subtract the used quantity from the remaining quantity
+				if matchingSide == 'Asks' then
+					-- Matching asks: remainingQuantity is quote token, fillAmount is base token
+					if transferDenomination then
+						remainingQuantity = remainingQuantity -
+							(fillAmount // bint(args.transferDenomination) * bint(currentOrderEntry.Price))
+					else
+						remainingQuantity = remainingQuantity - fillAmount * bint(currentOrderEntry.Price)
+					end
 				else
-					remainingQuantity = remainingQuantity - fillAmount * bint(currentOrderEntry.Price)
+					-- Matching bids: remainingQuantity is base token, sendAmount is base token used
+					remainingQuantity = remainingQuantity - sendAmount
 				end
 
 				currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
@@ -545,8 +586,8 @@ function ucm.createOrder(args)
 						Order = {
 							Id = currentOrderEntry.Id,
 							MatchId = args.orderId,
-							DominantToken = validPair[2],
-							SwapToken = validPair[1],
+							DominantToken = canonicalPair[2],
+							SwapToken = canonicalPair[1],
 							Sender = currentOrderEntry.Creator,
 							Receiver = args.sender,
 							Quantity = calculatedFillAmount,
@@ -672,8 +713,8 @@ function ucm.cancelOrder(args)
 		return false, 'OrderId is not a valid address'
 	end
 
-	-- Find the pair
-	local pairIndex = ucm.getPairIndex(validPair)
+	-- Find the pair and get canonical pair
+	local pairIndex, canonicalPair = ucm.getPairIndex(validPair)
 	if pairIndex == -1 then
 		return false, 'Pair not found'
 	end
@@ -731,8 +772,8 @@ function ucm.cancelOrder(args)
 		return json.encode({
 			Order = {
 				Id = args.orderId,
-				DominantToken = validPair[1],
-				SwapToken = validPair[2],
+				DominantToken = canonicalPair[1],
+				SwapToken = canonicalPair[2],
 				Sender = args.sender,
 				Receiver = nil,
 				Quantity = tostring(order.Quantity),
@@ -757,7 +798,7 @@ end
 
 function ucm.executeBuyback(args)
 	local pixlDenomination = 1000000
-	local pixlPairIndex = ucm.getPairIndex({ DEFAULT_SWAP_TOKEN, PIXL_PROCESS })
+	local pixlPairIndex, _ = ucm.getPairIndex({ DEFAULT_SWAP_TOKEN, PIXL_PROCESS })
 
 	if pixlPairIndex > -1 then
 		-- Use Asks side for buyback (buying PIXL tokens from asks)
@@ -823,7 +864,7 @@ local function getState()
 end
 
 local function syncState()
-	Send({ device = 'patch@1.0', orderbook = json.encode(getState()) })
+	Send({ device = 'patch@1.0', orderbook = getState() })
 end
 
 function Trusted(msg)
@@ -848,7 +889,7 @@ end)
 Handlers.add('Get-Orderbook-By-Pair', 'Get-Orderbook-By-Pair',
 	function(msg)
 		if not msg.Tags.DominantToken or not msg.Tags.SwapToken then return end
-		local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
+		local pairIndex, _ = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 
 		if pairIndex > -1 then
 			msg.reply({ Data = json.encode({ Orderbook = Orderbook[pairIndex] }) })
@@ -893,6 +934,10 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 		local orderArgs = {
 			orderId = msg.Id,
 			orderGroupId = msg.Tags['X-Group-ID'] or 'None',
+			baseToken = msg.Tags['X-Base-Token'],
+			quoteToken = msg.Tags['X-Quote-Token'],
+			baseTokenDenomination = msg.Tags['X-Base-Token-Denomination'],
+			quoteTokenDenomination = msg.Tags['X-Quote-Token-Denomination'],
 			dominantToken = msg.From,
 			swapToken = msg.Tags['X-Swap-Token'],
 			sender = data.Sender,
@@ -972,7 +1017,7 @@ end)
 Handlers.add('Read-Orders', 'Read-Orders', function(msg)
 	if msg.From == ao.id then
 		local readOrders = {}
-		local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
+		local pairIndex, _ = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 
 		if pairIndex > -1 then
 			-- Read from both Asks and Bids
@@ -1013,7 +1058,7 @@ Handlers.add('Read-Orders', 'Read-Orders', function(msg)
 end)
 
 Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), function(msg)
-	local pairIndex = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
+	local pairIndex, _ = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 	if pairIndex > -1 then
 		msg.reply({
 			Action = 'Read-Success',

@@ -33,8 +33,12 @@ export async function createOrder(
 
 		const forwardedTags = [
 			{ name: 'X-Order-Action', value: 'Create-Order' },
-			{ name: 'X-Dominant-Token', value: args.dominantToken }, // Token being sent (determines side: base=Ask, quote=Bid)
-			{ name: 'X-Swap-Token', value: args.swapToken }, // Token being received
+			{ name: 'X-Base-Token', value: args.baseToken }, // Primary token in the pair
+			{ name: 'X-Quote-Token', value: args.quoteToken }, // Secondary token in the pair
+			{ name: 'X-Base-Token-Denomination', value: args.baseTokenDenomination },
+			{ name: 'X-Quote-Token-Denomination', value: args.quoteTokenDenomination },
+			{ name: 'X-Dominant-Token', value: args.dominantToken }, // Token being sent this order (determines side: base=Ask, quote=Bid)
+			{ name: 'X-Swap-Token', value: args.swapToken }, // Token being received this order
 			{ name: 'X-Group-ID', value: MESSAGE_GROUP_ID },
 		];
 

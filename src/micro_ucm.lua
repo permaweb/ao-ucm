@@ -97,7 +97,7 @@ function utils.calculateFeeAmount(amount)
 end
 
 function utils.calculateFillAmount(amount)
-	return tostring(math.floor(tostring(amount)))
+	return tostring(amount)
 end
 
 function utils.printTable(t, indent)
@@ -306,8 +306,38 @@ function ucm.createOrder(args)
 
 	-- Use canonical pair from orderbook, or normalize if creating new pair
 	if pairIndex == -1 then
-		table.insert(Orderbook, { Pair = validPair, Asks = {}, Bids = {} })
+		-- Initialize denominations: [base_denomination, quote_denomination]
+		local denominations = { '1', '1' } -- Default to 1 if not provided
+		if args.baseTokenDenomination then denominations[1] = tostring(args.baseTokenDenomination) end
+		if args.quoteTokenDenomination then denominations[2] = tostring(args.quoteTokenDenomination) end
+
+		table.insert(Orderbook, { Pair = validPair, Denominations = denominations, Asks = {}, Bids = {} })
 		pairIndex, canonicalPair = ucm.getPairIndex(validPair)
+	else
+		-- Pair exists: ensure denominations are set (backward compatibility)
+		if not Orderbook[pairIndex].Denominations then
+			Orderbook[pairIndex].Denominations = { '1', '1' }
+		end
+
+		-- Update denominations if they're passed and currently set to default
+		if args.baseTokenDenomination and Orderbook[pairIndex].Denominations[1] == '1' then
+			Orderbook[pairIndex].Denominations[1] = tostring(args.baseTokenDenomination)
+		end
+		if args.quoteTokenDenomination and Orderbook[pairIndex].Denominations[2] == '1' then
+			Orderbook[pairIndex].Denominations[2] = tostring(args.quoteTokenDenomination)
+		end
+	end
+
+	if not canonicalPair then
+		handleError({
+			Target = args.sender,
+			Action = 'Order-Error',
+			Message = 'Error retrieving pair',
+			Quantity = args.quantity,
+			TransferToken = currentToken,
+			OrderGroupId = args.orderGroupId
+		})
+		return
 	end
 
 	-- Determine order side using canonical pair
@@ -360,11 +390,35 @@ function ucm.createOrder(args)
 
 		local remainingQuantity = bint(args.quantity)
 
+		-- Get denominations from the pair
+		print('DEBUG: Denominations from orderbook:', Orderbook[pairIndex].Denominations[1], Orderbook[pairIndex].Denominations[2])
+		local baseDenominationStr = Orderbook[pairIndex].Denominations[1]
+		local quoteDenominationStr = Orderbook[pairIndex].Denominations[2]
+
+		-- Safely convert to bint
+		local success1, baseDenom = pcall(bint, baseDenominationStr)
+		if not success1 then
+			print('ERROR converting baseDenomination:', baseDenominationStr)
+			baseDenom = bint(1)
+		end
+
+		local success2, quoteDenom = pcall(bint, quoteDenominationStr)
+		if not success2 then
+			print('ERROR converting quoteDenomination:', quoteDenominationStr)
+			quoteDenom = bint(1)
+		end
+
+		local baseDenomination = baseDenom
+		local quoteDenomination = quoteDenom
+		print('DEBUG: Converted denominations - base:', tostring(baseDenomination), 'quote:', tostring(quoteDenomination))
+
+
 		-- Get opposite side for matching
 		local matchingSide = (orderSide == 'Bid') and 'Asks' or 'Bids'
 		local currentOrders = Orderbook[pairIndex][matchingSide]
 		local updatedOrderbook = {}
 		local matches = {}
+		local finalMatch = false
 
 		-- Sort order entries based on price and order side
 		if orderSide == 'Bid' then
@@ -435,78 +489,105 @@ function ucm.createOrder(args)
 			return
 		end
 
-		for _, currentOrderEntry in ipairs(currentOrders) do
+		for orderIndex, currentOrderEntry in ipairs(currentOrders) do
+			print('=== Processing order ===')
+			print('matchingSide:' .. matchingSide)
+			print('remainingQuantity:' .. tostring(remainingQuantity))
+			print('order.Price:' .. currentOrderEntry.Price)
+			print('order.Quantity:' .. currentOrderEntry.Quantity)
+			print('baseDenomination:' .. tostring(baseDenomination))
+
 			if remainingQuantity > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 				local fillAmount, sendAmount
 
-				local transferDenomination = args.transferDenomination and bint(args.transferDenomination) > bint(1)
-
 				-- Calculate fillAmount and sendAmount based on matching side
+				-- Price is stored as: quoteDenomination raw per 1 baseDenomination display
 				if matchingSide == 'Asks' then
-					-- Matching against asks: remainingQuantity is quote token, fillAmount is base token
-					-- fillAmount = how much base token to receive
-					-- sendAmount = how much quote token to send
-					if transferDenomination then
-						fillAmount = remainingQuantity // bint(currentOrderEntry.Price)
-					else
-						fillAmount = math.floor(remainingQuantity / bint(currentOrderEntry.Price))
-					end
-					sendAmount = fillAmount * bint(currentOrderEntry.Price)
+					print('Matching against Asks')
+					-- Matching against asks: remainingQuantity is quote token (raw), fillAmount is base token (raw)
+					-- To preserve precision: fillAmount = (remainingQuantity * baseDenomination) / price
+					print('Step 1: Multiply before divide to preserve precision')
+					local orderPrice = bint(currentOrderEntry.Price)
+					print('Step 2: fillAmount = (remainingQuantity * baseDenomination) // price')
+					fillAmount = (remainingQuantity * baseDenomination) // orderPrice
+					print('fillAmount:' .. tostring(fillAmount))
+
+					-- sendAmount = how much quote token we actually spend (recalculate to handle rounding)
+					print('Step 3: Calculate sendAmount = (fillAmount * price) // baseDenomination')
+					sendAmount = (fillAmount * orderPrice) // baseDenomination
+					print('sendAmount:' .. tostring(sendAmount))
 				else
-					-- Matching against bids: remainingQuantity is base token, fillAmount is quote token
-					-- fillAmount = how much quote token to receive (from bid)
-					-- sendAmount = how much base token to send
-					if transferDenomination then
-						fillAmount = (remainingQuantity * bint(currentOrderEntry.Price)) // bint(args.transferDenomination)
-						sendAmount = (fillAmount * bint(args.transferDenomination)) // bint(currentOrderEntry.Price)
+					print('Matching against Bids')
+					-- Matching against bids: remainingQuantity is base token (raw), fillAmount is quote token (raw)
+					-- fillAmount (quote raw) = (remainingQuantity (base raw) / baseDenomination) * price
+					if baseDenomination > bint(1) then
+						print('Step 1: baseAmountDisplay = remainingQuantity // baseDenomination')
+						local baseAmountDisplay = remainingQuantity // baseDenomination
+						print('baseAmountDisplay:' .. tostring(baseAmountDisplay))
+						print('Step 2: fillAmount = baseAmountDisplay * bint(price)')
+						fillAmount = baseAmountDisplay * bint(currentOrderEntry.Price)
+						print('fillAmount:' .. tostring(fillAmount))
 					else
 						fillAmount = remainingQuantity * bint(currentOrderEntry.Price)
-						sendAmount = fillAmount // bint(currentOrderEntry.Price)
 					end
+					-- sendAmount = how much base token we actually spend (recalculate to handle rounding)
+					print('Step 3: fillAmountDisplay = fillAmount // bint(price)')
+					local fillAmountDisplay = fillAmount // bint(currentOrderEntry.Price)
+					print('fillAmountDisplay:' .. tostring(fillAmountDisplay))
+					print('Step 4: sendAmount = fillAmountDisplay * baseDenomination')
+					sendAmount = fillAmountDisplay * baseDenomination
+					print('sendAmount:' .. tostring(sendAmount))
 				end
-
-				-- Adjust the fill amount to not exceed the order's available quantity
-				local quantityCheck = bint(currentOrderEntry.Quantity)
-				if transferDenomination then
-					quantityCheck = quantityCheck // bint(args.transferDenomination)
-				end
-
-				if sendAmount > (quantityCheck * bint(currentOrderEntry.Price)) then
-					sendAmount = bint(currentOrderEntry.Quantity) * bint(currentOrderEntry.Price)
-					if transferDenomination then
-						sendAmount = sendAmount // bint(args.transferDenomination)
-					end
-				end
-
-				-- Handle tokens with a denominated value
-				if matchingSide == 'Asks' then
-					-- For asks: fillAmount is in display units, convert to raw by multiplying
-					if transferDenomination then
-						if fillAmount > bint(0) then fillAmount = fillAmount * bint(args.transferDenomination) end
-					end
-				end
-				-- For bids: fillAmount is already in raw quote tokens, no conversion needed
 
 				-- Ensure the fill amount does not exceed the available quantity in the order
 				if fillAmount > bint(currentOrderEntry.Quantity) then
 					fillAmount = bint(currentOrderEntry.Quantity)
+					-- Recalculate sendAmount based on adjusted fillAmount
+					if matchingSide == 'Asks' then
+						sendAmount = (fillAmount * bint(currentOrderEntry.Price)) // baseDenomination
+					else
+						local fillDisplay = fillAmount // bint(currentOrderEntry.Price)
+						sendAmount = fillDisplay * baseDenomination
+					end
 				end
 
 				-- Subtract the used quantity from the remaining quantity
-				if matchingSide == 'Asks' then
-					-- Matching asks: remainingQuantity is quote token, fillAmount is base token
-					if transferDenomination then
-						remainingQuantity = remainingQuantity -
-							(fillAmount // bint(args.transferDenomination) * bint(currentOrderEntry.Price))
-					else
-						remainingQuantity = remainingQuantity - fillAmount * bint(currentOrderEntry.Price)
-					end
+				print('DEBUG: Before subtraction - remainingQuantity type:' .. type(remainingQuantity))
+				print('DEBUG: sendAmount type:' .. type(sendAmount))
+
+				local success, result = pcall(function()
+					return remainingQuantity - sendAmount
+				end)
+
+				if success then
+					remainingQuantity = result
+					print('DEBUG: After subtraction - remainingQuantity OK')
+					print('DEBUG: remainingQuantity value:' .. tostring(remainingQuantity))
 				else
-					-- Matching bids: remainingQuantity is base token, sendAmount is base token used
-					remainingQuantity = remainingQuantity - sendAmount
+					print('ERROR in subtraction:' .. result)
+					print('remainingQuantity was:' .. type(remainingQuantity))
+					print('sendAmount was:' .. type(sendAmount))
+					break
 				end
 
-				currentOrderEntry.Quantity = tostring(bint(currentOrderEntry.Quantity) - fillAmount)
+				local qtySuccess, qtyResult = pcall(function()
+					return bint(currentOrderEntry.Quantity) - fillAmount
+				end)
+
+				if not qtySuccess then
+					print('ERROR updating order quantity:', qtyResult)
+					print('currentOrderEntry.Quantity:', currentOrderEntry.Quantity)
+					print('fillAmount:', tostring(fillAmount))
+					break
+				end
+
+				currentOrderEntry.Quantity = tostring(qtyResult)
+
+				-- Check if all quantity consumed after updating the current order
+				if remainingQuantity <= bint(0) then
+					print('DEBUG: All quantity consumed, will exit matching loop after processing this order')
+					finalMatch = true
+				end
 
 				if fillAmount <= bint(0) then
 					handleError({
@@ -577,7 +658,7 @@ function ucm.createOrder(args)
 				-- Record the match
 				table.insert(matches, {
 					Id = currentOrderEntry.Id,
-					Quantity = calculatedFillAmount,
+					Quantity = tostring(fillAmount),
 					Price = tostring(currentOrderEntry.Price)
 				})
 
@@ -618,43 +699,102 @@ function ucm.createOrder(args)
 				if bint(currentOrderEntry.Quantity) > bint(0) then
 					table.insert(updatedOrderbook, currentOrderEntry)
 				end
+
+				-- Break if this was the final match (remainingQuantity exhausted)
+				if finalMatch then
+					print('DEBUG: Breaking from matching loop - no remaining quantity')
+					-- Add all remaining unprocessed orders back to the orderbook
+					for i = orderIndex + 1, #currentOrders do
+						if bint(currentOrders[i].Quantity) > bint(0) then
+							print('DEBUG: Adding unprocessed order', i, 'back to orderbook')
+							table.insert(updatedOrderbook, currentOrders[i])
+						end
+					end
+					break
+				end
 			else
-				if bint(currentOrderEntry.Quantity) > bint(0) then
+				print(currentOrderEntry)
+				if currentOrderEntry.Quantity and bint(currentOrderEntry.Quantity) > bint(0) then
+					print('H26')
 					table.insert(updatedOrderbook, currentOrderEntry)
 				end
 			end
 		end
 
-		-- Execute PIXL buyback
-		if orderType == 'Market' and #BuybackCaptures > 0 and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
-			ucm.executeBuyback({
-				orderId = args.orderId,
-				blockheight = args.blockheight,
-				timestamp = args.timestamp,
-				syncState = args.syncState
-			})
-		end
+		-- -- Execute PIXL buyback
+		-- if orderType == 'Market' and #BuybackCaptures > 0 and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
+		-- 	ucm.executeBuyback({
+		-- 		orderId = args.orderId,
+		-- 		blockheight = args.blockheight,
+		-- 		timestamp = args.timestamp,
+		-- 		syncState = args.syncState
+		-- 	})
+		-- end
 
 		-- Update the order book with remaining orders on the matching side
 		Orderbook[pairIndex][matchingSide] = updatedOrderbook
 
+		print('DEBUG: Starting PriceData calculation, matches count:', #matches)
 		local sumVolumePrice, sumVolume = 0, 0
 		local vwap = 0
 		if #matches > 0 then
-			for _, match in ipairs(matches) do
-				local volume = bint(match.Quantity)
-				local price = bint(match.Price)
-				sumVolumePrice = sumVolumePrice + (volume * price)
-				sumVolume = sumVolume + volume
+			print('DEBUG: Checking for existing MatchLogs')
+			-- Append to existing MatchLogs if they exist
+			local existingMatchLogs = {}
+			if Orderbook[pairIndex].PriceData and Orderbook[pairIndex].PriceData.MatchLogs then
+				existingMatchLogs = Orderbook[pairIndex].PriceData.MatchLogs
+				print('DEBUG: Found existing MatchLogs, count:', #existingMatchLogs)
 			end
 
-			vwap = sumVolumePrice / sumVolume
+			print('DEBUG: Processing matches for VWAP')
+			for i, match in ipairs(matches) do
+				print('DEBUG: Processing match', i, 'Quantity:', match.Quantity, 'Price:', match.Price)
+				table.insert(existingMatchLogs, match)
+
+				print('DEBUG: Converting to bint')
+				local volumeSuccess, volume = pcall(bint, match.Quantity)
+				if not volumeSuccess then
+					print('ERROR converting volume to bint:', volume)
+					break
+				end
+
+				local priceSuccess, price = pcall(bint, match.Price)
+				if not priceSuccess then
+					print('ERROR converting price to bint:', price)
+					break
+				end
+
+				print('DEBUG: Calculating volume * price')
+				local vwapSuccess, vwapProduct = pcall(function()
+					return volume * price
+				end)
+
+				if not vwapSuccess then
+					print('ERROR calculating VWAP - volume * price overflow:', vwapProduct)
+					print('volume:', tostring(volume))
+					print('price:', tostring(price))
+					-- Skip VWAP calculation but continue with match processing
+				else
+					print('DEBUG: VWAP product calculated:', tostring(vwapProduct))
+					sumVolumePrice = sumVolumePrice + vwapProduct
+					sumVolume = sumVolume + volume
+				end
+			end
+
+			print('DEBUG: Calculating final VWAP, sumVolume:', tostring(sumVolume))
+			if sumVolume > bint(0) then
+				vwap = sumVolumePrice / sumVolume
+				print('DEBUG: VWAP calculated:', tostring(vwap))
+			end
+
+			print('DEBUG: Creating PriceData object')
 			Orderbook[pairIndex].PriceData = {
 				Vwap = tostring(math.floor(vwap)),
 				Block = tostring(args.blockheight),
-				DominantToken = currentToken,
-				MatchLogs = matches
+				DominantToken = args.dominantToken,
+				MatchLogs = existingMatchLogs
 			}
+			print('DEBUG: PriceData created successfully')
 		end
 
 		if sumVolume > 0 then
@@ -954,6 +1094,8 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
 		end
 
+		print(orderArgs)
+
 		ucm.createOrder(orderArgs)
 	end
 end)
@@ -1089,3 +1231,5 @@ Handlers.add('Order-Success', Handlers.utils.hasMatchingTag('Action', 'Order-Suc
 end)
 
 Handlers.add('Debit-Notice', Handlers.utils.hasMatchingTag('Action', 'Debit-Notice'), function(msg) end)
+
+return ucm

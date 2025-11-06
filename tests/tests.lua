@@ -35,6 +35,7 @@ utils.test('Create ask (listing)',
 			price = '500000000000',
 			timestamp = '1722535710966',
 			blockheight = '123456789',
+			syncState = function() end
 		})
 
 		return Orderbook
@@ -42,6 +43,7 @@ utils.test('Create ask (listing)',
 	{
 		{
 			Pair = { 'LGWN8g0cuzwamiUWFT7fmCZoM4B2YDZueH9r8LazOvc', 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10' },
+			Denominations = { '1', '1' },
 			Asks = {
 				{
 					Creator = 'SaXnsUgxJLkJRghWQOUs9-wB0npVviewTkUbh2Yk64M',

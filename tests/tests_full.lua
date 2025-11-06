@@ -295,63 +295,216 @@ utils.test('Buy fully matches ask with denominations in one order',
 	}
 )
 
--- utils.test('Sell matches bid with denominations',
--- 	function()
--- 		Orderbook = {
--- 			{
--- 				Pair = { BASE_TOKEN, QUOTE_TOKEN },
--- 				Denominations = { '1000000000000000000', '1000000' },
--- 				Asks = {},
--- 				Bids = {
--- 					{
--- 						Creator = BUYER_1,
--- 						DateCreated = '1722535710966',
--- 						Id = 'bid-1',
--- 						OriginalQuantity = '1000000',
--- 						Price = '1000000',
--- 						Quantity = '1000000',
--- 						Token = QUOTE_TOKEN,
--- 						Side = 'Bid'
--- 					}
--- 				}
--- 			}
--- 		}
--- 		ORDERBOOK_MIGRATED = true
+utils.test('Create bid with denominations',
+	function()
+		Orderbook = {}
+		ORDERBOOK_MIGRATED = false
 
--- 		-- Sell 1 base token (1e18 raw) for 1 quote token (1e6 raw)
--- 		ucm.createOrder({
--- 			orderId = 'sell-1',
--- 			dominantToken = BASE_TOKEN,
--- 			swapToken = QUOTE_TOKEN,
--- 			sender = SELLER_1,
--- 			quantity = '1000000000000000000',
--- 			timestamp = '1722535710967',
--- 			blockheight = '123456790',
--- 			syncState = function() end
--- 		})
+		ucm.createOrder({
+			orderId = 'bid-1',
+			baseToken = BASE_TOKEN,
+			quoteToken = QUOTE_TOKEN,
+			dominantToken = QUOTE_TOKEN,
+			swapToken = BASE_TOKEN,
+			sender = BUYER_1,
+			quantity = '1000000',
+			price = '1000000',
+			timestamp = '1722535710966',
+			blockheight = '123456789',
+			baseTokenDenomination = '1000000000000000000',
+			quoteTokenDenomination = '1000000',
+			syncState = function() end
+		})
 
--- 		return Orderbook
--- 	end,
--- 	{
--- 		{
--- 			Pair = { BASE_TOKEN, QUOTE_TOKEN },
--- 			Denominations = { '1000000000000000000', '1000000' },
--- 			Asks = {},
--- 			Bids = {},
--- 			PriceData = {
--- 				MatchLogs = {
--- 					{
--- 						Quantity = '1000000',
--- 						Price = '1000000',
--- 						Id = 'bid-1'
--- 					}
--- 				},
--- 				Vwap = '1000000',
--- 				Block = '123456790',
--- 				DominantToken = BASE_TOKEN
--- 			}
--- 		}
--- 	}
--- )
+		return Orderbook
+	end,
+	{
+		{
+			Pair = { BASE_TOKEN, QUOTE_TOKEN },
+			Denominations = { '1000000000000000000', '1000000' },
+			Asks = {},
+			Bids = {
+				{
+					Creator = BUYER_1,
+					DateCreated = '1722535710966',
+					Id = 'bid-1',
+					OriginalQuantity = '1000000',
+					Price = '1000000',
+					Quantity = '1000000',
+					Token = QUOTE_TOKEN,
+					Side = 'Bid'
+				}
+			}
+		},
+	}
+)
+
+utils.test('Sell partially matches bid with denominations',
+	function()
+		Orderbook = {
+			{
+				Pair = { BASE_TOKEN, QUOTE_TOKEN },
+				Denominations = { '1000000000000000000', '1000000' },
+				Asks = {},
+				Bids = {
+					{
+						Creator = BUYER_1,
+						DateCreated = '1722535710966',
+						Id = 'bid-1',
+						OriginalQuantity = '1000000',
+						Price = '1000000',
+						Quantity = '1000000',
+						Token = QUOTE_TOKEN,
+						Side = 'Bid'
+					}
+				}
+			}
+		}
+		ORDERBOOK_MIGRATED = true
+
+		-- Sell 0.5 base tokens (0.5e18 raw) for 0.5 quote tokens (0.5e6 raw)
+		ucm.createOrder({
+			orderId = 'sell-1',
+			dominantToken = BASE_TOKEN,
+			swapToken = QUOTE_TOKEN,
+			sender = SELLER_1,
+			quantity = '500000000000000000',
+			baseToken = BASE_TOKEN,
+			quoteToken = QUOTE_TOKEN,
+			baseTokenDenomination = '1000000000000000000',
+			quoteTokenDenomination = '1000000',
+			timestamp = '1722535710967',
+			blockheight = '123456790',
+			syncState = function() end
+		})
+
+		-- Sell another 0.25 base tokens
+		ucm.createOrder({
+			orderId = 'sell-2',
+			dominantToken = BASE_TOKEN,
+			swapToken = QUOTE_TOKEN,
+			sender = SELLER_1,
+			quantity = '250000000000000000',
+			baseToken = BASE_TOKEN,
+			quoteToken = QUOTE_TOKEN,
+			baseTokenDenomination = '1000000000000000000',
+			quoteTokenDenomination = '1000000',
+			timestamp = '1722535710968',
+			blockheight = '123456791',
+			syncState = function() end
+		})
+
+		-- Sell final 0.25 base tokens to complete the bid
+		ucm.createOrder({
+			orderId = 'sell-3',
+			dominantToken = BASE_TOKEN,
+			swapToken = QUOTE_TOKEN,
+			sender = SELLER_1,
+			quantity = '250000000000000000',
+			baseToken = BASE_TOKEN,
+			quoteToken = QUOTE_TOKEN,
+			baseTokenDenomination = '1000000000000000000',
+			quoteTokenDenomination = '1000000',
+			timestamp = '1722535710969',
+			blockheight = '123456792',
+			syncState = function() end
+		})
+
+		return Orderbook
+	end,
+	{
+		{
+			Pair = { BASE_TOKEN, QUOTE_TOKEN },
+			Denominations = { '1000000000000000000', '1000000' },
+			Asks = {},
+			Bids = {},
+			PriceData = {
+				MatchLogs = {
+					{
+						Quantity = '500000',
+						Price = '1000000',
+						Id = 'bid-1'
+					},
+					{
+						Quantity = '250000',
+						Price = '1000000',
+						Id = 'bid-1'
+					},
+					{
+						Quantity = '250000',
+						Price = '1000000',
+						Id = 'bid-1'
+					}
+				},
+				Vwap = '1000000',
+				Block = '123456792',
+				DominantToken = BASE_TOKEN
+			}
+		}
+	}
+)
+
+utils.test('Sell fully matches bid with denominations in one order',
+	function()
+		Orderbook = {
+			{
+				Pair = { BASE_TOKEN, QUOTE_TOKEN },
+				Denominations = { '1000000000000000000', '1000000' },
+				Asks = {},
+				Bids = {
+					{
+						Creator = BUYER_1,
+						DateCreated = '1722535710966',
+						Id = 'bid-2',
+						OriginalQuantity = '1000000',
+						Price = '1000000',
+						Quantity = '1000000',
+						Token = QUOTE_TOKEN,
+						Side = 'Bid'
+					}
+				}
+			}
+		}
+		ORDERBOOK_MIGRATED = true
+
+		-- Sell 1 full base token (1e18 raw) for 1 quote token (1e6 raw)
+		ucm.createOrder({
+			orderId = 'sell-full',
+			dominantToken = BASE_TOKEN,
+			swapToken = QUOTE_TOKEN,
+			sender = SELLER_1,
+			quantity = '1000000000000000000',
+			baseToken = BASE_TOKEN,
+			quoteToken = QUOTE_TOKEN,
+			baseTokenDenomination = '1000000000000000000',
+			quoteTokenDenomination = '1000000',
+			timestamp = '1722535710967',
+			blockheight = '123456790',
+			syncState = function() end
+		})
+
+		return Orderbook
+	end,
+	{
+		{
+			Pair = { BASE_TOKEN, QUOTE_TOKEN },
+			Denominations = { '1000000000000000000', '1000000' },
+			Asks = {},
+			Bids = {},
+			PriceData = {
+				MatchLogs = {
+					{
+						Quantity = '1000000',
+						Price = '1000000',
+						Id = 'bid-2'
+					}
+				},
+				Vwap = '1000000',
+				Block = '123456790',
+				DominantToken = BASE_TOKEN
+			}
+		}
+	}
+)
 
 utils.testSummary()

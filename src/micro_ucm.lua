@@ -519,24 +519,17 @@ function ucm.createOrder(args)
 				else
 					print('Matching against Bids')
 					-- Matching against bids: remainingQuantity is base token (raw), fillAmount is quote token (raw)
-					-- fillAmount (quote raw) = (remainingQuantity (base raw) / baseDenomination) * price
-					if baseDenomination > bint(1) then
-						print('Step 1: baseAmountDisplay = remainingQuantity // baseDenomination')
-						local baseAmountDisplay = remainingQuantity // baseDenomination
-						print('baseAmountDisplay:' .. tostring(baseAmountDisplay))
-						print('Step 2: fillAmount = baseAmountDisplay * bint(price)')
-						fillAmount = baseAmountDisplay * bint(currentOrderEntry.Price)
-						print('fillAmount:' .. tostring(fillAmount))
-					else
-						fillAmount = remainingQuantity * bint(currentOrderEntry.Price)
-					end
+					-- To preserve precision: fillAmount = (remainingQuantity * price) / baseDenomination
+					print('Step 1: Multiply before divide to preserve precision')
+					local orderPrice = bint(currentOrderEntry.Price)
+					print('Step 2: fillAmount = (remainingQuantity * price) // baseDenomination')
+					fillAmount = (remainingQuantity * orderPrice) // baseDenomination
+					print('fillAmount:', tostring(fillAmount))
+
 					-- sendAmount = how much base token we actually spend (recalculate to handle rounding)
-					print('Step 3: fillAmountDisplay = fillAmount // bint(price)')
-					local fillAmountDisplay = fillAmount // bint(currentOrderEntry.Price)
-					print('fillAmountDisplay:' .. tostring(fillAmountDisplay))
-					print('Step 4: sendAmount = fillAmountDisplay * baseDenomination')
-					sendAmount = fillAmountDisplay * baseDenomination
-					print('sendAmount:' .. tostring(sendAmount))
+					print('Step 3: Calculate sendAmount = (fillAmount * baseDenomination) // price')
+					sendAmount = (fillAmount * baseDenomination) // orderPrice
+					print('sendAmount:', tostring(sendAmount))
 				end
 
 				-- Ensure the fill amount does not exceed the available quantity in the order
@@ -546,8 +539,7 @@ function ucm.createOrder(args)
 					if matchingSide == 'Asks' then
 						sendAmount = (fillAmount * bint(currentOrderEntry.Price)) // baseDenomination
 					else
-						local fillDisplay = fillAmount // bint(currentOrderEntry.Price)
-						sendAmount = fillDisplay * baseDenomination
+						sendAmount = (fillAmount * baseDenomination) // bint(currentOrderEntry.Price)
 					end
 				end
 

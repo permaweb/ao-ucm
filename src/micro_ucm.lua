@@ -241,15 +241,6 @@ function ucm.migrateOrderbook(args)
 	ORDERBOOK_MIGRATED = true
 end
 
--- -- Normalize a pair to canonical order (sorted)
--- function ucm.normalizePair(pair)
--- 	if pair[1] < pair[2] then
--- 		return { pair[1], pair[2] }
--- 	else
--- 		return { pair[2], pair[1] }
--- 	end
--- end
-
 function ucm.getPairIndex(pair)
 	local pairIndex = -1
 	local canonicalPair = nil
@@ -480,6 +471,7 @@ function ucm.createOrder(args)
 					Quantity = tostring(args.quantity),
 					Price = tostring(args.price),
 					Message = 'Order created successfully!',
+					Side = orderSide,
 					['X-Group-ID'] = args.orderGroupId
 				}
 			})
@@ -491,11 +483,14 @@ function ucm.createOrder(args)
 
 		for orderIndex, currentOrderEntry in ipairs(currentOrders) do
 			print('=== Processing order ===')
-			print('matchingSide:' .. matchingSide)
-			print('remainingQuantity:' .. tostring(remainingQuantity))
-			print('order.Price:' .. currentOrderEntry.Price)
-			print('order.Quantity:' .. currentOrderEntry.Quantity)
-			print('baseDenomination:' .. tostring(baseDenomination))
+			print('------------------- DEBUG LOGS -------------------')
+			print('orderSide: ' .. orderSide)
+			print('matchingSide: ' .. matchingSide)
+			print('remainingQuantity: ' .. tostring(remainingQuantity))
+			print('order.Price: ' .. currentOrderEntry.Price)
+			print('order.Quantity: ' .. currentOrderEntry.Quantity)
+			print('baseDenomination: ' .. tostring(baseDenomination))
+			print('--------------------------------------------------')
 
 			if remainingQuantity > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
 				local fillAmount, sendAmount
@@ -632,7 +627,7 @@ function ucm.createOrder(args)
 						Action = 'Transfer',
 						Tags = {
 							Recipient = args.sender,
-							Quantity = tostring(calculatedSendAmount)
+							Quantity = tostring(calculatedFillAmount)
 						}
 					})
 
@@ -642,7 +637,7 @@ function ucm.createOrder(args)
 						Action = 'Transfer',
 						Tags = {
 							Recipient = currentOrderEntry.Creator,
-							Quantity = tostring(calculatedFillAmount)
+							Quantity = tostring(calculatedSendAmount)
 						}
 					})
 				end
@@ -713,16 +708,6 @@ function ucm.createOrder(args)
 			end
 		end
 
-		-- -- Execute PIXL buyback
-		-- if orderType == 'Market' and #BuybackCaptures > 0 and currentToken == DEFAULT_SWAP_TOKEN and args.sender ~= ao.id then
-		-- 	ucm.executeBuyback({
-		-- 		orderId = args.orderId,
-		-- 		blockheight = args.blockheight,
-		-- 		timestamp = args.timestamp,
-		-- 		syncState = args.syncState
-		-- 	})
-		-- end
-
 		-- Update the order book with remaining orders on the matching side
 		Orderbook[pairIndex][matchingSide] = updatedOrderbook
 
@@ -790,6 +775,10 @@ function ucm.createOrder(args)
 		end
 
 		if sumVolume > 0 then
+			-- For market orders, matches[1].Side contains the side of the matched order
+			-- We need to determine the incoming side from the orderSide variable
+			local matchedOrderSide = #matches > 0 and matchingSide or nil
+
 			ao.send({
 				Target = args.sender,
 				Action = 'Order-Success',
@@ -802,6 +791,8 @@ function ucm.createOrder(args)
 					Quantity = tostring(sumVolume),
 					Price = tostring(math.floor(vwap)),
 					Message = 'Order created successfully!',
+					Side = matchedOrderSide,
+					IncomingSide = orderSide,
 					['X-Group-ID'] = args.orderGroupId or 'None'
 				}
 			})

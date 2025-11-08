@@ -165,7 +165,19 @@ Handlers.add('Transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 		Quantity = msg.Tags.Quantity
 	}
 
-	if not Balances[msg.From] or bint(Balances[msg.From]) <= bint(0) then
+	if not data.Quantity or bint(data.Quantity) <= bint(0) then
+		ao.send({
+			Target = msg.From,
+			Action = 'Input-Error',
+			Tags = {
+				Status = 'Error',
+				Message = 'Quantity must be greater than zero'
+			}
+		})
+		return
+	end
+
+	if not Balances[msg.From] or bint(Balances[msg.From]) <= bint(0) or bint(Balances[msg.From]) < bint(data.Quantity) then
 		ao.send({
 			Target = msg.From,
 			Action = 'Input-Error',

@@ -1,7 +1,7 @@
 import Permaweb from '@permaweb/libs';
 
 import { DependenciesType, OrderCancelType, OrderCreateType } from 'helpers/types';
-import { getTagValue, getTagValueForAction, globalLog } from 'helpers/utils';
+import { getTagValue, globalLog } from 'helpers/utils';
 
 const MAX_RESULT_RETRIES = 1000;
 
@@ -19,72 +19,65 @@ export async function createOrder(
 		const MESSAGE_GROUP_ID = Date.now().toString();
 
 		const tags = [
-			{ name: 'Target', value: args.dominantToken },
-			{ name: 'ForwardTo', value: args.dominantToken },
-			{ name: 'ForwardAction', value: 'Transfer' },
 			{ name: 'Recipient', value: args.orderbookId },
 			{ name: 'Quantity', value: args.quantity },
 		];
 
+		if (args.creatorId) {
+			tags.push({ name: 'Target', value: args.dominantToken },
+				{ name: 'ForwardTo', value: args.dominantToken },
+				{ name: 'ForwardAction', value: 'Transfer' },
+				{ name: 'Forward-To', value: args.dominantToken },
+				{ name: 'Forward-Action', value: 'Transfer' },)
+		}
+
 		const forwardedTags = [
 			{ name: 'X-Order-Action', value: 'Create-Order' },
-			{ name: 'X-Dominant-Token', value: args.dominantToken },
-			{ name: 'X-Swap-Token', value: args.swapToken },
+			{ name: 'X-Base-Token', value: args.baseToken }, // Primary token in the pair
+			{ name: 'X-Quote-Token', value: args.quoteToken }, // Secondary token in the pair
+			{ name: 'X-Base-Token-Denomination', value: args.baseTokenDenomination },
+			{ name: 'X-Quote-Token-Denomination', value: args.quoteTokenDenomination },
+			{ name: 'X-Dominant-Token', value: args.dominantToken }, // Token being sent this order (determines side: base=Ask, quote=Bid)
+			{ name: 'X-Swap-Token', value: args.swapToken }, // Token being received this order
 			{ name: 'X-Group-ID', value: MESSAGE_GROUP_ID },
 		];
 
 		/* Added for legacy profile support */
 		const data = { Target: args.dominantToken, Action: 'Transfer', Input: {} };
 
+		// Optional: Price for limit orders (if not provided, creates market order)
 		if (args.unitPrice) forwardedTags.push({ name: 'X-Price', value: args.unitPrice.toString() });
+
+		// Optional: Denomination of the dominant token (token being sent)
 		if (args.denomination) forwardedTags.push({ name: 'X-Transfer-Denomination', value: args.denomination.toString() });
 
 		tags.push(...forwardedTags);
 
 		globalLog('Processing order...');
 		callback({ processing: true, success: false, message: 'Processing your order...' });
-		
-		const transferId = await permaweb.sendMessage({
-			processId: args.creatorId,
-			action: args.action,
-			tags: tags,
-			data: data
-		});
 
-		const successMatch = ['Order-Success'];
-		const errorMatch = ['Order-Error'];
-
-		try {
-			const messagesByGroupId = await getMatchingMessages(
-				[args.orderbookId],
-				MESSAGE_GROUP_ID,
-				successMatch,
-				errorMatch,
-				deps
-			);
-
-			const currentMatchActions = messagesByGroupId
-				.map((message: any) => getTagValue(message.Tags, 'Action'))
-				.filter((action): action is string => action !== null);
-
-			const isSuccess = successMatch.every(action => currentMatchActions.includes(action));
-			const isError = errorMatch.every(action => currentMatchActions.includes(action));
-
-			if (isSuccess) {
-				const successMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Success', 'Order created!');
-				callback({ processing: false, success: true, message: successMessage });
-			} else if (isError) {
-				const errorMessage = getTagValueForAction(messagesByGroupId, 'Message', 'Order-Error', 'Order failed');
-				callback({ processing: false, success: false, message: errorMessage });
-			} else {
-				throw new Error('Unexpected state: Order not fully processed.');
-			}
-
-			return getTagValueForAction(messagesByGroupId, 'OrderId', 'Order-Success', transferId);
+		let transferId;
+		if (args.creatorId) {
+			transferId = await permaweb.sendMessage({
+				processId: args.creatorId,
+				action: args.action,
+				tags: tags,
+				data: data
+			});
 		}
-		catch (e: any) {
-			throw new Error(e);
+		else {
+			transferId = await permaweb.sendMessage({
+				processId: args.dominantToken,
+				action: 'Transfer',
+				tags: tags
+			})
 		}
+
+		globalLog(`Transfer ID: ${transferId}`);
+
+		callback({ processing: false, success: true, message: 'Order Initiated' });
+
+		return transferId;
 	} catch (e: any) {
 		throw new Error(e.message ?? 'Error creating order in UCM');
 	}
@@ -107,9 +100,11 @@ export async function cancelOrder(
 			{ name: 'Action', value: 'Run-Action' },
 			{ name: 'ForwardTo', value: args.orderbookId },
 			{ name: 'ForwardAction', value: 'Cancel-Order' },
+			{ name: 'Forward-To', value: args.orderbookId },
+			{ name: 'Forward-Action', value: 'Cancel-Order' },
 		];
 
-		const data = JSON.stringify({
+		const data = {
 			Target: args.orderbookId,
 			Action: 'Cancel-Order',
 			Input: {
@@ -117,7 +112,7 @@ export async function cancelOrder(
 				OrderTxId: args.orderId,
 				['X-Group-ID']: MESSAGE_GROUP_ID
 			}
-		});
+		};
 
 		globalLog('Cancelling order...')
 		callback({ processing: true, success: false, message: 'Cancelling your order...' });
@@ -126,8 +121,7 @@ export async function cancelOrder(
 			processId: args.creatorId,
 			action: 'Run-Action',
 			tags: tags,
-			data: data,
-			useRawData: true
+			data: data
 		});
 
 		return cancelOrderId;
@@ -214,7 +208,7 @@ async function getMessagesByGroupId(processes: string[], groupId: string, deps: 
 function getOrderCreationErrorMessage(args: OrderCreateType): string | null {
 	if (typeof args !== 'object' || args === null) return 'The provided arguments are invalid or empty.';
 	if (typeof args.orderbookId !== 'string' || args.orderbookId.trim() === '') return 'Orderbook ID is required';
-	if (typeof args.creatorId !== 'string' || args.creatorId.trim() === '') return 'Profile ID is required';
+	if ((typeof args.creatorId !== 'string' || args.creatorId.trim() === '') && (typeof args.walletAddress !== 'string' || args.walletAddress.trim() === '')) return 'Profile ID or Wallet Address is required';
 	if (typeof args.dominantToken !== 'string' || args.dominantToken.trim() === '') return 'Dominant token is required';
 	if (typeof args.swapToken !== 'string' || args.swapToken.trim() === '') return 'Swap token is required';
 	if (typeof args.quantity !== 'string' || args.quantity.trim() === '') return 'Quantity is required';

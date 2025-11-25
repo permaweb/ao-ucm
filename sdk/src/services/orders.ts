@@ -24,11 +24,13 @@ export async function createOrder(
 		];
 
 		if (args.creatorId) {
-			tags.push({ name: 'Target', value: args.dominantToken },
+			tags.push(
+				{ name: 'Target', value: args.dominantToken },
 				{ name: 'ForwardTo', value: args.dominantToken },
 				{ name: 'ForwardAction', value: 'Transfer' },
 				{ name: 'Forward-To', value: args.dominantToken },
-				{ name: 'Forward-Action', value: 'Transfer' },)
+				{ name: 'Forward-Action', value: 'Transfer' }
+			)
 		}
 
 		const forwardedTags = [
@@ -95,31 +97,51 @@ export async function cancelOrder(
 
 	try {
 		const MESSAGE_GROUP_ID = Date.now().toString();
+		
+		let target = null;
+		let action = null;
+		let tags = [];
+		let data = null;
 
-		const tags = [
-			{ name: 'Action', value: 'Run-Action' },
-			{ name: 'ForwardTo', value: args.orderbookId },
-			{ name: 'ForwardAction', value: 'Cancel-Order' },
-			{ name: 'Forward-To', value: args.orderbookId },
-			{ name: 'Forward-Action', value: 'Cancel-Order' },
-		];
+		if (args.creatorId) {
+			target = args.creatorId;
+			action = 'Run-Action';
 
-		const data = {
-			Target: args.orderbookId,
-			Action: 'Cancel-Order',
-			Input: {
+			tags.push(
+				// { name: 'Action', value: 'Run-Action' },
+				{ name: 'ForwardTo', value: args.orderbookId },
+				{ name: 'ForwardAction', value: 'Cancel-Order' },
+				{ name: 'Forward-To', value: args.orderbookId },
+				{ name: 'Forward-Action', value: 'Cancel-Order' },
+			)
+
+			data = {
+				Target: args.orderbookId,
+				Action: 'Cancel-Order',
+				Input: {
+					Pair: [args.dominantToken, args.swapToken],
+					OrderTxId: args.orderId,
+					['X-Group-ID']: MESSAGE_GROUP_ID
+				}
+			};
+		}
+		else {
+			target = args.orderbookId;
+			action = 'Cancel-Order';
+
+			data = {
 				Pair: [args.dominantToken, args.swapToken],
 				OrderTxId: args.orderId,
 				['X-Group-ID']: MESSAGE_GROUP_ID
 			}
-		};
+		}
 
 		globalLog('Cancelling order...')
 		callback({ processing: true, success: false, message: 'Cancelling your order...' });
 
 		const cancelOrderId = await permaweb.sendMessage({
-			processId: args.creatorId,
-			action: 'Run-Action',
+			processId: target,
+			action: action,
 			tags: tags,
 			data: data
 		});
@@ -221,7 +243,7 @@ function getOrderCancelErrorMessage(args: OrderCancelType): string | null {
 	if (typeof args !== 'object' || args === null) return 'The provided arguments are invalid or empty.';
 	if (typeof args.orderbookId !== 'string' || args.orderbookId.trim() === '') return 'Orderbook ID is required';
 	if (typeof args.orderId !== 'string' || args.orderId.trim() === '') return 'Order ID is required';
-	if (typeof args.creatorId !== 'string' || args.creatorId.trim() === '') return 'Profile ID is required';
+	if ((typeof args.creatorId !== 'string' || args.creatorId.trim() === '') && (typeof args.walletAddress !== 'string' || args.walletAddress.trim() === '')) return 'Profile ID or Wallet Address is required';
 	if (typeof args.dominantToken !== 'string' || args.dominantToken.trim() === '') return 'Dominant token is required';
 	if (typeof args.swapToken !== 'string' || args.swapToken.trim() === '') return 'Swap token is required';
 	return null;

@@ -27,9 +27,10 @@ export type OrderCreateType = {
 }
 
 export type OrderCancelType = {
+	creatorId?: string;
+	walletAddress?: string;
 	orderbookId: string;
 	orderId: string;
-	creatorId: string;
 	dominantToken: string;
 	swapToken: string;
 }

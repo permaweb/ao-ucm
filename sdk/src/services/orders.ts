@@ -77,7 +77,7 @@ export async function createOrder(
 
 		globalLog(`Transfer ID: ${transferId}`);
 
-		callback({ processing: false, success: true, message: 'Order Initiated' });
+		callback({ processing: false, success: true, message: 'Order Created!' });
 
 		return transferId;
 	} catch (e: any) {

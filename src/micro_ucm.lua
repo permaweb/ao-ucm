@@ -1,9 +1,13 @@
 local json = require('json')
 local bint = require('.bint')(256)
 
-if Name ~= 'Universal Content Marketplace' then Name = 'Universal Content Marketplace' end
+if Name ~= 'Universal Content Marketplace' then
+	Name = 'Universal Content Marketplace'
+end
 
-if not ACTIVITY_PROCESS then ACTIVITY_PROCESS = '<ACTIVITY_PROCESS>' end
+if not ACTIVITY_PROCESS then
+	ACTIVITY_PROCESS = '<ACTIVITY_PROCESS>'
+end
 
 PIXL_PROCESS = 'DM3FoZUq_yebASPhgd8pEIRIzDW6muXEhxz5-JwbZwo'
 DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
@@ -32,13 +36,23 @@ DEFAULT_SWAP_TOKEN = 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10'
 -- 	} []
 -- } []
 
-if not Orderbook then Orderbook = {} end
-if not BuybackCaptures then BuybackCaptures = {} end
+if not Orderbook then
+	Orderbook = {}
+end
+if not BuybackCaptures then
+	BuybackCaptures = {}
+end
 
-if not ORDERBOOK_MIGRATED then ORDERBOOK_MIGRATED = false end
+if not ORDERBOOK_MIGRATED then
+	ORDERBOOK_MIGRATED = false
+end
 
 local utils = {}
 local ucm = {}
+
+function utils.ucmLog(message)
+	print('[UCM Log] ' .. message)
+end
 
 function utils.checkValidAddress(address)
 	if not address or type(address) ~= 'string' then
@@ -112,14 +126,14 @@ function utils.printTable(t, indent)
 		for k, v in pairs(tbl) do
 			tab = tab .. string.rep('  ', indentLevel)
 			if not isArray then
-				tab = tab .. '\'' .. tostring(k) .. '\': '
+				tab = tab .. "'" .. tostring(k) .. "': "
 			end
 
 			if type(v) == 'table' then
 				tab = tab .. serialize(v, indentLevel) .. sep
 			else
 				if type(v) == 'string' then
-					tab = tab .. '\'' .. tostring(v) .. '\'' .. sep
+					tab = tab .. "'" .. tostring(v) .. "'" .. sep
 				else
 					tab = tab .. tostring(v) .. sep
 				end
@@ -139,15 +153,66 @@ function utils.printTable(t, indent)
 	print(jsonStr)
 end
 
+local function isArray(t)
+	local count = 0
+	for k in pairs(t) do
+		if type(k) ~= 'number' then
+			return false
+		end
+		count = count + 1
+	end
+	return count == #t
+end
+
 function utils.checkTables(t1, t2)
-	if t1 == t2 then return true end
-	if type(t1) ~= 'table' or type(t2) ~= 'table' then return false end
+	if t1 == t2 then
+		return true
+	end
+
+	if type(t1) ~= 'table' or type(t2) ~= 'table' then
+		return false
+	end
+
+	-- Handle array-like tables (order does NOT matter)
+	if isArray(t1) and isArray(t2) then
+		if #t1 ~= #t2 then
+			return false
+		end
+
+		local used = {}
+
+		for i = 1, #t1 do
+			local found = false
+
+			for j = 1, #t2 do
+				if not used[j] and utils.checkTables(t1[i], t2[j]) then
+					used[j] = true
+					found = true
+					break
+				end
+			end
+
+			if not found then
+				return false
+			end
+		end
+
+		return true
+	end
+
+	-- Handle map-like tables (key order does NOT matter)
 	for k, v in pairs(t1) do
-		if not utils.checkTables(v, t2[k]) then return false end
+		if not utils.checkTables(v, t2[k]) then
+			return false
+		end
 	end
+
 	for k in pairs(t2) do
-		if t1[k] == nil then return false end
+		if t1[k] == nil then
+			return false
+		end
 	end
+
 	return true
 end
 
@@ -214,11 +279,15 @@ local function handleError(args) -- Target, TransferToken, Quantity
 			Action = 'Transfer',
 			Tags = {
 				Recipient = args.Target,
-				Quantity = tostring(args.Quantity)
-			}
+				Quantity = tostring(args.Quantity),
+			},
 		})
 	end
-	ao.send({ Target = args.Target, Action = args.Action, Tags = { Status = 'Error', Message = args.Message, ['X-Group-ID'] = args.OrderGroupId } })
+	ao.send({
+		Target = args.Target,
+		Action = args.Action,
+		Tags = { Status = 'Error', Message = args.Message, ['X-Group-ID'] = args.OrderGroupId },
+	})
 end
 
 function ucm.migrateOrderbook(args)
@@ -246,8 +315,10 @@ function ucm.getPairIndex(pair)
 	local canonicalPair = nil
 
 	for i, existingOrders in ipairs(Orderbook) do
-		if (existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2]) or
-			(existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1]) then
+		if
+			(existingOrders.Pair[1] == pair[1] and existingOrders.Pair[2] == pair[2])
+			or (existingOrders.Pair[1] == pair[2] and existingOrders.Pair[2] == pair[1])
+		then
 			pairIndex = i
 			canonicalPair = existingOrders.Pair
 		end
@@ -268,42 +339,64 @@ function ucm.determineOrderSide(dominantToken, pair)
 end
 
 function ucm.createOrder(args)
+	utils.ucmLog('========== CREATE ORDER START ==========')
+	utils.ucmLog('Order ID: ' .. tostring(args.orderId))
+	utils.ucmLog('Sender: ' .. tostring(args.sender))
+	utils.ucmLog('Quantity: ' .. tostring(args.quantity))
+	utils.ucmLog('Price: ' .. tostring(args.price or 'MARKET'))
+	utils.ucmLog('Dominant Token: ' .. tostring(args.dominantToken))
+	utils.ucmLog('Swap Token: ' .. tostring(args.swapToken))
+
 	-- Run migration if not yet done
 	if not ORDERBOOK_MIGRATED then
+		utils.ucmLog('Running orderbook migration...')
 		ucm.migrateOrderbook({ syncState = args.syncState })
 	end
 
 	-- Priotitize baseToken and quoteToken for pair validation / creation
 	-- Fall back to dominantToken and swapToken as they are still valid
+	utils.ucmLog('Validating pair data...')
 	local validPair, pairError = utils.validatePairData({
 		args.baseToken or args.dominantToken,
-		args.quoteToken or args.swapToken
+		args.quoteToken or args.swapToken,
 	})
 
 	if not validPair then
+		utils.ucmLog('ERROR: Pair validation failed - ' .. tostring(pairError))
 		handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = pairError or 'Error validating pair',
 			Quantity = args.quantity,
 			TransferToken = nil,
-			OrderGroupId = args.orderGroupId
+			OrderGroupId = args.orderGroupId,
 		})
 		return
 	end
 
+	utils.ucmLog('Pair validated successfully')
 	local currentToken = validPair[1]
 	local pairIndex, canonicalPair = ucm.getPairIndex(validPair)
+	utils.ucmLog('Pair Index: ' .. tostring(pairIndex))
 
 	-- Use canonical pair from orderbook, or normalize if creating new pair
 	if pairIndex == -1 then
+		utils.ucmLog('Creating new pair in orderbook')
 		-- Initialize denominations: [base_denomination, quote_denomination]
 		local denominations = { '1', '1' } -- Default to 1 if not provided
-		if args.baseTokenDenomination then denominations[1] = tostring(args.baseTokenDenomination) end
-		if args.quoteTokenDenomination then denominations[2] = tostring(args.quoteTokenDenomination) end
+		if args.baseTokenDenomination then
+			denominations[1] = tostring(args.baseTokenDenomination)
+		end
+		if args.quoteTokenDenomination then
+			denominations[2] = tostring(args.quoteTokenDenomination)
+		end
+
+		utils.ucmLog('Base Denomination: ' .. denominations[1])
+		utils.ucmLog('Quote Denomination: ' .. denominations[2])
 
 		table.insert(Orderbook, { Pair = validPair, Denominations = denominations, Asks = {}, Bids = {} })
 		pairIndex, canonicalPair = ucm.getPairIndex(validPair)
+		utils.ucmLog('New pair created at index: ' .. tostring(pairIndex))
 	else
 		-- Pair exists: ensure denominations are set (backward compatibility)
 		if not Orderbook[pairIndex].Denominations then
@@ -320,52 +413,62 @@ function ucm.createOrder(args)
 	end
 
 	if not canonicalPair then
+		utils.ucmLog('ERROR: Failed to retrieve canonical pair')
 		handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'Error retrieving pair',
 			Quantity = args.quantity,
 			TransferToken = currentToken,
-			OrderGroupId = args.orderGroupId
+			OrderGroupId = args.orderGroupId,
 		})
 		return
 	end
 
+	utils.ucmLog('Canonical Pair 1: ' .. tostring(canonicalPair[1]))
+	utils.ucmLog('Canonical Pair 2: ' .. tostring(canonicalPair[2]))
+
 	-- Determine order side using canonical pair
 	local orderSide = ucm.determineOrderSide(args.dominantToken, canonicalPair)
+	utils.ucmLog('Order Side: ' .. tostring(orderSide))
 
 	if not orderSide then
+		utils.ucmLog('ERROR: Invalid dominant token for pair')
 		handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'Invalid dominant token for pair',
 			Quantity = args.quantity,
 			TransferToken = args.dominantToken,
-			OrderGroupId = args.orderGroupId
+			OrderGroupId = args.orderGroupId,
 		})
 		return
 	end
 
+	utils.ucmLog('Validating quantity...')
 	if not utils.checkValidAmount(args.quantity) then
+		utils.ucmLog('ERROR: Invalid quantity - ' .. tostring(args.quantity))
 		handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
 			Message = 'Quantity must be an integer greater than zero',
 			Quantity = args.quantity,
 			TransferToken = currentToken,
-			OrderGroupId = args.orderGroupId
+			OrderGroupId = args.orderGroupId,
 		})
 		return
 	end
 
+	utils.ucmLog('Validating price...')
 	if args.price and not utils.checkValidAmount(args.price) then
+		utils.ucmLog('ERROR: Invalid price - ' .. tostring(args.price))
 		handleError({
 			Target = args.sender,
 			Action = 'Validation-Error',
 			Message = 'Price must be an integer greater than zero',
 			Quantity = args.quantity,
 			TransferToken = currentToken,
-			OrderGroupId = args.orderGroupId
+			OrderGroupId = args.orderGroupId,
 		})
 		return
 	end
@@ -379,30 +482,27 @@ function ucm.createOrder(args)
 			orderType = 'Market'
 		end
 
+		utils.ucmLog('Order Type: ' .. orderType)
+
 		local remainingQuantity = bint(args.quantity)
 
 		-- Get denominations from the pair
-		print('DEBUG: Denominations from orderbook:', Orderbook[pairIndex].Denominations[1], Orderbook[pairIndex].Denominations[2])
 		local baseDenominationStr = Orderbook[pairIndex].Denominations[1]
 		local quoteDenominationStr = Orderbook[pairIndex].Denominations[2]
 
 		-- Safely convert to bint
 		local success1, baseDenom = pcall(bint, baseDenominationStr)
 		if not success1 then
-			print('ERROR converting baseDenomination:', baseDenominationStr)
 			baseDenom = bint(1)
 		end
 
 		local success2, quoteDenom = pcall(bint, quoteDenominationStr)
 		if not success2 then
-			print('ERROR converting quoteDenomination:', quoteDenominationStr)
 			quoteDenom = bint(1)
 		end
 
 		local baseDenomination = baseDenom
 		local quoteDenomination = quoteDenom
-		print('DEBUG: Converted denominations - base:', tostring(baseDenomination), 'quote:', tostring(quoteDenomination))
-
 
 		-- Get opposite side for matching
 		local matchingSide = (orderSide == 'Bid') and 'Asks' or 'Bids'
@@ -411,14 +511,19 @@ function ucm.createOrder(args)
 		local matches = {}
 		local finalMatch = false
 
+		utils.ucmLog('Matching Side: ' .. matchingSide)
+		utils.ucmLog('Number of orders on matching side: ' .. tostring(#currentOrders))
+
 		-- Sort order entries based on price and order side
 		if orderSide == 'Bid' then
 			-- For bids, match against lowest asks first
+			utils.ucmLog('Sorting asks in ascending price order (lowest first)')
 			table.sort(currentOrders, function(a, b)
 				return bint(a.Price) < bint(b.Price)
 			end)
 		else
 			-- For asks, match against highest bids first
+			utils.ucmLog('Sorting bids in descending price order (highest first)')
 			table.sort(currentOrders, function(a, b)
 				return bint(a.Price) > bint(b.Price)
 			end)
@@ -426,6 +531,7 @@ function ucm.createOrder(args)
 
 		-- If the incoming order is a limit order, add it to the order book
 		if orderType == 'Limit' then
+			utils.ucmLog('Processing LIMIT order - adding to orderbook')
 			table.insert(Orderbook[pairIndex][orderSide .. 's'], {
 				Id = args.orderId,
 				Quantity = tostring(args.quantity),
@@ -448,15 +554,15 @@ function ucm.createOrder(args)
 						Quantity = tostring(args.quantity),
 						Price = tostring(args.price),
 						Timestamp = args.timestamp,
-						Side = orderSide
-					}
+						Side = orderSide,
+					},
 				})
 			end)
 
 			ao.send({
 				Target = ACTIVITY_PROCESS,
 				Action = 'Update-Listed-Orders',
-				Data = limitDataSuccess and limitData or ''
+				Data = limitDataSuccess and limitData or '',
 			})
 
 			ao.send({
@@ -466,69 +572,63 @@ function ucm.createOrder(args)
 					Status = 'Success',
 					OrderId = args.orderId,
 					Handler = 'Create-Order',
-					DominantToken = currentToken,
+					DominantToken = args.dominantToken,
 					SwapToken = args.swapToken,
 					Quantity = tostring(args.quantity),
 					Price = tostring(args.price),
 					Message = 'Order created successfully!',
 					Side = orderSide,
-					['X-Group-ID'] = args.orderGroupId
-				}
+					['X-Group-ID'] = args.orderGroupId,
+				},
 			})
 
+			utils.ucmLog('Limit order added successfully')
+			utils.ucmLog('Syncing state and returning...')
 			args.syncState()
 
+			utils.ucmLog('========== CREATE ORDER END (Limit) ==========')
 			return
 		end
 
-		for orderIndex, currentOrderEntry in ipairs(currentOrders) do
-			print('=== Processing order ===')
-			print('------------------- DEBUG LOGS -------------------')
-			print('orderSide: ' .. orderSide)
-			print('matchingSide: ' .. matchingSide)
-			print('remainingQuantity: ' .. tostring(remainingQuantity))
-			print('order.Price: ' .. currentOrderEntry.Price)
-			print('order.Quantity: ' .. currentOrderEntry.Quantity)
-			print('baseDenomination: ' .. tostring(baseDenomination))
-			print('--------------------------------------------------')
+		utils.ucmLog('Processing MARKET order - matching against orderbook')
+		utils.ucmLog('Remaining Quantity to fill: ' .. tostring(remainingQuantity))
 
+		for orderIndex, currentOrderEntry in ipairs(currentOrders) do
 			if remainingQuantity > bint(0) and bint(currentOrderEntry.Quantity) > bint(0) then
+				utils.ucmLog('--- Processing Order ' .. tostring(orderIndex) .. ' ---')
+				utils.ucmLog('Order ID: ' .. tostring(currentOrderEntry.Id))
+				utils.ucmLog('Order Price: ' .. tostring(currentOrderEntry.Price))
+				utils.ucmLog('Order Quantity Available: ' .. tostring(currentOrderEntry.Quantity))
+
 				local fillAmount, sendAmount
 
 				-- Calculate fillAmount and sendAmount based on matching side
 				-- Price is stored as: quoteDenomination raw per 1 baseDenomination display
 				if matchingSide == 'Asks' then
-					print('Matching against Asks')
+					utils.ucmLog('Matching against ASK - calculating fillAmount')
 					-- Matching against asks: remainingQuantity is quote token (raw), fillAmount is base token (raw)
 					-- To preserve precision: fillAmount = (remainingQuantity * baseDenomination) / price
-					print('Step 1: Multiply before divide to preserve precision')
 					local orderPrice = bint(currentOrderEntry.Price)
-					print('Step 2: fillAmount = (remainingQuantity * baseDenomination) // price')
 					fillAmount = (remainingQuantity * baseDenomination) // orderPrice
-					print('fillAmount:' .. tostring(fillAmount))
 
 					-- sendAmount = how much quote token we actually spend (recalculate to handle rounding)
-					print('Step 3: Calculate sendAmount = (fillAmount * price) // baseDenomination')
 					sendAmount = (fillAmount * orderPrice) // baseDenomination
-					print('sendAmount:' .. tostring(sendAmount))
 				else
-					print('Matching against Bids')
 					-- Matching against bids: remainingQuantity is base token (raw), fillAmount is quote token (raw)
 					-- To preserve precision: fillAmount = (remainingQuantity * price) / baseDenomination
-					print('Step 1: Multiply before divide to preserve precision')
 					local orderPrice = bint(currentOrderEntry.Price)
-					print('Step 2: fillAmount = (remainingQuantity * price) // baseDenomination')
 					fillAmount = (remainingQuantity * orderPrice) // baseDenomination
-					print('fillAmount:', tostring(fillAmount))
 
 					-- sendAmount = how much base token we actually spend (recalculate to handle rounding)
-					print('Step 3: Calculate sendAmount = (fillAmount * baseDenomination) // price')
 					sendAmount = (fillAmount * baseDenomination) // orderPrice
-					print('sendAmount:', tostring(sendAmount))
 				end
+
+				utils.ucmLog('Calculated fillAmount: ' .. tostring(fillAmount))
+				utils.ucmLog('Calculated sendAmount: ' .. tostring(sendAmount))
 
 				-- Ensure the fill amount does not exceed the available quantity in the order
 				if fillAmount > bint(currentOrderEntry.Quantity) then
+					utils.ucmLog('FillAmount exceeds available quantity - adjusting...')
 					fillAmount = bint(currentOrderEntry.Quantity)
 					-- Recalculate sendAmount based on adjusted fillAmount
 					if matchingSide == 'Asks' then
@@ -536,24 +636,20 @@ function ucm.createOrder(args)
 					else
 						sendAmount = (fillAmount * baseDenomination) // bint(currentOrderEntry.Price)
 					end
+					utils.ucmLog('Adjusted fillAmount: ' .. tostring(fillAmount))
+					utils.ucmLog('Adjusted sendAmount: ' .. tostring(sendAmount))
 				end
 
 				-- Subtract the used quantity from the remaining quantity
-				print('DEBUG: Before subtraction - remainingQuantity type:' .. type(remainingQuantity))
-				print('DEBUG: sendAmount type:' .. type(sendAmount))
-
 				local success, result = pcall(function()
 					return remainingQuantity - sendAmount
 				end)
 
 				if success then
 					remainingQuantity = result
-					print('DEBUG: After subtraction - remainingQuantity OK')
-					print('DEBUG: remainingQuantity value:' .. tostring(remainingQuantity))
+					utils.ucmLog('Updated remainingQuantity: ' .. tostring(remainingQuantity))
 				else
-					print('ERROR in subtraction:' .. result)
-					print('remainingQuantity was:' .. type(remainingQuantity))
-					print('sendAmount was:' .. type(sendAmount))
+					utils.ucmLog('ERROR: Failed to calculate remaining quantity - breaking')
 					break
 				end
 
@@ -562,219 +658,237 @@ function ucm.createOrder(args)
 				end)
 
 				if not qtySuccess then
-					print('ERROR updating order quantity:', qtyResult)
-					print('currentOrderEntry.Quantity:', currentOrderEntry.Quantity)
-					print('fillAmount:', tostring(fillAmount))
+					utils.ucmLog('ERROR: Failed to calculate new order quantity - breaking')
 					break
 				end
 
 				currentOrderEntry.Quantity = tostring(qtyResult)
+				utils.ucmLog('Updated order quantity: ' .. tostring(currentOrderEntry.Quantity))
 
-				-- Check if all quantity consumed after updating the current order
-				if remainingQuantity <= bint(0) then
-					print('DEBUG: All quantity consumed, will exit matching loop after processing this order')
-					finalMatch = true
-				end
-
+				-- Check if fillAmount is valid before proceeding
 				if fillAmount <= bint(0) then
-					handleError({
-						Target = args.sender,
-						Action = 'Order-Error',
-						Message = 'No amount to fill',
-						Quantity = args.quantity,
-						TransferToken = currentToken,
-						OrderGroupId = args.orderGroupId
-					})
-
-					args.syncState()
-
-					return
-				end
-
-				local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
-				local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
-
-				-- Gather all fulfillment fees for buyback
-				table.insert(BuybackCaptures, utils.calculateFeeAmount(sendAmount))
-
-				-- Transfer tokens based on order side
-				if orderSide == 'Bid' then
-					-- Incoming bid: buyer sends quote token, gets base token from ask
-					-- Send quote token (from buyer) to the ask order creator
-					ao.send({
-						Target = args.dominantToken,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = currentOrderEntry.Creator,
-							Quantity = tostring(calculatedSendAmount)
-						}
-					})
-
-					-- Send base token (from ask) to the buyer
-					ao.send({
-						Target = currentOrderEntry.Token,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = args.sender,
-							Quantity = tostring(calculatedFillAmount)
-						}
-					})
-				else
-					-- Incoming ask: seller sends base token, gets quote token from bid
-					-- Send quote token (from bid) to the ask order creator (seller)
-					ao.send({
-						Target = currentOrderEntry.Token,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = args.sender,
-							Quantity = tostring(calculatedFillAmount)
-						}
-					})
-
-					-- Send base token (from seller) to the bid order creator
-					ao.send({
-						Target = args.dominantToken,
-						Action = 'Transfer',
-						Tags = {
-							Recipient = currentOrderEntry.Creator,
-							Quantity = tostring(calculatedSendAmount)
-						}
-					})
-				end
-
-				-- Record the match
-				table.insert(matches, {
-					Id = currentOrderEntry.Id,
-					Quantity = tostring(fillAmount),
-					Price = tostring(currentOrderEntry.Price)
-				})
-
-				local matchedDataSuccess, matchedData = pcall(function()
-					return json.encode({
-						Order = {
-							Id = currentOrderEntry.Id,
-							MatchId = args.orderId,
-							DominantToken = canonicalPair[2],
-							SwapToken = canonicalPair[1],
-							Sender = currentOrderEntry.Creator,
-							Receiver = args.sender,
-							Quantity = calculatedFillAmount,
-							Price = tostring(currentOrderEntry.Price),
-							Timestamp = args.timestamp,
-							Side = currentOrderEntry.Side,
-							IncomingSide = orderSide
-						}
-					})
-				end)
-
-				ao.send({
-					Target = ACTIVITY_PROCESS,
-					Action = 'Update-Executed-Orders',
-					Data = matchedDataSuccess and matchedData or ''
-				})
-
-				-- Calculate streaks
-				ao.send({
-					Target = PIXL_PROCESS,
-					Action = 'Calculate-Streak',
-					Tags = {
-						Buyer = args.sender
-					}
-				})
-
-				-- If there are remaining shares in the current order, keep it in the order book
-				if bint(currentOrderEntry.Quantity) > bint(0) then
-					table.insert(updatedOrderbook, currentOrderEntry)
-				end
-
-				-- Break if this was the final match (remainingQuantity exhausted)
-				if finalMatch then
-					print('DEBUG: Breaking from matching loop - no remaining quantity')
-					-- Add all remaining unprocessed orders back to the orderbook
-					for i = orderIndex + 1, #currentOrders do
-						if bint(currentOrders[i].Quantity) > bint(0) then
-							print('DEBUG: Adding unprocessed order', i, 'back to orderbook')
-							table.insert(updatedOrderbook, currentOrders[i])
-						end
+					utils.ucmLog('WARNING: fillAmount is zero or negative - skipping this order')
+					-- Skip this order and keep it in the orderbook if it has quantity
+					if bint(currentOrderEntry.Quantity) > bint(0) then
+						table.insert(updatedOrderbook, currentOrderEntry)
 					end
-					break
+					-- Continue to next order
+				else
+					-- Check if all quantity consumed after updating the current order
+					if remainingQuantity <= bint(0) then
+						utils.ucmLog('All quantity consumed - this is the final match')
+						finalMatch = true
+					end
+
+					local calculatedSendAmount = utils.calculateSendAmount(sendAmount)
+					local calculatedFillAmount = utils.calculateFillAmount(fillAmount)
+
+					utils.ucmLog('Calculated sendAmount (after fee): ' .. tostring(calculatedSendAmount))
+					utils.ucmLog('Calculated fillAmount: ' .. tostring(calculatedFillAmount))
+
+					-- Gather all fulfillment fees for buyback
+					local feeAmount = utils.calculateFeeAmount(sendAmount)
+					table.insert(BuybackCaptures, feeAmount)
+					utils.ucmLog('Fee captured for buyback: ' .. tostring(feeAmount))
+
+					-- Transfer tokens based on order side
+					if orderSide == 'Bid' then
+						utils.ucmLog('Handling Order Side Bid Transfers...')
+
+						utils.ucmLog('Transfer 1')
+						utils.ucmLog('Target: ' .. args.dominantToken)
+						utils.ucmLog('Recipient: ' .. currentOrderEntry.Creator)
+						utils.ucmLog('Quantity: ' .. tostring(calculatedSendAmount))
+
+						-- Incoming bid: buyer sends quote token, gets base token from ask
+						-- Send quote token (from buyer) to the ask order creator
+						ao.send({
+							Target = args.dominantToken,
+							Action = 'Transfer',
+							Tags = {
+								Recipient = currentOrderEntry.Creator,
+								Quantity = tostring(calculatedSendAmount),
+							},
+						})
+
+						utils.ucmLog('Transfer 2')
+						utils.ucmLog('Target: ' .. currentOrderEntry.Token)
+						utils.ucmLog('Recipient: ' .. args.sender)
+						utils.ucmLog('Quantity: ' .. tostring(calculatedFillAmount))
+
+						-- Send base token (from ask) to the buyer
+						ao.send({
+							Target = currentOrderEntry.Token,
+							Action = 'Transfer',
+							Tags = {
+								Recipient = args.sender,
+								Quantity = tostring(calculatedFillAmount),
+							},
+						})
+					else
+						utils.ucmLog('Handling Order Side Ask Transfers...')
+
+						utils.ucmLog('Transfer 1')
+						utils.ucmLog('Target: ' .. currentOrderEntry.Token)
+						utils.ucmLog('Recipient: ' .. args.sender)
+						utils.ucmLog('Quantity: ' .. tostring(calculatedFillAmount))
+
+						-- Incoming ask: seller sends base token, gets quote token from bid
+						-- Send quote token (from bid) to the ask order creator (seller)
+						ao.send({
+							Target = currentOrderEntry.Token,
+							Action = 'Transfer',
+							Tags = {
+								Recipient = args.sender,
+								Quantity = tostring(calculatedFillAmount),
+							},
+						})
+
+						utils.ucmLog('Transfer 2')
+						utils.ucmLog('Target: ' .. args.dominantToken)
+						utils.ucmLog('Recipient: ' .. currentOrderEntry.Creator)
+						utils.ucmLog('Quantity: ' .. tostring(calculatedSendAmount))
+
+						-- Send base token (from seller) to the bid order creator
+						ao.send({
+							Target = args.dominantToken,
+							Action = 'Transfer',
+							Tags = {
+								Recipient = currentOrderEntry.Creator,
+								Quantity = tostring(calculatedSendAmount),
+							},
+						})
+					end
+
+					-- Record the match
+					utils.ucmLog('Recording match for order: ' .. tostring(currentOrderEntry.Id))
+					table.insert(matches, {
+						Id = currentOrderEntry.Id,
+						Quantity = tostring(fillAmount),
+						Price = tostring(currentOrderEntry.Price),
+					})
+					utils.ucmLog('Total matches recorded: ' .. tostring(#matches))
+
+					local matchedDataSuccess, matchedData = pcall(function()
+						return json.encode({
+							Order = {
+								Id = currentOrderEntry.Id,
+								MatchId = args.orderId,
+								DominantToken = canonicalPair[2],
+								SwapToken = canonicalPair[1],
+								Sender = currentOrderEntry.Creator,
+								Receiver = args.sender,
+								Quantity = calculatedFillAmount,
+								Price = tostring(currentOrderEntry.Price),
+								Timestamp = args.timestamp,
+								Side = currentOrderEntry.Side,
+								IncomingSide = orderSide,
+							},
+						})
+					end)
+
+					ao.send({
+						Target = ACTIVITY_PROCESS,
+						Action = 'Update-Executed-Orders',
+						Data = matchedDataSuccess and matchedData or '',
+					})
+
+					-- Calculate streaks
+					ao.send({
+						Target = PIXL_PROCESS,
+						Action = 'Calculate-Streak',
+						Tags = {
+							Buyer = args.sender,
+						},
+					})
+
+					-- If there are remaining shares in the current order, keep it in the order book
+					if bint(currentOrderEntry.Quantity) > bint(0) then
+						utils.ucmLog('Order has remaining quantity - keeping in orderbook')
+						table.insert(updatedOrderbook, currentOrderEntry)
+					else
+						utils.ucmLog('Order fully consumed - removing from orderbook')
+					end
+
+					-- Break if this was the final match (remainingQuantity exhausted)
+					if finalMatch then
+						utils.ucmLog('Final match reached - adding remaining orders back to orderbook')
+						-- Add all remaining unprocessed orders back to the orderbook
+						for i = orderIndex + 1, #currentOrders do
+							if bint(currentOrders[i].Quantity) > bint(0) then
+								table.insert(updatedOrderbook, currentOrders[i])
+							end
+						end
+						break
+					end
 				end
 			else
-				print(currentOrderEntry)
 				if currentOrderEntry.Quantity and bint(currentOrderEntry.Quantity) > bint(0) then
-					print('H26')
 					table.insert(updatedOrderbook, currentOrderEntry)
 				end
 			end
 		end
 
+		utils.ucmLog('Order matching complete')
+		utils.ucmLog('Total matches: ' .. tostring(#matches))
+		utils.ucmLog('Updated orderbook size: ' .. tostring(#updatedOrderbook))
+
 		-- Update the order book with remaining orders on the matching side
 		Orderbook[pairIndex][matchingSide] = updatedOrderbook
 
-		print('DEBUG: Starting PriceData calculation, matches count:', #matches)
 		local sumVolumePrice, sumVolume = 0, 0
 		local vwap = 0
 		if #matches > 0 then
-			print('DEBUG: Checking for existing MatchLogs')
+			utils.ucmLog('Calculating VWAP for ' .. tostring(#matches) .. ' matches')
 			-- Append to existing MatchLogs if they exist
 			local existingMatchLogs = {}
 			if Orderbook[pairIndex].PriceData and Orderbook[pairIndex].PriceData.MatchLogs then
 				existingMatchLogs = Orderbook[pairIndex].PriceData.MatchLogs
-				print('DEBUG: Found existing MatchLogs, count:', #existingMatchLogs)
 			end
 
-			print('DEBUG: Processing matches for VWAP')
 			for i, match in ipairs(matches) do
-				print('DEBUG: Processing match', i, 'Quantity:', match.Quantity, 'Price:', match.Price)
 				table.insert(existingMatchLogs, match)
 
-				print('DEBUG: Converting to bint')
 				local volumeSuccess, volume = pcall(bint, match.Quantity)
 				if not volumeSuccess then
-					print('ERROR converting volume to bint:', volume)
 					break
 				end
 
 				local priceSuccess, price = pcall(bint, match.Price)
 				if not priceSuccess then
-					print('ERROR converting price to bint:', price)
 					break
 				end
 
-				print('DEBUG: Calculating volume * price')
+				-- print('DEBUG: Calculating volume * price')
 				local vwapSuccess, vwapProduct = pcall(function()
 					return volume * price
 				end)
 
 				if not vwapSuccess then
-					print('ERROR calculating VWAP - volume * price overflow:', vwapProduct)
-					print('volume:', tostring(volume))
-					print('price:', tostring(price))
 					-- Skip VWAP calculation but continue with match processing
 				else
-					print('DEBUG: VWAP product calculated:', tostring(vwapProduct))
 					sumVolumePrice = sumVolumePrice + vwapProduct
 					sumVolume = sumVolume + volume
 				end
 			end
 
-			print('DEBUG: Calculating final VWAP, sumVolume:', tostring(sumVolume))
 			if sumVolume > bint(0) then
 				vwap = sumVolumePrice / sumVolume
-				print('DEBUG: VWAP calculated:', tostring(vwap))
+				utils.ucmLog('VWAP calculated: ' .. tostring(math.floor(vwap)))
+			else
+				utils.ucmLog('sumVolume is zero - VWAP remains 0')
 			end
 
-			print('DEBUG: Creating PriceData object')
 			Orderbook[pairIndex].PriceData = {
 				Vwap = tostring(math.floor(vwap)),
 				Block = tostring(args.blockheight),
 				DominantToken = args.dominantToken,
-				MatchLogs = existingMatchLogs
+				MatchLogs = existingMatchLogs,
 			}
-			print('DEBUG: PriceData created successfully')
 		end
 
 		if sumVolume > 0 then
+			utils.ucmLog('Order executed successfully with total volume: ' .. tostring(sumVolume))
 			-- For market orders, matches[1].Side contains the side of the matched order
 			-- We need to determine the incoming side from the orderSide variable
 			local matchedOrderSide = #matches > 0 and matchingSide or nil
@@ -786,40 +900,35 @@ function ucm.createOrder(args)
 					OrderId = args.orderId,
 					Status = 'Success',
 					Handler = 'Create-Order',
-					DominantToken = currentToken,
+					DominantToken = args.dominantToken,
 					SwapToken = args.swapToken,
 					Quantity = tostring(sumVolume),
 					Price = tostring(math.floor(vwap)),
 					Message = 'Order created successfully!',
 					Side = matchedOrderSide,
 					IncomingSide = orderSide,
-					['X-Group-ID'] = args.orderGroupId or 'None'
-				}
+					['X-Group-ID'] = args.orderGroupId or 'None',
+				},
 			})
 
+			utils.ucmLog('Syncing state...')
 			args.syncState()
+			utils.ucmLog('========== CREATE ORDER END (Market Success) ==========')
 		else
-			handleError({
-				Target = args.sender,
-				Action = 'Order-Error',
-				Message = 'No amount to fill',
-				Quantity = args.quantity,
-				TransferToken = currentToken,
-				OrderGroupId = args.orderGroupId
-			})
-
+			utils.ucmLog('No volume matched - syncing state and returning')
 			args.syncState()
-
+			utils.ucmLog('========== CREATE ORDER END (Market No Match) ==========')
 			return
 		end
 	else
+		utils.ucmLog('ERROR: Pair not found in orderbook')
 		handleError({
 			Target = args.sender,
 			Action = 'Order-Error',
 			Message = 'Pair not found',
 			Quantity = args.quantity,
 			TransferToken = currentToken,
-			OrderGroupId = args.orderGroupId
+			OrderGroupId = args.orderGroupId,
 		})
 	end
 end
@@ -883,8 +992,8 @@ function ucm.cancelOrder(args)
 		Action = 'Transfer',
 		Tags = {
 			Recipient = order.Creator,
-			Quantity = order.Quantity
-		}
+			Quantity = order.Quantity,
+		},
 	})
 
 	-- Remove the order from the orderbook
@@ -902,15 +1011,15 @@ function ucm.cancelOrder(args)
 				Quantity = tostring(order.Quantity),
 				Price = tostring(order.Price),
 				Timestamp = args.timestamp,
-				Side = order.Side
-			}
+				Side = order.Side,
+			},
 		})
 	end)
 
 	ao.send({
 		Target = ACTIVITY_PROCESS,
 		Action = 'Update-Cancelled-Orders',
-		Data = cancelledDataSuccess and cancelledData or ''
+		Data = cancelledDataSuccess and cancelledData or '',
 	})
 
 	-- Sync state
@@ -949,8 +1058,7 @@ function ucm.executeBuyback(args)
 			local maxQuantity = bint(0)
 
 			for _, order in ipairs(pixlOrderbook) do
-				maxQuantity = maxQuantity + ((bint(order.Quantity) // bint(pixlDenomination)) *
-					bint(order.Price))
+				maxQuantity = maxQuantity + ((bint(order.Quantity) // bint(pixlDenomination)) * bint(order.Price))
 			end
 
 			if buybackAmount < minQuantity then
@@ -970,7 +1078,7 @@ function ucm.executeBuyback(args)
 				timestamp = args.timestamp,
 				blockheight = args.blockheight,
 				transferDenomination = tostring(pixlDenomination),
-				syncState = args.syncState
+				syncState = args.syncState,
 			})
 
 			BuybackCaptures = {}
@@ -982,7 +1090,7 @@ local function getState()
 	return {
 		Name = Name,
 		Orderbook = Orderbook,
-		ActivityProcess = ACTIVITY_PROCESS
+		ActivityProcess = ACTIVITY_PROCESS,
 	}
 end
 
@@ -1009,33 +1117,42 @@ Handlers.add('Info', 'Info', function(msg)
 	msg.reply({ Data = json.encode(getState()) })
 end)
 
-Handlers.add('Get-Orderbook-By-Pair', 'Get-Orderbook-By-Pair',
-	function(msg)
-		if not msg.Tags.DominantToken or not msg.Tags.SwapToken then return end
-		local pairIndex, _ = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
+Handlers.add('Get-Orderbook-By-Pair', 'Get-Orderbook-By-Pair', function(msg)
+	if not msg.Tags.DominantToken or not msg.Tags.SwapToken then
+		return
+	end
+	local pairIndex, _ = ucm.getPairIndex({ msg.Tags.DominantToken, msg.Tags.SwapToken })
 
-		if pairIndex > -1 then
-			msg.reply({ Data = json.encode({ Orderbook = Orderbook[pairIndex] }) })
-		end
-	end)
+	if pairIndex > -1 then
+		msg.reply({ Data = json.encode({ Orderbook = Orderbook[pairIndex] }) })
+	end
+end)
 
 Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
-	if not msg.Tags['X-Dominant-Token'] or msg.From ~= msg.Tags['X-Dominant-Token'] then return end
+	if not msg.Tags['X-Dominant-Token'] or msg.From ~= msg.Tags['X-Dominant-Token'] then
+		return
+	end
 
 	local data = {
 		Sender = msg.Tags.Sender,
-		Quantity = msg.Tags.Quantity
+		Quantity = msg.Tags.Quantity,
 	}
 
 	-- Check if sender is a valid address
 	if not utils.checkValidAddress(data.Sender) then
-		msg.reply({ Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Sender must be a valid address' } })
+		msg.reply({
+			Action = 'Validation-Error',
+			Tags = { Status = 'Error', Message = 'Sender must be a valid address' },
+		})
 		return
 	end
 
 	-- Check if quantity is a valid integer greater than zero
 	if not utils.checkValidAmount(data.Quantity) then
-		msg.reply({ Action = 'Validation-Error', Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' } })
+		msg.reply({
+			Action = 'Validation-Error',
+			Tags = { Status = 'Error', Message = 'Quantity must be an integer greater than zero' },
+		})
 		return
 	end
 
@@ -1045,15 +1162,14 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 			Action = 'Input-Error',
 			Tags = {
 				Status = 'Error',
-				Message =
-				'Invalid arguments, required { Sender, Quantity }'
-			}
+				Message = 'Invalid arguments, required { Sender, Quantity }',
+			},
 		})
 		return
 	end
 
 	-- If Order-Action then create the order
-	if (Handlers.utils.hasMatchingTag('Action', 'X-Order-Action') and msg.Tags['X-Order-Action'] == 'Create-Order') then
+	if Handlers.utils.hasMatchingTag('Action', 'X-Order-Action') and msg.Tags['X-Order-Action'] == 'Create-Order' then
 		local orderArgs = {
 			orderId = msg.Id,
 			orderGroupId = msg.Tags['X-Group-ID'] or 'None',
@@ -1067,7 +1183,7 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 			quantity = msg.Tags.Quantity,
 			timestamp = msg.Timestamp,
 			blockheight = msg['Block-Height'],
-			syncState = syncState
+			syncState = syncState,
 		}
 
 		if msg.Tags['X-Price'] then
@@ -1076,8 +1192,6 @@ Handlers.add('Credit-Notice', 'Credit-Notice', function(msg)
 		if msg.Tags['X-Transfer-Denomination'] then
 			orderArgs.transferDenomination = msg.Tags['X-Transfer-Denomination']
 		end
-
-		print(orderArgs)
 
 		ucm.createOrder(orderArgs)
 	end
@@ -1091,10 +1205,12 @@ Handlers.add('Cancel-Order', 'Cancel-Order', function(msg)
 			Action = 'Input-Error',
 			Tags = {
 				Status = 'Error',
-				Message = string.format('Failed to parse data, received: %s. %s',
+				Message = string.format(
+					'Failed to parse data, received: %s. %s',
 					msg.Data,
-					'Data must be an object - { Pair: [TokenId, TokenId], OrderTxId }')
-			}
+					'Data must be an object - { Pair: [TokenId, TokenId], OrderTxId }'
+				),
+			},
 		})
 		return
 	end
@@ -1102,7 +1218,7 @@ Handlers.add('Cancel-Order', 'Cancel-Order', function(msg)
 	if not data.Pair or not data.OrderTxId then
 		msg.reply({
 			Action = 'Input-Error',
-			Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [TokenId, TokenId], OrderTxId }' }
+			Tags = { Status = 'Error', Message = 'Invalid arguments, required { Pair: [TokenId, TokenId], OrderTxId }' },
 		})
 		return
 	end
@@ -1113,7 +1229,7 @@ Handlers.add('Cancel-Order', 'Cancel-Order', function(msg)
 		orderId = data.OrderTxId,
 		sender = msg.From,
 		timestamp = msg.Timestamp,
-		syncState = syncState
+		syncState = syncState,
 	})
 
 	if success then
@@ -1123,8 +1239,8 @@ Handlers.add('Cancel-Order', 'Cancel-Order', function(msg)
 				Status = 'Success',
 				Message = 'Order cancelled',
 				['X-Group-ID'] = data['X-Group-ID'] or 'None',
-				Handler = 'Cancel-Order'
-			}
+				Handler = 'Cancel-Order',
+			},
 		})
 	else
 		msg.reply({
@@ -1133,8 +1249,8 @@ Handlers.add('Cancel-Order', 'Cancel-Order', function(msg)
 				Status = 'Error',
 				Message = errorMessage,
 				['X-Group-ID'] = data['X-Group-ID'] or 'None',
-				Handler = 'Cancel-Order'
-			}
+				Handler = 'Cancel-Order',
+			},
 		})
 	end
 end)
@@ -1155,7 +1271,7 @@ Handlers.add('Read-Orders', 'Read-Orders', function(msg)
 						Quantity = order.Quantity,
 						Price = order.Price,
 						Timestamp = order.Timestamp,
-						Side = 'Ask'
+						Side = 'Ask',
 					})
 				end
 			end
@@ -1169,14 +1285,14 @@ Handlers.add('Read-Orders', 'Read-Orders', function(msg)
 						Quantity = order.Quantity,
 						Price = order.Price,
 						Timestamp = order.Timestamp,
-						Side = 'Bid'
+						Side = 'Bid',
 					})
 				end
 			end
 
 			msg.reply({
 				Action = 'Read-Orders-Response',
-				Data = json.encode(readOrders)
+				Data = json.encode(readOrders),
 			})
 		end
 	end
@@ -1189,25 +1305,28 @@ Handlers.add('Read-Pair', Handlers.utils.hasMatchingTag('Action', 'Read-Pair'), 
 			Action = 'Read-Success',
 			Data = json.encode({
 				Pair = tostring(pairIndex),
-				Orderbook =
-					Orderbook[pairIndex]
-			})
+				Orderbook = Orderbook[pairIndex],
+			}),
 		})
 	end
 end)
 
 Handlers.add('Order-Success', Handlers.utils.hasMatchingTag('Action', 'Order-Success'), function(msg)
-	if msg.From == ao.id and
-		msg.Tags.DominantToken and msg.Tags.DominantToken == DEFAULT_SWAP_TOKEN and
-		msg.Tags.SwapToken and msg.Tags.SwapToken == PIXL_PROCESS then
+	if
+		msg.From == ao.id
+		and msg.Tags.DominantToken
+		and msg.Tags.DominantToken == DEFAULT_SWAP_TOKEN
+		and msg.Tags.SwapToken
+		and msg.Tags.SwapToken == PIXL_PROCESS
+	then
 		if msg.Tags.Quantity and tonumber(msg.Tags.Quantity) > 0 then
 			ao.send({
 				Target = PIXL_PROCESS,
 				Action = 'Transfer',
 				Tags = {
 					Recipient = string.rep('0', 43),
-					Quantity = msg.Tags.Quantity
-				}
+					Quantity = msg.Tags.Quantity,
+				},
 			})
 		end
 	end

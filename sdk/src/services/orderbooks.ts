@@ -3,7 +3,7 @@ import { DependenciesType, OrderbookCreateType } from 'helpers/types';
 import Permaweb from '@permaweb/libs';
 import { globalLog } from 'helpers/utils';
 
-const UCM_ORDERBOOK_PROCESS = 'tv0t200SL1gYKAMCmfSh_YZ9wY9cGTIJTqn-MgbNOjs';
+const UCM_ORDERBOOK_PROCESS = 'xAxghIcunFbJZjQEHaSGWVeBx8IskAqVLatTNtueip4';
 const UCM_ACTIVITY_PROCESS = 'awLQE8Nsy1kdH-g-JuU2Mqd37Ol9TacIHgeWFPDvbn4';
 
 export async function createOrderbook(

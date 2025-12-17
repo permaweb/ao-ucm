@@ -30,6 +30,16 @@ const buildConfigs = [
 		format: 'esm',
 		plugins: [dtsPlugin({ outDir: 'dist/types' })],
 	},
+	// Browser (ESM) - explicit browser export
+	{
+		...sharedConfig,
+		inject: [path.resolve('node_modules/process/browser.js'), path.resolve('shim.js')],
+		outfile: 'dist/browser.js',
+		platform: 'browser',
+		format: 'esm',
+		external: [],
+		plugins: [],
+	},
 ];
 
 async function build() {
